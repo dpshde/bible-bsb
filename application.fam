@@ -1,0 +1,19 @@
+App(
+    appid="kindled_spark",
+    name="Kindled Spark",
+    apptype=FlipperAppType.EXTERNAL,
+    fap_category="Media",
+    fap_version="1.0",
+    fap_author="dpshde",
+    fap_description="Browse and save BSB scripture passages with route.bible NFC sharing",
+    fap_icon="icon.png",
+    entry_point="kindled_spark_app",
+    stack_size=4 * 1024,
+    sources=[],
+    fap_extbuild=(
+        ExtFile(
+            path="${FAP_WORK_DIR}/target/thumbv7em-none-eabihf/release/kindled_spark.fap",
+            command="cargo build --release --target thumbv7em-none-eabihf --target-dir ${FAP_WORK_DIR}/target --manifest-path ${FAP_SRC_DIR}/Cargo.toml",
+        ),
+    ),
+)

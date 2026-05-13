@@ -1,0 +1,26 @@
+cargo-features = ["different-binary-name"]
+
+[package]
+name = "kindled_spark"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85.0"
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[[bin]]
+name = "kindled_spark"
+filename = "kindled_spark.fap"
+path = "src/main.rs"
+
+[dependencies]
+flipperzero = { version = "0.16.0", features = ["alloc"] }
+flipperzero-alloc = { version = "0.16.0" }
+flipperzero-sys = { version = "0.16.0" }
+flipperzero-rt = { version = "0.16.0" }
+
+[profile.release]
+opt-level = "z"
+lto = true

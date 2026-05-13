@@ -1,0 +1,9 @@
+target/
+.venv/
+bsb_sd/
+bsb_local_sd/
+bsb_*_sd/
+*.jsonl
+*.fap
+*.fapmeta
+.DS_Store
