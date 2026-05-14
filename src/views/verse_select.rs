@@ -1,9 +1,8 @@
-/// Verse selection view — "All" or range (start/end verse).
-
-use alloc::string::String;
-use flipperzero_sys as sys;
 use crate::books;
 use crate::views::{AppState, AppView, InputEvent, VerseSelectMode};
+/// Verse selection view — "All" or range (start/end verse).
+use alloc::string::String;
+use flipperzero_sys as sys;
 
 const LINE_H: i32 = 12;
 const HEADER_H: i32 = 12;
@@ -25,7 +24,7 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
         sys::canvas_draw_line(canvas, 0, HEADER_H, 128, HEADER_H);
 
         let max_v = books::max_verse_for_chapter(state.selected_book, state.selected_chapter);
-        let actual_max = if max_v > 0 { max_v } else { 40 };
+        let _actual_max = if max_v > 0 { max_v } else { 40 };
 
         // Options
         let y1 = HEADER_H + 10;
@@ -98,61 +97,51 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
     let actual_max = if max_v > 0 { max_v } else { 40 };
 
     match event.key {
-        sys::InputKeyUp => {
-            match state.verse_select_mode {
-                VerseSelectMode::RangeSelectingStart => {
-                    if state.selected_start_verse > 1 {
-                        state.selected_start_verse -= 1;
-                    }
-                }
-                VerseSelectMode::RangeSelectingEnd => {
-                    if state.selected_end_verse > state.selected_start_verse {
-                        state.selected_end_verse -= 1;
-                    }
-                }
-                _ => {}
-            }
-        }
-        sys::InputKeyDown => {
-            match state.verse_select_mode {
-                VerseSelectMode::RangeSelectingStart => {
-                    if state.selected_start_verse < actual_max {
-                        state.selected_start_verse += 1;
-                        if state.selected_end_verse < state.selected_start_verse {
-                            state.selected_end_verse = state.selected_start_verse;
-                        }
-                    }
-                }
-                VerseSelectMode::RangeSelectingEnd => {
-                    if state.selected_end_verse < actual_max {
-                        state.selected_end_verse += 1;
-                    }
-                }
-                _ => {}
-            }
-        }
-        sys::InputKeyLeft => {
-            match state.verse_select_mode {
-                VerseSelectMode::All => {}
-                VerseSelectMode::RangeSelectingEnd => {
-                    state.verse_select_mode = VerseSelectMode::RangeSelectingStart;
-                }
-                VerseSelectMode::RangeSelectingStart => {
-                    state.verse_select_mode = VerseSelectMode::All;
+        sys::InputKeyUp => match state.verse_select_mode {
+            VerseSelectMode::RangeSelectingStart => {
+                if state.selected_start_verse > 1 {
+                    state.selected_start_verse -= 1;
                 }
             }
-        }
-        sys::InputKeyRight => {
-            match state.verse_select_mode {
-                VerseSelectMode::All => {
-                    state.verse_select_mode = VerseSelectMode::RangeSelectingStart;
-                }
-                VerseSelectMode::RangeSelectingStart => {
-                    state.verse_select_mode = VerseSelectMode::RangeSelectingEnd;
-                }
-                VerseSelectMode::RangeSelectingEnd => {}
+            VerseSelectMode::RangeSelectingEnd
+                if state.selected_end_verse > state.selected_start_verse =>
+            {
+                state.selected_end_verse -= 1;
             }
-        }
+            _ => {}
+        },
+        sys::InputKeyDown => match state.verse_select_mode {
+            VerseSelectMode::RangeSelectingStart => {
+                if state.selected_start_verse < actual_max {
+                    state.selected_start_verse += 1;
+                    if state.selected_end_verse < state.selected_start_verse {
+                        state.selected_end_verse = state.selected_start_verse;
+                    }
+                }
+            }
+            VerseSelectMode::RangeSelectingEnd if state.selected_end_verse < actual_max => {
+                state.selected_end_verse += 1;
+            }
+            _ => {}
+        },
+        sys::InputKeyLeft => match state.verse_select_mode {
+            VerseSelectMode::All => {}
+            VerseSelectMode::RangeSelectingEnd => {
+                state.verse_select_mode = VerseSelectMode::RangeSelectingStart;
+            }
+            VerseSelectMode::RangeSelectingStart => {
+                state.verse_select_mode = VerseSelectMode::All;
+            }
+        },
+        sys::InputKeyRight => match state.verse_select_mode {
+            VerseSelectMode::All => {
+                state.verse_select_mode = VerseSelectMode::RangeSelectingStart;
+            }
+            VerseSelectMode::RangeSelectingStart => {
+                state.verse_select_mode = VerseSelectMode::RangeSelectingEnd;
+            }
+            VerseSelectMode::RangeSelectingEnd => {}
+        },
         sys::InputKeyOk => {
             // Load chapter and go to reader
             let osis = books::OSIS_BOOK_CODES[state.selected_book].to_lowercase();
@@ -171,7 +160,8 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
 
                 // Filter verses to range if needed
                 let filtered: alloc::vec::Vec<crate::models::Verse> = if start_verse > 0 {
-                    verses.into_iter()
+                    verses
+                        .into_iter()
                         .filter(|v| v.number >= start_verse && v.number <= end_verse)
                         .collect()
                 } else {
@@ -201,7 +191,9 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
 }
 
 fn u16_to_string(n: u16) -> String {
-    if n == 0 { return String::from("0"); }
+    if n == 0 {
+        return String::from("0");
+    }
     let mut buf = [0u8; 6];
     let mut i = 0;
     let mut n = n;
@@ -211,6 +203,8 @@ fn u16_to_string(n: u16) -> String {
         n /= 10;
     }
     let mut s = String::with_capacity(i);
-    for j in (0..i).rev() { s.push(buf[j] as char); }
+    for j in (0..i).rev() {
+        s.push(buf[j] as char);
+    }
     s
 }

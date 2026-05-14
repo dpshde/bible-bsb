@@ -1,6 +1,5 @@
 /// Build canonical route.bible URLs from passage data.
 /// Ported from selah-tools/packages/route-bible-core/src/links.ts
-
 use alloc::string::String;
 
 const ROUTE_BASE: &str = "https://route.bible";
@@ -8,7 +7,9 @@ const DEFAULT_TRANSLATION: &str = "BSB";
 const SOURCE_TAG: &str = "kindled_spark";
 
 fn u16_to_string(n: u16) -> String {
-    if n == 0 { return String::from("0"); }
+    if n == 0 {
+        return String::from("0");
+    }
     let mut buf = [0u8; 6];
     let mut i = 0;
     let mut n = n;
@@ -18,7 +19,9 @@ fn u16_to_string(n: u16) -> String {
         n /= 10;
     }
     let mut s = String::with_capacity(i);
-    for j in (0..i).rev() { s.push(buf[j] as char); }
+    for j in (0..i).rev() {
+        s.push(buf[j] as char);
+    }
     s
 }
 

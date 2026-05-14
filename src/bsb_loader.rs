@@ -1,9 +1,8 @@
+use crate::models::Verse;
 /// Minimal SD-card BSB chapter loader with a tiny no-alloc JSON verse extractor.
-
 use alloc::string::String;
 use alloc::vec::Vec;
 use flipperzero_sys as sys;
-use crate::models::Verse;
 
 const BSB_BASE: &str = "/ext/apps_data/kindled_spark/bsb";
 const MAX_FILE_SIZE: usize = 64_000;
@@ -142,21 +141,22 @@ pub fn load_chapter(osis_lower: &str, chapter: u16) -> Option<Vec<Verse>> {
             return None;
         }
 
-        let opened = sys::storage_file_open(
-            file,
-            path_c,
-            sys::FSAM_READ,
-            sys::FSOM_OPEN_EXISTING,
-        );
+        let opened = sys::storage_file_open(file, path_c, sys::FSAM_READ, sys::FSOM_OPEN_EXISTING);
 
         if !opened {
+            sys::storage_file_close(file);
             sys::storage_file_free(file);
             sys::furi_record_close(c"storage".as_ptr() as *const u8);
             return None;
         }
 
-        let mut buf = [0u8; MAX_FILE_SIZE];
-        let read = sys::storage_file_read(file, buf.as_mut_ptr() as *mut core::ffi::c_void, MAX_FILE_SIZE);
+        let mut buf = Vec::with_capacity(MAX_FILE_SIZE);
+        buf.resize(MAX_FILE_SIZE, 0);
+        let read = sys::storage_file_read(
+            file,
+            buf.as_mut_ptr() as *mut core::ffi::c_void,
+            MAX_FILE_SIZE,
+        );
         sys::storage_file_close(file);
         sys::storage_file_free(file);
         sys::furi_record_close(c"storage".as_ptr() as *const u8);

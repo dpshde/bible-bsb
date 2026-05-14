@@ -1,14 +1,13 @@
 /// Views module for Kindled Spark
-
 use alloc::string::String;
 use alloc::vec::Vec;
 use flipperzero_sys as sys;
 
 pub mod book_list;
 pub mod chapter_list;
-pub mod verse_select;
-pub mod reader;
 pub mod collection;
+pub mod reader;
+pub mod verse_select;
 
 pub struct InputEvent {
     pub key: sys::InputKey,

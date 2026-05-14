@@ -13,7 +13,7 @@ App(
     fap_extbuild=(
         ExtFile(
             path="${FAP_WORK_DIR}/target/thumbv7em-none-eabihf/release/kindled_spark.fap",
-            command="cargo build --release --target thumbv7em-none-eabihf --target-dir ${FAP_WORK_DIR}/target --manifest-path ${FAP_SRC_DIR}/Cargo.toml",
+            command="cargo build --release --target thumbv7em-none-eabihf --target-dir ${FAP_WORK_DIR}/target --manifest-path ${FAP_SRC_DIR}/Cargo.toml --config ${FAP_SRC_DIR}/.cargo/config.toml",
         ),
     ),
 )

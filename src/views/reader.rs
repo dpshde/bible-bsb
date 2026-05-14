@@ -1,11 +1,8 @@
-/// Reader view — paginated verse text with action menu and quick-save.
-
-use alloc::string::String;
-use flipperzero_sys as sys;
 use crate::books;
 use crate::views::{AppState, AppView, InputEvent};
-
-const MAX_VISIBLE_LINES: usize = 6;
+/// Reader view — paginated verse text with action menu and quick-save.
+use alloc::string::String;
+use flipperzero_sys as sys;
 
 pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
     unsafe {
@@ -24,12 +21,13 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
             sys::canvas_draw_line(canvas, 0, 10, 128, 10);
         }
 
-        // Render text
-        crate::renderer::render_page(canvas, &state.lines, state.scroll_offset);
+        // Render text below header with top padding (header line at y=10, padding to y=16)
+        crate::renderer::render_page(canvas, &state.lines, state.scroll_offset, 16);
 
         // Page indicator
-        let total_pages = crate::renderer::total_pages(&state.lines);
-        let current_page = state.scroll_offset / MAX_VISIBLE_LINES + 1;
+        let total_pages = crate::renderer::total_pages(&state.lines, 16);
+        let max_visible = ((64 - 16 - 2) / crate::renderer::LINE_HEIGHT) as usize;
+        let current_page = state.scroll_offset / max_visible + 1;
         if total_pages > 1 {
             sys::canvas_set_font(canvas, sys::FontSecondary);
             let page_str = alloc::format!("{}/{}", current_page, total_pages);
@@ -89,9 +87,14 @@ pub fn draw_action_menu(canvas: *mut sys::Canvas, state: &AppState) {
     }
 }
 
+fn reader_max_visible() -> usize {
+    ((64 - 16 - 2) / crate::renderer::LINE_HEIGHT) as usize
+}
+
 pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
     let total_lines = state.lines.len();
-    let max_scroll = total_lines.saturating_sub(MAX_VISIBLE_LINES);
+    let max_visible = reader_max_visible();
+    let max_scroll = total_lines.saturating_sub(max_visible);
 
     match event.key {
         sys::InputKeyUp => {
@@ -105,15 +108,15 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
             }
         }
         sys::InputKeyLeft => {
-            if state.scroll_offset >= MAX_VISIBLE_LINES {
-                state.scroll_offset -= MAX_VISIBLE_LINES;
+            if state.scroll_offset >= max_visible {
+                state.scroll_offset -= max_visible;
             } else {
                 state.scroll_offset = 0;
             }
         }
         sys::InputKeyRight => {
-            if state.scroll_offset + MAX_VISIBLE_LINES <= max_scroll {
-                state.scroll_offset += MAX_VISIBLE_LINES;
+            if state.scroll_offset + max_visible <= max_scroll {
+                state.scroll_offset += max_visible;
             } else {
                 state.scroll_offset = max_scroll;
             }
@@ -148,22 +151,20 @@ pub fn handle_action_input(event: &InputEvent, state: &mut AppState) -> bool {
                 state.action_menu_selection += 1;
             }
         }
-        sys::InputKeyOk => {
-            match state.action_menu_selection {
-                0 => {
-                    do_save(state);
-                    state.current_view = AppView::Reader;
-                }
-                1 => {
-                    do_nfc_share(state);
-                    state.current_view = AppView::Reader;
-                }
-                2 => {
-                    state.current_view = AppView::Reader;
-                }
-                _ => {}
+        sys::InputKeyOk => match state.action_menu_selection {
+            0 => {
+                do_save(state);
+                state.current_view = AppView::Reader;
             }
-        }
+            1 => {
+                do_nfc_share(state);
+                state.current_view = AppView::Reader;
+            }
+            2 => {
+                state.current_view = AppView::Reader;
+            }
+            _ => {}
+        },
         sys::InputKeyBack => {
             state.current_view = AppView::Reader;
         }
@@ -199,7 +200,7 @@ fn do_nfc_share(state: &mut AppState) {
             passage.start_verse,
             passage.end_verse,
         );
-        let filename = passage.canonical_ref().replace('.', "_").replace('-', "_");
+        let filename = passage.canonical_ref().replace(['.', '-'], "_");
         if crate::nfc_share::write_nfc_file(&filename, &url) {
             state.set_toast("NFC file ready");
         } else {

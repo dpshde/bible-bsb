@@ -1,5 +1,4 @@
 /// Write Flipper-compatible .nfc NDEF URL files for NFC tag sharing.
-
 use alloc::string::String;
 use flipperzero_sys as sys;
 
@@ -45,10 +44,10 @@ pub fn write_nfc_file(filename: &str, url: &str) -> bool {
     let payload_len = 1 + url_bytes.len(); // 1 byte prefix + URL
 
     // Single NDEF record: MB=1, ME=1, SR=1, TNF=01 (Well-known)
-    let header: u8 = 0xD1;
-    let type_len: u8 = 0x01;
-    let payload_len_byte: u8 = payload_len as u8;
-    let type_name: u8 = 0x55; // 'U' = URI
+    let _header: u8 = 0xD1;
+    let _type_len: u8 = 0x01;
+    let _payload_len_byte: u8 = payload_len as u8;
+    let _type_name: u8 = 0x55; // 'U' = URI
     let uri_prefix: u8 = 0x02; // https://
 
     content.push_str("  Record 1\n");
@@ -59,13 +58,18 @@ pub fn write_nfc_file(filename: &str, url: &str) -> bool {
 
     // Payload hex: URI prefix byte + URL bytes
     let mut first = true;
-    for &b in &[uri_prefix] {
-        if !first { content.push(' '); }
+    {
+        let &b = &uri_prefix;
+        if !first {
+            content.push(' ');
+        }
         first = false;
         content.push_str(&byte_to_hex(b));
     }
     for &b in url_bytes {
-        if !first { content.push(' '); }
+        if !first {
+            content.push(' ');
+        }
         first = false;
         content.push_str(&byte_to_hex(b));
     }
@@ -81,7 +85,9 @@ pub fn write_nfc_file(filename: &str, url: &str) -> bool {
 
     unsafe {
         let storage = sys::furi_record_open(c"storage".as_ptr() as *const u8);
-        if storage.is_null() { return false; }
+        if storage.is_null() {
+            return false;
+        }
 
         // Ensure directory exists (best effort)
         let mut dir_buf = [0u8; 128];
@@ -101,12 +107,17 @@ pub fn write_nfc_file(filename: &str, url: &str) -> bool {
 
         let opened = sys::storage_file_open(file, path_c, sys::FSAM_WRITE, sys::FSOM_OPEN_ALWAYS);
         if !opened {
+            sys::storage_file_close(file);
             sys::storage_file_free(file);
             sys::furi_record_close(c"storage".as_ptr() as *const u8);
             return false;
         }
 
-        let written = sys::storage_file_write(file, content.as_ptr() as *const core::ffi::c_void, content.len());
+        let written = sys::storage_file_write(
+            file,
+            content.as_ptr() as *const core::ffi::c_void,
+            content.len(),
+        );
         sys::storage_file_close(file);
         sys::storage_file_free(file);
         sys::furi_record_close(c"storage".as_ptr() as *const u8);
@@ -116,7 +127,7 @@ pub fn write_nfc_file(filename: &str, url: &str) -> bool {
 }
 
 fn byte_to_hex(b: u8) -> String {
-    let hex = [b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'A', b'B', b'C', b'D', b'E', b'F'];
+    let hex = *b"0123456789ABCDEF";
     let mut s = String::with_capacity(2);
     s.push(hex[(b >> 4) as usize] as char);
     s.push(hex[(b & 0x0F) as usize] as char);

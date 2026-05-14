@@ -27,8 +27,13 @@ A Flipper Zero external app for browsing and saving BSB (Berean Standard Bible) 
 
 2. **Install the app** — Build and copy the `.fap` to your Flipper:
    ```bash
-   cargo build --release --target thumbv7em-none-eabihf
+   cargo build --release
    # Copy target/thumbv7em-none-eabihf/release/kindled_spark.fap to /ext/apps/Media/
+   ```
+
+   To validate the app locally without launching it on the device:
+   ```bash
+   sh scripts/validate.sh
    ```
 
 ## Navigation

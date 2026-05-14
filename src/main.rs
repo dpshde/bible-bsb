@@ -3,32 +3,36 @@
 #![no_std]
 #![no_main]
 
-extern crate flipperzero_alloc;
 extern crate alloc;
+extern crate flipperzero_alloc;
 
 use core::ffi::CStr;
 use core::mem::MaybeUninit;
 
-use flipperzero_sys::furi::UnsafeRecord;
 use flipperzero_rt as rt;
 use flipperzero_sys as sys;
+use flipperzero_sys::furi::UnsafeRecord;
 
-mod models;
 mod books;
 mod bsb_loader;
-mod renderer;
-mod storage;
-mod route_url;
+mod models;
 mod nfc_share;
+mod renderer;
+mod route_url;
+mod storage;
 mod views;
 
 use views::{AppState, InputEvent};
 
-rt::manifest!(name = "Kindled Spark");
+rt::manifest!(name = "Kindled Spark", stack_size = 4096);
 rt::entry!(main);
 
 extern "C" fn draw_callback(canvas: *mut sys::Canvas, ctx: *mut core::ffi::c_void) {
-    let state = unsafe { &mut *(ctx as *mut AppState) };
+    if canvas.is_null() || ctx.is_null() {
+        return;
+    }
+
+    let state = unsafe { &*(ctx as *const AppState) };
     unsafe {
         sys::canvas_clear(canvas);
     }
@@ -36,6 +40,10 @@ extern "C" fn draw_callback(canvas: *mut sys::Canvas, ctx: *mut core::ffi::c_voi
 }
 
 extern "C" fn input_callback(input_event: *mut sys::InputEvent, ctx: *mut core::ffi::c_void) {
+    if input_event.is_null() || ctx.is_null() {
+        return;
+    }
+
     unsafe {
         let event_queue = ctx as *mut sys::FuriMessageQueue;
         sys::furi_message_queue_put(event_queue, input_event as *mut core::ffi::c_void, 0);
@@ -44,15 +52,22 @@ extern "C" fn input_callback(input_event: *mut sys::InputEvent, ctx: *mut core::
 
 fn main(_args: Option<&CStr>) -> i32 {
     unsafe {
-        let event_queue = sys::furi_message_queue_alloc(8, core::mem::size_of::<sys::InputEvent>() as u32)
-            as *mut sys::FuriMessageQueue;
+        let event_queue =
+            sys::furi_message_queue_alloc(8, core::mem::size_of::<sys::InputEvent>() as u32);
+        if event_queue.is_null() {
+            return -1;
+        }
 
         let mut state = AppState::new();
-        // Preload collection on startup
         state.collection = storage::load_collection();
         let state_ptr = &mut state as *mut AppState;
 
         let view_port = sys::view_port_alloc();
+        if view_port.is_null() {
+            sys::furi_message_queue_free(event_queue);
+            return -1;
+        }
+
         sys::view_port_draw_callback_set(
             view_port,
             Some(draw_callback),
@@ -71,11 +86,17 @@ fn main(_args: Option<&CStr>) -> i32 {
         let mut running = true;
 
         while running {
-            if sys::furi_message_queue_get(event_queue, event.as_mut_ptr() as *mut core::ffi::c_void, 100)
-                == sys::FuriStatusOk
+            if sys::furi_message_queue_get(
+                event_queue,
+                event.as_mut_ptr() as *mut core::ffi::c_void,
+                100,
+            ) == sys::FuriStatusOk
             {
                 let ev = event.assume_init();
-                if ev.type_ == sys::InputTypePress || ev.type_ == sys::InputTypeRepeat || ev.type_ == sys::InputTypeLong {
+                if ev.type_ == sys::InputTypePress
+                    || ev.type_ == sys::InputTypeRepeat
+                    || ev.type_ == sys::InputTypeLong
+                {
                     let ie = InputEvent {
                         key: ev.key,
                         input_type: ev.type_,

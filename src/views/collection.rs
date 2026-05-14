@@ -1,8 +1,5 @@
-/// Collection list view — saved passages.
-
-use alloc::string::String;
-use flipperzero_sys as sys;
 use crate::views::{AppState, AppView, InputEvent};
+use flipperzero_sys as sys;
 
 const LINE_H: i32 = 12;
 const HEADER_H: i32 = 12;
@@ -16,7 +13,12 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
         if state.collection.is_empty() {
             sys::canvas_set_font(canvas, sys::FontSecondary);
             sys::canvas_draw_str(canvas, 4, 30, c"No saved passages".as_ptr() as *const u8);
-            sys::canvas_draw_str(canvas, 4, 44, c"OK to read, Back to home".as_ptr() as *const u8);
+            sys::canvas_draw_str(
+                canvas,
+                4,
+                44,
+                c"OK to read, Back to home".as_ptr() as *const u8,
+            );
             return;
         }
 
@@ -54,7 +56,7 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
 }
 
 pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
-    let max_visible = ((64 - HEADER_H - 2) / LINE_H) as usize;
+    let _max_visible = ((64 - HEADER_H - 2) / LINE_H) as usize;
 
     match event.key {
         sys::InputKeyUp => {

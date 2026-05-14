@@ -1,8 +1,7 @@
-/// Book list view — scrollable list of 66 books (OT/NT sections).
-
-use flipperzero_sys as sys;
 use crate::books;
 use crate::views::{AppState, AppView, InputEvent};
+/// Book list view — scrollable list of 66 books (OT/NT sections).
+use flipperzero_sys as sys;
 
 const LINE_HEIGHT: i32 = 10;
 const HEADER_HEIGHT: i32 = 12;
@@ -50,7 +49,9 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
         let total = books::OSIS_BOOK_CODES.len();
         if total > max_visible {
             let thumb_height = ((max_visible * 64 / total).max(4)) as i32;
-            let thumb_y = HEADER_HEIGHT + ((state.book_scroll as i32) * (64 - HEADER_HEIGHT - thumb_height) / ((total - max_visible) as i32));
+            let thumb_y = HEADER_HEIGHT
+                + ((state.book_scroll as i32) * (64 - HEADER_HEIGHT - thumb_height)
+                    / ((total - max_visible) as i32));
             sys::canvas_draw_box(canvas, 126, thumb_y, 2, thumb_height as usize);
         }
     }
