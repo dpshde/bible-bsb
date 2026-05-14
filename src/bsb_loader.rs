@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use flipperzero_sys as sys;
 
 const BSB_BASE: &str = "/ext/apps_data/kindled_spark/bsb";
-const MAX_FILE_SIZE: usize = 64_000;
+const MAX_FILE_SIZE: usize = 20_000;
 
 /// Build the file path: /ext/apps_data/kindled_spark/bsb/{osis_lower}/{chapter}.json
 fn chapter_path(osis_lower: &str, chapter: u16) -> String {
@@ -92,11 +92,19 @@ pub fn parse_verses_from_json(data: &[u8]) -> Vec<Verse> {
                         }
                         let text_bytes = &data[start..i];
                         let text = String::from_utf8_lossy(text_bytes);
+
+                        let text = text
+                            .replace("—", "-")
+                            .replace("’", "'")
+                            .replace("‘", "'")
+                            .replace("“", "\"")
+                            .replace("”", "\"");
+
                         // Truncate to 512 chars max
                         let text = if text.len() > 512 {
                             text.chars().take(512).collect::<String>()
                         } else {
-                            text.into_owned()
+                            text
                         };
                         verses.push(Verse { number, text });
                     }
@@ -150,22 +158,30 @@ pub fn load_chapter(osis_lower: &str, chapter: u16) -> Option<Vec<Verse>> {
             return None;
         }
 
-        let mut buf = Vec::with_capacity(MAX_FILE_SIZE);
-        buf.resize(MAX_FILE_SIZE, 0);
-        let read = sys::storage_file_read(
-            file,
-            buf.as_mut_ptr() as *mut core::ffi::c_void,
-            MAX_FILE_SIZE,
-        );
+        // Read chapter JSON in small chunks to avoid large heap allocations.
+        const CHUNK: usize = 1024;
+        let mut buf: Vec<u8> = Vec::new();
+        let mut chunk = [0u8; CHUNK];
+        let mut total_read: usize = 0;
+        loop {
+            let n = sys::storage_file_read(
+                file,
+                chunk.as_mut_ptr() as *mut core::ffi::c_void,
+                CHUNK,
+            );
+            if n == 0 || total_read + n > MAX_FILE_SIZE {
+                break;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+            total_read += n;
+        }
         sys::storage_file_close(file);
         sys::storage_file_free(file);
         sys::furi_record_close(c"storage".as_ptr() as *const u8);
 
-        if read == 0 {
+        if buf.is_empty() {
             return None;
         }
-
-        let data = &buf[..read];
-        Some(parse_verses_from_json(data))
+        Some(parse_verses_from_json(&buf))
     }
 }

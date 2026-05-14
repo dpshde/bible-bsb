@@ -27,18 +27,24 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
         // Page indicator
         let total_pages = crate::renderer::total_pages(&state.lines, 16);
         let max_visible = ((64 - 16 - 2) / crate::renderer::LINE_HEIGHT) as usize;
-        let current_page = state.scroll_offset / max_visible + 1;
+        let current_page = if state.scroll_offset + max_visible >= state.lines.len() {
+            total_pages
+        } else {
+            state.scroll_offset / max_visible + 1
+        };
         if total_pages > 1 {
             sys::canvas_set_font(canvas, sys::FontSecondary);
             let page_str = alloc::format!("{}/{}", current_page, total_pages);
-            let mut pbuf = [0u8; 8];
+            let mut pbuf = [0u8; 16];
             let pb = page_str.as_bytes();
             let plen = pb.len().min(pbuf.len() - 1);
             pbuf[..plen].copy_from_slice(&pb[..plen]);
             pbuf[plen] = 0;
-            sys::canvas_draw_str(canvas, 110, 63, pbuf.as_ptr() as *const u8);
-        }
 
+            let width = sys::canvas_string_width(canvas, pbuf.as_ptr() as *const core::ffi::c_char);
+            let x = 128 - (width as i32) - 2;
+            sys::canvas_draw_str(canvas, x, 63, pbuf.as_ptr() as *const u8);
+        }
         // Toast
         if let Some(ref msg) = state.toast_message {
             sys::canvas_set_font(canvas, sys::FontSecondary);
@@ -178,7 +184,7 @@ pub fn handle_action_input(event: &InputEvent, state: &mut AppState) -> bool {
                     }
                     1 => {
                         do_nfc_share(state);
-                        state.current_view = AppView::Reader;
+                        // do_nfc_share transitions to NfcShare or shows a toast and stays
                     }
                     2 => {
                         state.current_view = AppView::Reader;
@@ -199,19 +205,65 @@ pub fn handle_action_input(event: &InputEvent, state: &mut AppState) -> bool {
 
 fn do_save(state: &mut AppState) {
     if let Some(ref passage) = state.passage {
+        // Free reader heap before loading collection to avoid fragmentation OOM.
+        // The lines will be reloaded from SD after saving.
+        let saved_scroll = state.scroll_offset;
+        state.lines.clear();
+
+        if !state.collection_loaded {
+            state.collection = crate::storage::load_collection();
+            state.collection_loaded = true;
+        }
+        let ref_str = passage.canonical_ref();
+        // Idempotent: skip if already saved
+        if state.collection.iter().any(|e| e.scripture_ref == ref_str) {
+            // Reload lines before returning so the screen isn't blank
+            reload_lines(state);
+            state.scroll_offset = saved_scroll;
+            state.set_toast("Already saved");
+            return;
+        }
         let entry = crate::models::CollectionEntry {
-            scripture_ref: passage.canonical_ref(),
+            scripture_ref: ref_str,
             scripture_display_ref: passage.display_ref(),
             scripture_translation: String::from("BSB"),
-            verses: passage.verses.clone(),
+            book_index: passage.book_index,
+            chapter: passage.chapter,
+            start_verse: passage.start_verse,
+            end_verse: passage.end_verse,
             captured_at: String::from("2026-01-01T00:00:00Z"), // TODO: get real time
             note: String::new(),
         };
         state.collection.push(entry);
-        if crate::storage::save_collection(&state.collection) {
+        let ok = crate::storage::save_collection(&state.collection);
+
+        // Reload lines from SD so the reader isn't blank
+        reload_lines(state);
+        state.scroll_offset = saved_scroll;
+
+        if ok {
             state.set_toast("Saved!");
         } else {
             state.set_toast("Save failed");
+        }
+    }
+}
+
+fn reload_lines(state: &mut AppState) {
+    if let Some(ref passage) = state.passage {
+        let osis = crate::books::OSIS_BOOK_CODES[passage.book_index].to_lowercase();
+        if let Some(all_verses) = crate::bsb_loader::load_chapter(&osis, passage.chapter) {
+            let filtered: alloc::vec::Vec<crate::models::Verse> = if passage.start_verse > 0 {
+                all_verses
+                    .into_iter()
+                    .filter(|v| {
+                        v.number >= passage.start_verse && v.number <= passage.end_verse
+                    })
+                    .collect()
+            } else {
+                all_verses
+            };
+            state.lines = crate::renderer::wrap_verses(&filtered);
         }
     }
 }
@@ -224,10 +276,13 @@ fn do_nfc_share(state: &mut AppState) {
             passage.start_verse,
             passage.end_verse,
         );
-        let filename = passage.canonical_ref().replace(['.', '-'], "_");
-        if crate::nfc_share::write_nfc_file(&filename, &url) {
-            state.set_toast("NFC file ready");
+        state.nfc_url = Some(url.clone());
+        state.nfc_emitting = true;
+        if crate::nfc_share::start_emulation(&url) {
+            state.current_view = AppView::NfcShare;
         } else {
+            state.nfc_url = None;
+            state.nfc_emitting = false;
             state.set_toast("NFC failed");
         }
     }

@@ -1,4 +1,5 @@
 use crate::views::{AppState, AppView, InputEvent};
+use alloc::string::String;
 use flipperzero_sys as sys;
 
 const LINE_H: i32 = 12;
@@ -17,7 +18,7 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
                 canvas,
                 4,
                 44,
-                c"OK to read, Back to home".as_ptr() as *const u8,
+                c"Back to home".as_ptr() as *const u8,
             );
             return;
         }
@@ -52,6 +53,10 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
                 sys::canvas_set_color(canvas, sys::ColorBlack);
             }
         }
+
+        // Hint bar at bottom
+        sys::canvas_set_font(canvas, sys::FontSecondary);
+        sys::canvas_draw_str(canvas, 2, 62, c"L=export OK=read".as_ptr() as *const u8);
     }
 }
 
@@ -78,44 +83,61 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
                 state.current_view = AppView::BookList;
             }
         }
-        sys::InputKeyOk => {
-            if event.input_type == sys::InputTypeShort {
-                if let Some(entry) = state.collection.get(state.collection_scroll) {
-                    state.lines = crate::renderer::wrap_verses(&entry.verses);
-                    let ref_parts: alloc::vec::Vec<&str> = entry.scripture_ref.split('.').collect();
-                    let mut book_index = 0;
-                    if let Some(code) = ref_parts.first() {
-                        for (i, &book_code) in crate::books::OSIS_BOOK_CODES.iter().enumerate() {
-                            if book_code.eq_ignore_ascii_case(code) {
-                                book_index = i;
-                                break;
-                            }
-                        }
-                    }
-
-                    let chapter = if ref_parts.len() > 1 {
-                        ref_parts[1]
-                            .split('-')
-                            .next()
-                            .unwrap_or("1")
-                            .parse()
-                            .unwrap_or(1)
+        sys::InputKeyLeft => {
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeShort {
+                if !state.collection.is_empty() {
+                    let json = crate::storage::build_kindled_json(&state.collection);
+                    state.nfc_url = Some(String::from("Export JSON"));
+                    state.nfc_is_export = true;
+                    if crate::nfc_share::start_text_emulation(&json) {
+                        state.current_view = AppView::NfcShare;
                     } else {
-                        1
+                        state.nfc_url = None;
+                        state.nfc_is_export = false;
+                        state.set_toast("Export too large");
+                    }
+                }
+            }
+        }
+        sys::InputKeyOk => {
+            if event.input_type == sys::InputTypeLong {
+                // Delete selected passage
+                if state.collection_scroll < state.collection.len() {
+                    state.collection.remove(state.collection_scroll);
+                    if !state.collection.is_empty() && state.collection_scroll >= state.collection.len() {
+                        state.collection_scroll -= 1;
+                    }
+                    crate::storage::save_collection(&state.collection);
+                    state.set_toast("Deleted");
+                }
+            } else if event.input_type == sys::InputTypeShort {
+                if let Some(entry) = state.collection.get(state.collection_scroll) {
+                    let book_index = entry.book_index;
+                    let chapter = entry.chapter;
+                    let osis_lower = crate::books::OSIS_BOOK_CODES[book_index].to_lowercase();
+
+                    let verses = if let Some(all_verses) = crate::bsb_loader::load_chapter(&osis_lower, chapter) {
+                        // Filter to the saved verse range
+                        all_verses
+                            .into_iter()
+                            .filter(|v| v.number >= entry.start_verse && v.number <= entry.end_verse)
+                            .collect::<alloc::vec::Vec<_>>()
+                    } else {
+                        alloc::vec::Vec::new()
                     };
 
-                    let start_verse = entry.verses.first().map(|v| v.number).unwrap_or(0);
-                    let end_verse = entry.verses.last().map(|v| v.number).unwrap_or(0);
-
+                    state.lines = crate::renderer::wrap_verses(&verses);
                     state.selected_book = book_index;
                     state.selected_chapter = chapter;
+
+                    let start_verse = if verses.is_empty() { 0 } else { verses.first().unwrap().number };
+                    let end_verse = if verses.is_empty() { 0 } else { verses.last().unwrap().number };
 
                     state.passage = Some(crate::models::Passage {
                         book_index,
                         chapter,
                         start_verse,
                         end_verse,
-                        verses: entry.verses.clone(),
                     });
 
                     state.scroll_offset = 0;

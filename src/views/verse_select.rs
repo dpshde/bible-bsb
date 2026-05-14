@@ -81,7 +81,7 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
         let hint = if state.verse_select_mode == VerseSelectMode::All {
             "OK=read, Back=back"
         } else {
-            "Up/Dn=nav, L/R=verse, OK=read"
+            "U/D=nav L/R=vs OK=read"
         };
         let mut hint_buf = [0u8; 48];
         let hbytes = hint.as_bytes();
@@ -191,7 +191,6 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
                         chapter,
                         start_verse,
                         end_verse,
-                        verses: filtered,
                     });
                     state.scroll_offset = 0;
                     state.reader_came_from_collection = false;

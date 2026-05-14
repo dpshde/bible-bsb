@@ -155,6 +155,10 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
         }
         sys::InputKeyLeft => {
             if event.input_type == sys::InputTypeShort {
+                if !state.collection_loaded {
+                    state.collection = crate::storage::load_collection();
+                    state.collection_loaded = true;
+                }
                 state.current_view = AppView::Collection;
             }
         }

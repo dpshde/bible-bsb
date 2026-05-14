@@ -1,6 +1,5 @@
 /// Core data types matching Kindled web-app schema
 use alloc::string::String;
-use alloc::vec::Vec;
 
 #[derive(Clone)]
 pub struct Verse {
@@ -13,14 +12,16 @@ pub struct Passage {
     pub chapter: u16,
     pub start_verse: u16,
     pub end_verse: u16,
-    pub verses: Vec<Verse>,
 }
 
 pub struct CollectionEntry {
     pub scripture_ref: String,
     pub scripture_display_ref: String,
     pub scripture_translation: String,
-    pub verses: Vec<Verse>,
+    pub book_index: usize,
+    pub chapter: u16,
+    pub start_verse: u16,
+    pub end_verse: u16,
     pub captured_at: String,
     pub note: String,
 }

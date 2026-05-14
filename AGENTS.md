@@ -153,6 +153,72 @@ If your Rust FAP causes a BusFault / HardFault on launch, check in this order:
 
 5. **Serial-only, one connection at a time** — The Flipper CLI cannot tolerate two simultaneous serial connections. Always run commands sequentially; never open `screen` and `flipper_cli.py` at the same time.
 
+### Heap Fragmentation & Out-of-Memory Crashes
+
+The Flipper Zero has very limited heap (~16–32KB free for FAPs). **OOM crashes are almost always heap fragmentation, not total memory exhaustion.**
+
+**The Mistake:** `Vec::with_capacity(64000).resize(64000, 0)` allocates a **single contiguous 64KB block**. Even if the heap has 80KB total free space scattered in small chunks, this allocation fails because no 64KB hole exists. This was the root cause of the "out of memory" crash when loading chapters or saving passages.
+
+**Symptoms:**
+- Crash only on large chapters (Psalms 119 = 15KB JSON file) but works on small chapters
+- Crash when saving a passage that was already loaded into memory
+- Crash happens at `Vec::resize`, `Vec::with_capacity`, or `String::with_capacity` calls
+
+**Detection:** On-device serial CLI:
+```sh
+free
+```
+Look at the heap free value. If it's > 64KB but your 64KB allocation still crashes, it's fragmentation.
+
+**Fix — Chunked File Reads:**
+Never allocate a large buffer upfront. Read in small fixed chunks (e.g., 1KB) and `extend_from_slice` into a `Vec` that grows incrementally:
+
+```rust
+const CHUNK: usize = 1024;
+const MAX_TOTAL: usize = 20_000; // actual max file size, not a generous guess
+
+let mut buf: Vec<u8> = Vec::new();
+let mut chunk = [0u8; CHUNK];
+let mut total: usize = 0;
+loop {
+    let n = storage_file_read(file, chunk.as_mut_ptr() as *mut c_void, CHUNK);
+    if n == 0 || total + n > MAX_TOTAL {
+        break;
+    }
+    buf.extend_from_slice(&chunk[..n]);
+    total += n;
+}
+```
+
+This avoids the single large allocation. The heap only needs 1KB contiguous at a time.
+
+**Fix — Shrink Buffer Constants to Actual File Sizes:**
+The original code used `MAX_FILE_SIZE: usize = 64_000` as a "generous" buffer size. The actual largest chapter file was only 15KB. Always measure:
+
+```sh
+find bsb_local_sd -name "*.json" -exec ls -la {} + | awk '{print $5, $9}' | sort -rn | head -5
+```
+
+Set `MAX_FILE_SIZE` to the actual maximum + margin (e.g., 20KB for a 15KB file), not an arbitrary large number.
+
+**Fix — Don't Store Duplicate Data in RAM:**
+The `Passage` struct originally held `verses: Vec<Verse>` alongside `state.lines: Vec<Line>` (the wrapped display lines). Both held the same verse text — ~40KB dead weight on large chapters. Removed `verses` from `Passage` entirely; verses are reloaded from SD on demand.
+
+**Fix — Defragment Before Big Allocs:**
+Before calling `load_collection()` (which needs a few KB), temporarily clear large heap consumers like `state.lines`, do the allocation, then reload:
+
+```rust
+state.lines.clear(); // frees scattered String chunks
+let collection = load_collection(); // now has room for contiguous block
+reload_lines(state); // restore display
+```
+
+**Rule of thumb for this app:**
+- Chapter loader buffer: `20_000` (largest file is ~15KB)
+- Collection loader buffer: `2_048` (collection.json is typically <1KB)
+- Read chunk size: `1_024`
+- Never use `resize()` on a Vec to pre-allocate a large contiguous block
+
 ### Isolation Debugging Strategy
 
 When a Rust FAP crashes and you don't know why, binary-search the fault:
@@ -170,6 +236,8 @@ When a Rust FAP crashes and you don't know why, binary-search the fault:
    - The crash boundary tells you exactly which API or callback is at fault.
 
 3. If the minimal no-import FAP runs but adding API calls crashes, suspect the linker flags first, then null-pointer handling, then C string lifetime issues.
+
+4. If it crashes only after loading data / saving data, check **heap fragmentation** (see section above) before suspecting logic bugs.
 
 ### Canvas Layout Rules
 

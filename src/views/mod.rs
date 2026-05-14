@@ -7,6 +7,7 @@ pub mod book_filter;
 pub mod book_list;
 pub mod chapter_list;
 pub mod collection;
+pub mod nfc_share;
 pub mod reader;
 pub mod verse_select;
 
@@ -24,6 +25,7 @@ pub enum AppView {
     Reader,
     Collection,
     ActionMenu,
+    NfcShare,
 }
 
 pub struct AppState {
@@ -40,10 +42,14 @@ pub struct AppState {
     pub action_menu_selection: usize,
     pub passage: Option<crate::models::Passage>,
     pub collection: Vec<crate::models::CollectionEntry>,
+    pub collection_loaded: bool,
     pub lines: Vec<crate::renderer::Line>,
     pub toast_message: Option<String>,
     pub toast_timer: u32,
     pub reader_came_from_collection: bool,
+    pub nfc_url: Option<String>,
+    pub nfc_emitting: bool,
+    pub nfc_is_export: bool,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -69,10 +75,14 @@ impl AppState {
             action_menu_selection: 0,
             passage: None,
             collection: Vec::new(),
+            collection_loaded: false,
             lines: Vec::new(),
             toast_message: None,
             toast_timer: 0,
             reader_came_from_collection: false,
+            nfc_url: None,
+            nfc_emitting: false,
+            nfc_is_export: false,
         }
     }
 
@@ -100,11 +110,12 @@ pub fn draw_current_view(canvas: *mut sys::Canvas, state: &AppState) {
         AppView::Reader => reader::draw(canvas, state),
         AppView::Collection => collection::draw(canvas, state),
         AppView::ActionMenu => reader::draw_action_menu(canvas, state),
+        AppView::NfcShare => nfc_share::draw(canvas, state),
     }
 }
 
 pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
-    let quit = match state.current_view {
+    match state.current_view {
         AppView::BookList => book_list::handle_input(event, state),
         AppView::BookFilter => book_filter::handle_input(event, state),
         AppView::ChapterList => chapter_list::handle_input(event, state),
@@ -112,7 +123,6 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
         AppView::Reader => reader::handle_input(event, state),
         AppView::Collection => collection::handle_input(event, state),
         AppView::ActionMenu => reader::handle_action_input(event, state),
-    };
-    state.tick_toast();
-    quit
+        AppView::NfcShare => nfc_share::handle_input(event, state),
+    }
 }

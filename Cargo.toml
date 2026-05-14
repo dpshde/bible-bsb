@@ -16,7 +16,6 @@ filename = "kindled_spark.fap"
 path = "src/main.rs"
 
 [dependencies]
-flipperzero = { version = "0.16.0", features = ["alloc"] }
 flipperzero-alloc = { version = "0.16.0" }
 flipperzero-sys = { version = "0.16.0" }
 flipperzero-rt = { version = "0.16.0" }
@@ -24,3 +23,5 @@ flipperzero-rt = { version = "0.16.0" }
 [profile.release]
 opt-level = "z"
 lto = true
+codegen-units = 1
+panic = "abort"

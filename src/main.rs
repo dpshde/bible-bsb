@@ -59,7 +59,6 @@ fn main(_args: Option<&CStr>) -> i32 {
         }
 
         let mut state = AppState::new();
-        state.collection = storage::load_collection();
         let state_ptr = &mut state as *mut AppState;
 
         let view_port = sys::view_port_alloc();
@@ -107,6 +106,7 @@ fn main(_args: Option<&CStr>) -> i32 {
                     }
                 }
             }
+            state.tick_toast();
             sys::view_port_update(view_port);
         }
 

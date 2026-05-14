@@ -94,7 +94,10 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
         }
         sys::InputKeyLeft => {
             if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
-                if state.book_filter_idx > 0 {
+                if state.book_filter_idx == 0 {
+                    // On "All", left arrow goes back to book list
+                    state.current_view = AppView::BookList;
+                } else {
                     state.book_filter_idx -= 1;
                 }
             }

@@ -8,8 +8,6 @@ rustflags = [
     "-C",
     "target-cpu=cortex-m4",
     "-C",
-    "panic=abort",
-    "-C",
     "debuginfo=0",
     "-C",
     "opt-level=z",

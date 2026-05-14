@@ -36,48 +36,108 @@ fn u16_to_string(n: u16) -> String {
     s
 }
 
-/// Write a minimal JSON collection file.
-/// Format: {"version":"kindled-flipper-v1","passages":[{"scripture_ref":"...","scripture_display_ref":"...","scripture_translation":"BSB","scripture_verses":[{"number":1,"text":"..."}],"captured_at":"...","note":""}]}
-pub fn save_collection(entries: &[CollectionEntry]) -> bool {
-    let mut json = String::with_capacity(4096);
-    json.push_str("{\"version\":\"kindled-flipper-v1\",\"passages\":[");
-    for (i, entry) in entries.iter().enumerate() {
-        if i > 0 {
-            json.push(',');
-        }
-        json.push_str("{\"scripture_ref\":\"");
-        json.push_str(&entry.scripture_ref);
-        json.push_str("\",\"scripture_display_ref\":\"");
-        json.push_str(&entry.scripture_display_ref);
-        json.push_str("\",\"scripture_translation\":\"");
-        json.push_str(&entry.scripture_translation);
-        json.push_str("\",\"scripture_verses\":[");
-        for (j, verse) in entry.verses.iter().enumerate() {
-            if j > 0 {
-                json.push(',');
-            }
-            json.push_str("{\"number\":");
-            json.push_str(&u16_to_string(verse.number));
-            json.push_str(",\"text\":\"");
-            // Escape quotes and backslashes in text
-            for c in verse.text.chars() {
-                match c {
-                    '"' => json.push_str("\\\""),
-                    '\\' => json.push_str("\\\\"),
-                    '\n' => json.push_str("\\n"),
-                    _ => json.push(c),
-                }
-            }
-            json.push_str("\"}");
-        }
-        json.push_str("],\"captured_at\":\"");
-        json.push_str(&entry.captured_at);
-        json.push_str("\",\"note\":\"");
-        json.push_str(&entry.note);
-        json.push_str("\"}");
-    }
-    json.push_str("]}");
+/// Streaming JSON writer that avoids heap allocations.
+/// Uses a fixed 512-byte buffer and writes chunks directly to the file.
+struct JsonWriter {
+    file: *mut sys::File,
+    buf: [u8; 512],
+    pos: usize,
+    total_written: usize,
+    failed: bool,
+}
 
+impl JsonWriter {
+    fn new(file: *mut sys::File) -> Self {
+        Self {
+            file,
+            buf: [0; 512],
+            pos: 0,
+            total_written: 0,
+            failed: false,
+        }
+    }
+
+    fn flush(&mut self) {
+        if self.pos == 0 || self.failed {
+            return;
+        }
+        let written = unsafe {
+            sys::storage_file_write(self.file, self.buf.as_ptr() as *const core::ffi::c_void, self.pos)
+        };
+        if written != self.pos {
+            self.failed = true;
+        } else {
+            self.total_written += written;
+        }
+        self.pos = 0;
+    }
+
+    fn push_bytes(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            if self.pos >= self.buf.len() {
+                self.flush();
+            }
+            self.buf[self.pos] = b;
+            self.pos += 1;
+        }
+    }
+
+    fn push_str(&mut self, s: &str) {
+        self.push_bytes(s.as_bytes());
+    }
+
+    fn push_u16(&mut self, n: u16) {
+        let mut tmp = [0u8; 6];
+        let mut i = 0;
+        let mut n = n;
+        if n == 0 {
+            tmp[i] = b'0';
+            i = 1;
+        } else {
+            while n > 0 {
+                tmp[i] = b'0' + (n % 10) as u8;
+                i += 1;
+                n /= 10;
+            }
+        }
+        for j in (0..i).rev() {
+            if self.pos >= self.buf.len() {
+                self.flush();
+            }
+            self.buf[self.pos] = tmp[j];
+            self.pos += 1;
+        }
+    }
+
+    fn push_escaped(&mut self, s: &str) {
+        for c in s.chars() {
+            let bytes = match c {
+                '"' => b"\\\"",
+                '\\' => b"\\\\",
+                '\n' => b"\\n",
+                _ => {
+                    let mut b = [0u8; 4];
+                    let len = c.encode_utf8(&mut b).len();
+                    self.push_bytes(&b[..len]);
+                    continue;
+                }
+            };
+            self.push_bytes(bytes);
+        }
+    }
+
+    fn finish(&mut self) -> usize {
+        self.flush();
+        self.total_written
+    }
+
+    fn ok(&self) -> bool {
+        !self.failed
+    }
+}
+
+/// Write collection entries to JSON using streaming writer (no large heap alloc).
+pub fn save_collection(entries: &[CollectionEntry]) -> bool {
     let mut path_buf = [0u8; 128];
     let path_c = match path_to_cstr(COLLECTION_PATH, &mut path_buf) {
         Some(p) => p,
@@ -104,13 +164,45 @@ pub fn save_collection(entries: &[CollectionEntry]) -> bool {
             return false;
         }
 
-        let written =
-            sys::storage_file_write(file, json.as_ptr() as *const core::ffi::c_void, json.len());
+        sys::storage_file_truncate(file);
+
+        let mut w = JsonWriter::new(file);
+
+        w.push_str("{\"version\":\"kindled-flipper-v2\",\"passages\":[");
+        for (i, entry) in entries.iter().enumerate() {
+            if i > 0 {
+                w.push_str(",");
+            }
+            w.push_str("{\"scripture_ref\":\"");
+            w.push_escaped(&entry.scripture_ref);
+            w.push_str("\",\"scripture_display_ref\":\"");
+            w.push_escaped(&entry.scripture_display_ref);
+            w.push_str("\",\"scripture_translation\":\"");
+            w.push_escaped(&entry.scripture_translation);
+            w.push_str("\",\"book_index\":");
+            w.push_u16(entry.book_index as u16);
+            w.push_str(",\"chapter\":");
+            w.push_u16(entry.chapter);
+            w.push_str(",\"start_verse\":");
+            w.push_u16(entry.start_verse);
+            w.push_str(",\"end_verse\":");
+            w.push_u16(entry.end_verse);
+            w.push_str(",\"captured_at\":\"");
+            w.push_escaped(&entry.captured_at);
+            w.push_str("\",\"note\":\"");
+            w.push_escaped(&entry.note);
+            w.push_str("\"}");
+        }
+        w.push_str("]}");
+
+        let total = w.finish();
+        let ok = w.ok() && total > 0;
+
         sys::storage_file_close(file);
         sys::storage_file_free(file);
         sys::furi_record_close(c"storage".as_ptr() as *const u8);
 
-        written == json.len()
+        ok
     }
 }
 
@@ -142,32 +234,41 @@ pub fn load_collection() -> Vec<CollectionEntry> {
             return Vec::new();
         }
 
-        let mut buf = Vec::with_capacity(MAX_FILE_SIZE);
-        buf.resize(MAX_FILE_SIZE, 0);
-        let read = sys::storage_file_read(
-            file,
-            buf.as_mut_ptr() as *mut core::ffi::c_void,
-            MAX_FILE_SIZE,
-        );
+        // Read collection.json in small chunks to avoid large heap allocations.
+        const CHUNK: usize = 1024;
+        let mut buf: Vec<u8> = Vec::new();
+        let mut chunk = [0u8; CHUNK];
+        let mut total_read: usize = 0;
+        loop {
+            let n = sys::storage_file_read(
+                file,
+                chunk.as_mut_ptr() as *mut core::ffi::c_void,
+                CHUNK,
+            );
+            if n == 0 || total_read + n > MAX_FILE_SIZE {
+                break;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+            total_read += n;
+        }
         sys::storage_file_close(file);
         sys::storage_file_free(file);
         sys::furi_record_close(c"storage".as_ptr() as *const u8);
 
-        if read == 0 {
+        if buf.is_empty() {
             return Vec::new();
         }
-        parse_collection_json(&buf[..read])
+        parse_collection_json(&buf)
     }
 }
 
-/// Parse collection JSON — minimal scanner for the Kindled schema.
+/// Parse collection JSON — minimal scanner for the Kindled schema (v2 metadata-only).
 fn parse_collection_json(data: &[u8]) -> Vec<CollectionEntry> {
     let mut entries = Vec::new();
     let mut i = 0;
     let len = data.len();
 
     while i < len {
-        // Look for scripture_ref field
         if let Some(ref_start) = find_key_value(data, i, b"scripture_ref") {
             let ref_val = ref_start;
             i = ref_val.end;
@@ -179,30 +280,18 @@ fn parse_collection_json(data: &[u8]) -> Vec<CollectionEntry> {
                 .map(|r| r.to_string(data))
                 .unwrap_or_default();
 
-            // Find verses array
-            let mut verses = Vec::new();
-            if let Some(verse_start) = find_subsequence(data, i, b"\"scripture_verses\":[") {
-                let mut vi = verse_start + 20;
-                while vi < len {
-                    if data[vi] == b']' {
-                        break;
-                    }
-                    if let Some(num_range) = find_key_value(data, vi, b"number") {
-                        let num = parse_u16_from_bytes(&data[num_range.start..num_range.end]);
-                        vi = num_range.end;
-                        if let Some(text_range) = find_key_value(data, vi, b"text") {
-                            let text = text_range.to_string(data);
-                            verses.push(Verse { number: num, text });
-                            vi = text_range.end;
-                        }
-                    } else {
-                        vi += 1;
-                    }
-                    while vi < len && (data[vi] == b' ' || data[vi] == b'\n' || data[vi] == b',') {
-                        vi += 1;
-                    }
-                }
-            }
+            let book_index = find_key_value(data, i, b"book_index")
+                .map(|r| parse_u16_from_bytes(&data[r.start..r.end]) as usize)
+                .unwrap_or(0);
+            let chapter = find_key_value(data, i, b"chapter")
+                .map(|r| parse_u16_from_bytes(&data[r.start..r.end]))
+                .unwrap_or(1);
+            let start_verse = find_key_value(data, i, b"start_verse")
+                .map(|r| parse_u16_from_bytes(&data[r.start..r.end]))
+                .unwrap_or(0);
+            let end_verse = find_key_value(data, i, b"end_verse")
+                .map(|r| parse_u16_from_bytes(&data[r.start..r.end]))
+                .unwrap_or(0);
 
             let captured_at = find_key_value(data, i, b"captured_at")
                 .map(|r| r.to_string(data))
@@ -215,7 +304,10 @@ fn parse_collection_json(data: &[u8]) -> Vec<CollectionEntry> {
                 scripture_ref: ref_val.to_string(data),
                 scripture_display_ref: display_ref,
                 scripture_translation: translation,
-                verses,
+                book_index,
+                chapter,
+                start_verse,
+                end_verse,
                 captured_at,
                 note,
             });
@@ -301,4 +393,77 @@ fn parse_u16_from_bytes(bytes: &[u8]) -> u16 {
         }
     }
     n
+}
+
+fn escape_json_str(out: &mut String, s: &str) {
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            _ => out.push(c),
+        }
+    }
+}
+
+/// Load verses for a CollectionEntry from the SD card, filtered to the saved range.
+fn load_verses_for_entry(entry: &CollectionEntry) -> Vec<Verse> {
+    let osis_lower = crate::books::OSIS_BOOK_CODES[entry.book_index].to_lowercase();
+    if let Some(all_verses) = crate::bsb_loader::load_chapter(&osis_lower, entry.chapter) {
+        all_verses
+            .into_iter()
+            .filter(|v| v.number >= entry.start_verse && v.number <= entry.end_verse)
+            .collect()
+    } else {
+        Vec::new()
+    }
+}
+
+/// Build Kindled-format JSON string in memory (for NFC export).
+/// Reloads verse text from SD card for each entry.  
+/// WARNING: can OOM on large collections; caller should check size.
+pub fn build_kindled_json(entries: &[CollectionEntry]) -> String {
+    let mut json = String::with_capacity(8192);
+    json.push_str("{\"format\":\"kindled\",\"version\":1,\"exported_at\":\"2026-01-01T00:00:00Z\",\"schema_version\":1,\"counts\":{\"blocks\":");
+    json.push_str(&u16_to_string(entries.len() as u16));
+    json.push_str(",\"entities\":0,\"links\":0,\"reflections\":0,\"life_stages\":0},\"data\":{\"blocks\":[");
+
+    for (i, entry) in entries.iter().enumerate() {
+        if i > 0 {
+            json.push(',');
+        }
+        let verses = load_verses_for_entry(entry);
+        json.push_str("{\"id\":\"block-");
+        json.push_str(&u16_to_string(i as u16));
+        json.push_str("\",\"type\":\"scripture\",\"content\":\"");
+        escape_json_str(&mut json, &entry.scripture_display_ref);
+        json.push_str("\",\"scripture_ref\":\"");
+        escape_json_str(&mut json, &entry.scripture_ref);
+        json.push_str("\",\"scripture_display_ref\":\"");
+        escape_json_str(&mut json, &entry.scripture_display_ref);
+        json.push_str("\",\"scripture_translation\":\"");
+        escape_json_str(&mut json, &entry.scripture_translation);
+        json.push_str("\",\"scripture_verses\":[");
+        for (j, verse) in verses.iter().enumerate() {
+            if j > 0 {
+                json.push(',');
+            }
+            json.push_str("{\"number\":");
+            json.push_str(&u16_to_string(verse.number));
+            json.push_str(",\"text\":\"");
+            escape_json_str(&mut json, &verse.text);
+            json.push('"');
+            json.push('}');
+        }
+        json.push_str("],\"source\":\"manual\",\"captured_at\":\"");
+        escape_json_str(&mut json, &entry.captured_at);
+        json.push_str("\",\"modified_at\":\"");
+        escape_json_str(&mut json, &entry.captured_at);
+        json.push_str("\",\"tags\":[]}");
+    }
+
+    json.push_str("],\"entities\":[],\"links\":[],\"reflections\":[],\"life_stages\":[]}}");
+    json
 }
