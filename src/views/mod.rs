@@ -1,8 +1,9 @@
-/// Views module for Kindled Spark
+/// Views module for Bible [BSB]
 use alloc::string::String;
 use alloc::vec::Vec;
 use flipperzero_sys as sys;
 
+pub mod book_filter;
 pub mod book_list;
 pub mod chapter_list;
 pub mod collection;
@@ -17,6 +18,7 @@ pub struct InputEvent {
 #[derive(Clone, Copy, PartialEq)]
 pub enum AppView {
     BookList,
+    BookFilter,
     ChapterList,
     VerseSelect,
     Reader,
@@ -31,6 +33,7 @@ pub struct AppState {
     pub selected_start_verse: u16,
     pub selected_end_verse: u16,
     pub verse_select_mode: VerseSelectMode,
+    pub book_filter_idx: usize,
     pub scroll_offset: usize,
     pub book_scroll: usize,
     pub collection_scroll: usize,
@@ -40,6 +43,7 @@ pub struct AppState {
     pub lines: Vec<crate::renderer::Line>,
     pub toast_message: Option<String>,
     pub toast_timer: u32,
+    pub reader_came_from_collection: bool,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -58,6 +62,7 @@ impl AppState {
             selected_start_verse: 1,
             selected_end_verse: 1,
             verse_select_mode: VerseSelectMode::All,
+            book_filter_idx: 0,
             scroll_offset: 0,
             book_scroll: 0,
             collection_scroll: 0,
@@ -67,6 +72,7 @@ impl AppState {
             lines: Vec::new(),
             toast_message: None,
             toast_timer: 0,
+            reader_came_from_collection: false,
         }
     }
 
@@ -88,6 +94,7 @@ impl AppState {
 pub fn draw_current_view(canvas: *mut sys::Canvas, state: &AppState) {
     match state.current_view {
         AppView::BookList => book_list::draw(canvas, state),
+        AppView::BookFilter => book_filter::draw(canvas, state),
         AppView::ChapterList => chapter_list::draw(canvas, state),
         AppView::VerseSelect => verse_select::draw(canvas, state),
         AppView::Reader => reader::draw(canvas, state),
@@ -99,6 +106,7 @@ pub fn draw_current_view(canvas: *mut sys::Canvas, state: &AppState) {
 pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
     let quit = match state.current_view {
         AppView::BookList => book_list::handle_input(event, state),
+        AppView::BookFilter => book_filter::handle_input(event, state),
         AppView::ChapterList => chapter_list::handle_input(event, state),
         AppView::VerseSelect => verse_select::handle_input(event, state),
         AppView::Reader => reader::handle_input(event, state),

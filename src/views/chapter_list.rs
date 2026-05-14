@@ -23,17 +23,26 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
         sys::canvas_draw_line(canvas, 0, HEADER_H, 128, HEADER_H);
 
         let max_chapter = books::BOOK_CHAPTER_COUNTS[state.selected_book];
-        let rows = (max_chapter as usize).div_ceil(COLS).max(1);
+        let total_rows = (max_chapter as usize).div_ceil(COLS).max(1);
 
-        for row in 0..rows {
+        let selected_row = (state.selected_chapter as usize - 1) / COLS;
+        let max_visible_rows = 3;
+        let start_row = if selected_row >= max_visible_rows {
+            selected_row - max_visible_rows + 1
+        } else {
+            0
+        };
+
+        for row in start_row..(start_row + max_visible_rows).min(total_rows) {
             for col in 0..COLS {
                 let chapter_num = row * COLS + col + 1;
                 if chapter_num > max_chapter as usize {
                     break;
                 }
 
+                let display_row = row - start_row;
                 let x = 4 + (col as i32 * CELL_W);
-                let y = HEADER_H + 4 + (row as i32 * CELL_H);
+                let y = HEADER_H + 4 + (display_row as i32 * CELL_H);
                 let is_selected = chapter_num == state.selected_chapter as usize;
 
                 if is_selected {
@@ -53,12 +62,20 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
                 let nlen = nb.len().min(num_buf.len() - 1);
                 num_buf[..nlen].copy_from_slice(&nb[..nlen]);
                 num_buf[nlen] = 0;
-                sys::canvas_draw_str(canvas, x + 4, y + 9, num_buf.as_ptr() as *const u8);
+                sys::canvas_draw_str(canvas, x + 4, y + 10, num_buf.as_ptr() as *const u8);
 
                 if is_selected {
                     sys::canvas_set_color(canvas, sys::ColorBlack);
                 }
             }
+        }
+
+        // Scroll indicator
+        if total_rows > max_visible_rows {
+            let thumb_height = ((max_visible_rows * 50) / total_rows).max(4) as i32;
+            let thumb_y = 14
+                + (start_row as i32 * (50 - thumb_height) / (total_rows - max_visible_rows) as i32);
+            sys::canvas_draw_box(canvas, 126, thumb_y, 2, thumb_height as usize);
         }
     }
 }
@@ -69,33 +86,47 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
 
     match event.key {
         sys::InputKeyUp => {
-            if state.selected_chapter > cols {
-                state.selected_chapter -= cols;
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
+                if state.selected_chapter > cols {
+                    state.selected_chapter -= cols;
+                }
             }
         }
         sys::InputKeyDown => {
-            if state.selected_chapter + cols <= max_chapter {
-                state.selected_chapter += cols;
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
+                if state.selected_chapter + cols <= max_chapter {
+                    state.selected_chapter += cols;
+                } else if state.selected_chapter < max_chapter {
+                    state.selected_chapter = max_chapter;
+                }
             }
         }
         sys::InputKeyLeft => {
-            if state.selected_chapter > 1 {
-                state.selected_chapter -= 1;
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
+                if state.selected_chapter > 1 {
+                    state.selected_chapter -= 1;
+                }
             }
         }
         sys::InputKeyRight => {
-            if state.selected_chapter < max_chapter {
-                state.selected_chapter += 1;
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
+                if state.selected_chapter < max_chapter {
+                    state.selected_chapter += 1;
+                }
             }
         }
         sys::InputKeyOk => {
-            state.current_view = AppView::VerseSelect;
-            state.verse_select_mode = crate::views::VerseSelectMode::All;
-            state.selected_start_verse = 1;
-            state.selected_end_verse = 1;
+            if event.input_type == sys::InputTypeShort {
+                state.current_view = AppView::VerseSelect;
+                state.verse_select_mode = crate::views::VerseSelectMode::All;
+                state.selected_start_verse = 1;
+                state.selected_end_verse = 1;
+            }
         }
         sys::InputKeyBack => {
-            state.current_view = AppView::BookList;
+            if event.input_type == sys::InputTypeShort {
+                state.current_view = AppView::BookList;
+            }
         }
         _ => {}
     }

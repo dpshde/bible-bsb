@@ -127,7 +127,7 @@ def build_chapters(jsonl_path: Path, output_dir: Path) -> int:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Build BSB chapter files for Kindled Spark")
+    parser = argparse.ArgumentParser(description="Build BSB chapter files for Bible [BSB]")
     parser.add_argument("--input", type=Path, help="Existing bsb.jsonl path. Defaults to the hosted Arweave dataset.")
     parser.add_argument("--output", type=Path, default=Path("bsb_sd"), help="Output directory")
     args = parser.parse_args()

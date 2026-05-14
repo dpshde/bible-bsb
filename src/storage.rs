@@ -181,8 +181,8 @@ fn parse_collection_json(data: &[u8]) -> Vec<CollectionEntry> {
 
             // Find verses array
             let mut verses = Vec::new();
-            if let Some(verse_start) = find_subsequence(data, i, b"\"verses\":[") {
-                let mut vi = verse_start + 10;
+            if let Some(verse_start) = find_subsequence(data, i, b"\"scripture_verses\":[") {
+                let mut vi = verse_start + 20;
                 while vi < len {
                     if data[vi] == b']' {
                         break;

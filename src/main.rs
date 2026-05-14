@@ -1,4 +1,4 @@
-//! Kindled Spark — Flipper Zero BSB Scripture Reader
+//! Bible [BSB] — Flipper Zero BSB Scripture Reader
 
 #![no_std]
 #![no_main]
@@ -24,7 +24,7 @@ mod views;
 
 use views::{AppState, InputEvent};
 
-rt::manifest!(name = "Kindled Spark", stack_size = 4096);
+rt::manifest!(name = "Bible [BSB]", stack_size = 4096);
 rt::entry!(main);
 
 extern "C" fn draw_callback(canvas: *mut sys::Canvas, ctx: *mut core::ffi::c_void) {
@@ -95,6 +95,7 @@ fn main(_args: Option<&CStr>) -> i32 {
                 let ev = event.assume_init();
                 if ev.type_ == sys::InputTypePress
                     || ev.type_ == sys::InputTypeRepeat
+                    || ev.type_ == sys::InputTypeShort
                     || ev.type_ == sys::InputTypeLong
                 {
                     let ie = InputEvent {

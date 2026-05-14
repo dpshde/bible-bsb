@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline safety checks for Kindled Spark before installing on a Flipper."""
+"""Offline safety checks for Bible [BSB] before installing on a Flipper."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import struct
 import subprocess
 import sys
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 FAP = ROOT / "target/thumbv7em-none-eabihf/release/kindled_spark.fap"
@@ -111,8 +110,8 @@ def check_runtime_manifest() -> None:
         fail("src/main.rs must declare rt::manifest!(...)")
 
     body = match.group("body")
-    if 'name = "Kindled Spark"' not in body:
-        fail('runtime manifest must use name = "Kindled Spark"')
+    if 'name = "Bible [BSB]"' not in body:
+        fail('runtime manifest must use name = "Bible [BSB]"')
 
     stack = re.search(r"stack_size\s*=\s*(\d+)", body)
     if not stack:
@@ -133,7 +132,10 @@ def check_no_large_stack_arrays() -> None:
                 rel = path.relative_to(ROOT)
                 failures.append(f"{rel}:{line} declares {size} byte stack array")
     if failures:
-        fail("large stack arrays are forbidden in Flipper app code:\n" + "\n".join(failures))
+        fail(
+            "large stack arrays are forbidden in Flipper app code:\n"
+            + "\n".join(failures)
+        )
 
 
 def parse_elf_sections(path: Path) -> dict[str, bytes]:
@@ -230,7 +232,9 @@ def check_imports(path: Path) -> None:
         text=True,
         stdout=subprocess.PIPE,
     )
-    unresolved = {line.split()[0] for line in result.stdout.splitlines() if line.strip()}
+    unresolved = {
+        line.split()[0] for line in result.stdout.splitlines() if line.strip()
+    }
     invalid = sorted(unresolved - valid_api_symbols())
     if invalid:
         fail("FAP imports symbols not provided by this SDK API: " + ", ".join(invalid))

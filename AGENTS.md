@@ -1,6 +1,6 @@
 # Agent Reference: Flipper Interaction & Tooling
 
-This document provides raw CLI commands and canonical references for interacting with the Flipper Zero device and developing the **Kindled Spark** app.
+This document provides raw CLI commands and canonical references for interacting with the Flipper Zero device and developing the **Bible [BSB]** app.
 
 ## Connected Device
 
@@ -90,12 +90,18 @@ target/thumbv7em-none-eabihf/release/kindled_spark.fap
 ```
 
 ### Deploy
-Copy the `.fap` to the Flipper SD card at:
-```
-/ext/apps/Media/kindled_spark.fap
+Preferred method on this machine (installs via serial using the ufbt toolchain):
+```sh
+python3 /Users/user/.ufbt/current/scripts/storage.py \
+  -p /dev/cu.usbmodemflip_Yxoybo1 \
+  send -f target/thumbv7em-none-eabihf/release/kindled_spark.fap \
+  /ext/apps/Media/kindled_spark.fap
 ```
 
-Or install via qFlipper CLI (see above).
+Alternative via qFlipper CLI:
+```sh
+qFlipper --cli install ./target/thumbv7em-none-eabihf/release/kindled_spark.fap
+```
 
 ### Prepare BSB Data
 Before running the app, populate the SD card with Berean Standard Bible chapter files:
@@ -139,7 +145,7 @@ If your Rust FAP causes a BusFault / HardFault on launch, check in this order:
 2. **Do NOT run `fastfap.py` on relocatable Rust FAPs** — The `fastfap.py` script from the ufbt toolchain corrupts relocatable Rust output. Install the raw Cargo-built `.fap` directly. The `validate.sh` in this repo skips `fastfap.py` entirely.
 
 3. **Stack size** — Set explicitly in both places:
-   - `src/main.rs`: `rt::manifest!(name = "Kindled Spark", stack_size = 4096);`
+   - `src/main.rs`: `rt::manifest!(name = "Bible [BSB]", stack_size = 4096);`
    - `application.fam`: `stack_size=4 * 1026`
    - If still crashing, temporarily bump to `8192` as a diagnostic.
 

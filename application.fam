@@ -1,6 +1,6 @@
 App(
     appid="kindled_spark",
-    name="Kindled Spark",
+    name="Bible [BSB]",
     apptype=FlipperAppType.EXTERNAL,
     fap_category="Media",
     fap_version="1.0",

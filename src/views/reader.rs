@@ -71,7 +71,7 @@ pub fn draw_action_menu(canvas: *mut sys::Canvas, state: &AppState) {
             let y = 24 + (i as i32 * 14);
             let is_selected = i == state.action_menu_selection;
             if is_selected {
-                sys::canvas_draw_box(canvas, 0, y - 8, 128, 14);
+                sys::canvas_draw_box(canvas, 0, y - 11, 128, 14);
                 sys::canvas_set_color(canvas, sys::ColorWhite);
             }
             let mut ibuf = [0u8; 32];
@@ -98,41 +98,55 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
 
     match event.key {
         sys::InputKeyUp => {
-            if state.scroll_offset > 0 {
-                state.scroll_offset -= 1;
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
+                if state.scroll_offset > 0 {
+                    state.scroll_offset -= 1;
+                }
             }
         }
         sys::InputKeyDown => {
-            if state.scroll_offset < max_scroll {
-                state.scroll_offset += 1;
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
+                if state.scroll_offset < max_scroll {
+                    state.scroll_offset += 1;
+                }
             }
         }
         sys::InputKeyLeft => {
-            if state.scroll_offset >= max_visible {
-                state.scroll_offset -= max_visible;
-            } else {
-                state.scroll_offset = 0;
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
+                if state.scroll_offset >= max_visible {
+                    state.scroll_offset -= max_visible;
+                } else {
+                    state.scroll_offset = 0;
+                }
             }
         }
         sys::InputKeyRight => {
-            if state.scroll_offset + max_visible <= max_scroll {
-                state.scroll_offset += max_visible;
-            } else {
-                state.scroll_offset = max_scroll;
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
+                if state.scroll_offset + max_visible <= max_scroll {
+                    state.scroll_offset += max_visible;
+                } else {
+                    state.scroll_offset = max_scroll;
+                }
             }
         }
         sys::InputKeyOk => {
             if event.input_type == sys::InputTypeLong {
                 // Quick save
                 do_save(state);
-            } else {
+            } else if event.input_type == sys::InputTypeShort {
                 // Open action menu
                 state.action_menu_selection = 0;
                 state.current_view = AppView::ActionMenu;
             }
         }
         sys::InputKeyBack => {
-            state.current_view = AppView::VerseSelect;
+            if event.input_type == sys::InputTypeShort {
+                if state.reader_came_from_collection {
+                    state.current_view = AppView::Collection;
+                } else {
+                    state.current_view = AppView::VerseSelect;
+                }
+            }
         }
         _ => {}
     }
@@ -142,31 +156,41 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
 pub fn handle_action_input(event: &InputEvent, state: &mut AppState) -> bool {
     match event.key {
         sys::InputKeyUp => {
-            if state.action_menu_selection > 0 {
-                state.action_menu_selection -= 1;
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
+                if state.action_menu_selection > 0 {
+                    state.action_menu_selection -= 1;
+                }
             }
         }
         sys::InputKeyDown => {
-            if state.action_menu_selection < 2 {
-                state.action_menu_selection += 1;
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
+                if state.action_menu_selection < 2 {
+                    state.action_menu_selection += 1;
+                }
             }
         }
-        sys::InputKeyOk => match state.action_menu_selection {
-            0 => {
-                do_save(state);
-                state.current_view = AppView::Reader;
+        sys::InputKeyOk => {
+            if event.input_type == sys::InputTypeShort {
+                match state.action_menu_selection {
+                    0 => {
+                        do_save(state);
+                        state.current_view = AppView::Reader;
+                    }
+                    1 => {
+                        do_nfc_share(state);
+                        state.current_view = AppView::Reader;
+                    }
+                    2 => {
+                        state.current_view = AppView::Reader;
+                    }
+                    _ => {}
+                }
             }
-            1 => {
-                do_nfc_share(state);
-                state.current_view = AppView::Reader;
-            }
-            2 => {
-                state.current_view = AppView::Reader;
-            }
-            _ => {}
-        },
+        }
         sys::InputKeyBack => {
-            state.current_view = AppView::Reader;
+            if event.input_type == sys::InputTypeShort {
+                state.current_view = AppView::Reader;
+            }
         }
         _ => {}
     }

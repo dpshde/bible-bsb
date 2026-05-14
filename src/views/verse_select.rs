@@ -34,7 +34,7 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
         // "All verses" option
         let all_selected = state.verse_select_mode == VerseSelectMode::All;
         if all_selected {
-            sys::canvas_draw_box(canvas, 0, y1 - 8, 128, LINE_H as usize);
+            sys::canvas_draw_box(canvas, 0, y1 - 10, 128, LINE_H as usize);
             sys::canvas_set_color(canvas, sys::ColorWhite);
         }
         sys::canvas_draw_str(canvas, 4, y1, c"All verses".as_ptr() as *const u8);
@@ -45,7 +45,7 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
         // Start verse row
         let start_selected = state.verse_select_mode == VerseSelectMode::RangeSelectingStart;
         if start_selected {
-            sys::canvas_draw_box(canvas, 0, y2 - 8, 128, LINE_H as usize);
+            sys::canvas_draw_box(canvas, 0, y2 - 10, 128, LINE_H as usize);
             sys::canvas_set_color(canvas, sys::ColorWhite);
         }
         let mut start_label = [0u8; 32];
@@ -62,7 +62,7 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
         // End verse row
         let end_selected = state.verse_select_mode == VerseSelectMode::RangeSelectingEnd;
         if end_selected {
-            sys::canvas_draw_box(canvas, 0, y3 - 8, 128, LINE_H as usize);
+            sys::canvas_draw_box(canvas, 0, y3 - 10, 128, LINE_H as usize);
             sys::canvas_set_color(canvas, sys::ColorWhite);
         }
         let end_label = alloc::format!("End: {}", u16_to_string(state.selected_end_verse));
@@ -81,7 +81,7 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
         let hint = if state.verse_select_mode == VerseSelectMode::All {
             "OK=read, Back=back"
         } else {
-            "Up/Dn=verse, Rgt=next, OK=read"
+            "Up/Dn=nav, L/R=verse, OK=read"
         };
         let mut hint_buf = [0u8; 48];
         let hbytes = hint.as_bytes();
@@ -97,93 +97,114 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
     let actual_max = if max_v > 0 { max_v } else { 40 };
 
     match event.key {
-        sys::InputKeyUp => match state.verse_select_mode {
-            VerseSelectMode::RangeSelectingStart => {
-                if state.selected_start_verse > 1 {
-                    state.selected_start_verse -= 1;
-                }
-            }
-            VerseSelectMode::RangeSelectingEnd
-                if state.selected_end_verse > state.selected_start_verse =>
-            {
-                state.selected_end_verse -= 1;
-            }
-            _ => {}
-        },
-        sys::InputKeyDown => match state.verse_select_mode {
-            VerseSelectMode::RangeSelectingStart => {
-                if state.selected_start_verse < actual_max {
-                    state.selected_start_verse += 1;
-                    if state.selected_end_verse < state.selected_start_verse {
-                        state.selected_end_verse = state.selected_start_verse;
+        sys::InputKeyUp => {
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
+                match state.verse_select_mode {
+                    VerseSelectMode::All => {}
+                    VerseSelectMode::RangeSelectingEnd => {
+                        state.verse_select_mode = VerseSelectMode::RangeSelectingStart;
+                    }
+                    VerseSelectMode::RangeSelectingStart => {
+                        state.verse_select_mode = VerseSelectMode::All;
                     }
                 }
             }
-            VerseSelectMode::RangeSelectingEnd if state.selected_end_verse < actual_max => {
-                state.selected_end_verse += 1;
+        }
+        sys::InputKeyDown => {
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
+                match state.verse_select_mode {
+                    VerseSelectMode::All => {
+                        state.verse_select_mode = VerseSelectMode::RangeSelectingStart;
+                    }
+                    VerseSelectMode::RangeSelectingStart => {
+                        state.verse_select_mode = VerseSelectMode::RangeSelectingEnd;
+                    }
+                    VerseSelectMode::RangeSelectingEnd => {}
+                }
             }
-            _ => {}
-        },
-        sys::InputKeyLeft => match state.verse_select_mode {
-            VerseSelectMode::All => {}
-            VerseSelectMode::RangeSelectingEnd => {
-                state.verse_select_mode = VerseSelectMode::RangeSelectingStart;
+        }
+        sys::InputKeyLeft => {
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
+                match state.verse_select_mode {
+                    VerseSelectMode::RangeSelectingStart => {
+                        if state.selected_start_verse > 1 {
+                            state.selected_start_verse -= 1;
+                        }
+                    }
+                    VerseSelectMode::RangeSelectingEnd
+                        if state.selected_end_verse > state.selected_start_verse =>
+                    {
+                        state.selected_end_verse -= 1;
+                    }
+                    _ => {}
+                }
             }
-            VerseSelectMode::RangeSelectingStart => {
-                state.verse_select_mode = VerseSelectMode::All;
+        }
+        sys::InputKeyRight => {
+            if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
+                match state.verse_select_mode {
+                    VerseSelectMode::RangeSelectingStart => {
+                        if state.selected_start_verse < actual_max {
+                            state.selected_start_verse += 1;
+                            if state.selected_end_verse < state.selected_start_verse {
+                                state.selected_end_verse = state.selected_start_verse;
+                            }
+                        }
+                    }
+                    VerseSelectMode::RangeSelectingEnd if state.selected_end_verse < actual_max => {
+                        state.selected_end_verse += 1;
+                    }
+                    _ => {}
+                }
             }
-        },
-        sys::InputKeyRight => match state.verse_select_mode {
-            VerseSelectMode::All => {
-                state.verse_select_mode = VerseSelectMode::RangeSelectingStart;
-            }
-            VerseSelectMode::RangeSelectingStart => {
-                state.verse_select_mode = VerseSelectMode::RangeSelectingEnd;
-            }
-            VerseSelectMode::RangeSelectingEnd => {}
-        },
+        }
         sys::InputKeyOk => {
-            // Load chapter and go to reader
-            let osis = books::OSIS_BOOK_CODES[state.selected_book].to_lowercase();
-            let chapter = state.selected_chapter;
-            if let Some(verses) = crate::bsb_loader::load_chapter(&osis, chapter) {
-                let start_verse = if state.verse_select_mode == VerseSelectMode::All {
-                    0
-                } else {
-                    state.selected_start_verse
-                };
-                let end_verse = if state.verse_select_mode == VerseSelectMode::All {
-                    0
-                } else {
-                    state.selected_end_verse
-                };
+            if event.input_type == sys::InputTypeShort {
+                // Load chapter and go to reader
+                let osis = books::OSIS_BOOK_CODES[state.selected_book].to_lowercase();
+                let chapter = state.selected_chapter;
+                if let Some(verses) = crate::bsb_loader::load_chapter(&osis, chapter) {
+                    let start_verse = if state.verse_select_mode == VerseSelectMode::All {
+                        0
+                    } else {
+                        state.selected_start_verse
+                    };
+                    let end_verse = if state.verse_select_mode == VerseSelectMode::All {
+                        0
+                    } else {
+                        state.selected_end_verse
+                    };
 
-                // Filter verses to range if needed
-                let filtered: alloc::vec::Vec<crate::models::Verse> = if start_verse > 0 {
-                    verses
-                        .into_iter()
-                        .filter(|v| v.number >= start_verse && v.number <= end_verse)
-                        .collect()
-                } else {
-                    verses
-                };
+                    // Filter verses to range if needed
+                    let filtered: alloc::vec::Vec<crate::models::Verse> = if start_verse > 0 {
+                        verses
+                            .into_iter()
+                            .filter(|v| v.number >= start_verse && v.number <= end_verse)
+                            .collect()
+                    } else {
+                        verses
+                    };
 
-                state.lines = crate::renderer::wrap_verses(&filtered);
-                state.passage = Some(crate::models::Passage {
-                    book_index: state.selected_book,
-                    chapter,
-                    start_verse,
-                    end_verse,
-                    verses: filtered,
-                });
-                state.scroll_offset = 0;
-                state.current_view = AppView::Reader;
-            } else {
-                state.set_toast("No BSB data");
+                    state.lines = crate::renderer::wrap_verses(&filtered);
+                    state.passage = Some(crate::models::Passage {
+                        book_index: state.selected_book,
+                        chapter,
+                        start_verse,
+                        end_verse,
+                        verses: filtered,
+                    });
+                    state.scroll_offset = 0;
+                    state.reader_came_from_collection = false;
+                    state.current_view = AppView::Reader;
+                } else {
+                    state.set_toast("No BSB data");
+                }
             }
         }
         sys::InputKeyBack => {
-            state.current_view = AppView::ChapterList;
+            if event.input_type == sys::InputTypeShort {
+                state.current_view = AppView::ChapterList;
+            }
         }
         _ => {}
     }

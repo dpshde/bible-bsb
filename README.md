@@ -1,4 +1,4 @@
-# Kindled Spark
+# Bible [BSB]
 
 A Flipper Zero external app for browsing and saving BSB (Berean Standard Bible) scripture passages offline. Built in Rust using [flipperzero-rs](https://github.com/flipperzero-rs/flipperzero-rs).
 
