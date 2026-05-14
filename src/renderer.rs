@@ -16,6 +16,7 @@ const MARGIN_Y: i32 = 2;
 pub struct Line {
     pub text: String,
     pub is_verse_number: bool,
+    pub verse_number: u16,
 }
 
 /// Wrap text into lines that fit the screen width.
@@ -28,6 +29,7 @@ pub fn wrap_text(text: &str, max_chars: usize) -> Vec<Line> {
             lines.push(Line {
                 text: current.clone(),
                 is_verse_number: false,
+                verse_number: 0,
             });
             current.clear();
         }
@@ -41,6 +43,7 @@ pub fn wrap_text(text: &str, max_chars: usize) -> Vec<Line> {
         lines.push(Line {
             text: current,
             is_verse_number: false,
+            verse_number: 0,
         });
     }
 
@@ -57,6 +60,10 @@ pub fn wrap_verses(verses: &[crate::models::Verse]) -> Vec<Line> {
         let mut verse_lines = wrap_text(&verse.text, max_chars.saturating_sub(num_str.len()));
         if let Some(first) = verse_lines.first_mut() {
             first.text = format!("{}{}", num_str, first.text);
+            first.is_verse_number = true;
+        }
+        for line in &mut verse_lines {
+            line.verse_number = verse.number;
         }
         for line in verse_lines {
             all_lines.push(line);

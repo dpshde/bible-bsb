@@ -97,6 +97,38 @@ fn reader_max_visible() -> usize {
     ((64 - 16 - 2) / crate::renderer::LINE_HEIGHT) as usize
 }
 
+fn next_verse_offset(lines: &[crate::renderer::Line], current: usize) -> Option<usize> {
+    let current_verse = lines.get(current)?.verse_number;
+    for (i, line) in lines.iter().enumerate().skip(current + 1) {
+        if line.verse_number > current_verse {
+            return Some(i);
+        }
+    }
+    None
+}
+
+fn prev_verse_offset(lines: &[crate::renderer::Line], current: usize) -> Option<usize> {
+    let current_verse = lines.get(current)?.verse_number;
+    let is_first = lines.get(current)?.is_verse_number;
+
+    if !is_first {
+        lines.iter().position(|l| l.verse_number == current_verse && l.is_verse_number)
+    } else {
+        let mut prev_verse: u16 = 0;
+        for line in lines[..current].iter().rev() {
+            if line.verse_number < current_verse {
+                prev_verse = line.verse_number;
+                break;
+            }
+        }
+        if prev_verse == 0 {
+            Some(0)
+        } else {
+            lines.iter().position(|l| l.verse_number == prev_verse && l.is_verse_number)
+        }
+    }
+}
+
 pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
     let total_lines = state.lines.len();
     let max_visible = reader_max_visible();
@@ -105,33 +137,33 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
     match event.key {
         sys::InputKeyUp => {
             if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
-                if state.scroll_offset > 0 {
-                    state.scroll_offset -= 1;
+                if let Some(new_offset) = prev_verse_offset(&state.lines, state.scroll_offset) {
+                    state.scroll_offset = new_offset;
                 }
             }
         }
         sys::InputKeyDown => {
             if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
-                if state.scroll_offset < max_scroll {
-                    state.scroll_offset += 1;
+                if let Some(new_offset) = next_verse_offset(&state.lines, state.scroll_offset) {
+                    if new_offset <= max_scroll {
+                        state.scroll_offset = new_offset;
+                    } else {
+                        state.scroll_offset = max_scroll;
+                    }
                 }
             }
         }
         sys::InputKeyLeft => {
             if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
-                if state.scroll_offset >= max_visible {
-                    state.scroll_offset -= max_visible;
-                } else {
-                    state.scroll_offset = 0;
+                if state.scroll_offset > 0 {
+                    state.scroll_offset -= 1;
                 }
             }
         }
         sys::InputKeyRight => {
             if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
-                if state.scroll_offset + max_visible <= max_scroll {
-                    state.scroll_offset += max_visible;
-                } else {
-                    state.scroll_offset = max_scroll;
+                if state.scroll_offset < max_scroll {
+                    state.scroll_offset += 1;
                 }
             }
         }
