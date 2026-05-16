@@ -103,6 +103,7 @@ typedef struct {
  * ============================================================================ */
 typedef struct BibleAppState {
     /* Navigation */
+    uint8_t current_scene; /* matches BibleScene enum */
     uint8_t selected_book; /* 0-65 */
     uint16_t selected_chapter; /* 1-150 */
     uint16_t selected_start_verse;
@@ -141,6 +142,7 @@ typedef struct BibleAppState {
 static inline void bible_app_state_init(BibleAppState* state) {
     furi_check(state);
     memset(state, 0, sizeof(BibleAppState));
+    state->current_scene = 0; /* BibleSceneBookList */
     state->selected_book = 0;
     state->selected_chapter = 1;
     state->selected_start_verse = 1;

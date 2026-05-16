@@ -133,10 +133,8 @@ bool bible_bsb_view_book_filter_input(InputEvent* event, void* ctx) {
         }
         consumed = true;
 
-    } else if(
-        (event->key == InputKeyOk || event->key == InputKeyBack) &&
-        event->type == InputTypeShort) {
-        /* Apply filter and return to BookList */
+    } else if(event->key == InputKeyOk && event->type == InputTypeShort) {
+        /* OK Short: apply filter and return to BookList (directional confirm) */
         uint8_t filtered[BIBLE_BOOK_COUNT];
         uint8_t filtered_count = get_filtered_books(state->book_filter_idx, filtered);
         if(filtered_count > 0) {
@@ -145,6 +143,10 @@ bool bible_bsb_view_book_filter_input(InputEvent* event, void* ctx) {
         }
         scene_manager_previous_scene(app->scene_manager);
         consumed = true;
+
+    } else if(event->key == InputKeyBack && event->type == InputTypeShort) {
+        /* Back Short: let SceneManager handle via BookFilter scene on_event */
+        consumed = false;
     }
 
     return consumed;

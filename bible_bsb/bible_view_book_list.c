@@ -159,21 +159,9 @@ bool bible_bsb_view_book_list_input(InputEvent* event, void* ctx) {
         consumed = true;
 
     } else if(event->key == InputKeyBack && event->type == InputTypeShort) {
-        if(state->book_filter_idx != 0) {
-            /* Reset filter to All, select first matching book */
-            state->book_filter_idx = 0;
-            uint8_t all_filtered[BIBLE_BOOK_COUNT];
-            uint8_t all_count = get_filtered_books(0, all_filtered);
-            if(all_count > 0) {
-                state->selected_book = all_filtered[0];
-            }
-            state->book_scroll = 0;
-            consumed = true;
-        } else {
-            /* Already "All" — quit the app */
-            view_dispatcher_stop(app->view_dispatcher);
-            consumed = true;
-        }
+        /* Let SceneManager handle Back: BookList scene on_event will reset
+         * filter (if active) or stop the app (if already "All"). */
+        consumed = false;
     }
 
     return consumed;

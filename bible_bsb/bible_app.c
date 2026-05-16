@@ -3,6 +3,7 @@
 #include "bible_view_book_filter.h"
 #include "bible_view_chapter_list.h"
 #include "bible_view_verse_select.h"
+#include "bible_books.h"
 
 #include <furi.h>
 #include <gui/gui.h>
@@ -11,17 +12,53 @@
 #include <gui/view.h>
 
 /* ============================================================================
- * Scene handlers — stubs for skeleton (real logic added in later features)
+ * Navigation helpers
+ * ============================================================================ */
+
+/**
+ * ViewDispatcher navigation callback — routes Back events through SceneManager.
+ *
+ * When a view's input callback returns false for Back, ViewDispatcher calls
+ * this callback, which forwards to scene_manager_handle_back_event().
+ * The active scene's on_event handler then receives SceneManagerEventTypeBack.
+ */
+static bool bible_bsb_navigation_event_callback(void* context) {
+    furi_check(context);
+    BibleApp* app = context;
+    return scene_manager_handle_back_event(app->scene_manager);
+}
+
+/* ============================================================================
+ * Scene handlers — BookList
  * ============================================================================ */
 
 static void bible_bsb_scene_book_list_on_enter(void* context) {
     BibleApp* app = context;
+    app->state->current_scene = BibleSceneBookList;
     view_dispatcher_switch_to_view(app->view_dispatcher, BibleViewBookList);
 }
 
 static bool bible_bsb_scene_book_list_on_event(void* context, SceneManagerEvent event) {
-    UNUSED(context);
-    UNUSED(event);
+    BibleApp* app = context;
+    BibleAppState* state = app->state;
+
+    if(event.type == SceneManagerEventTypeBack) {
+        if(state->book_filter_idx != 0) {
+            /* Reset filter to All, select first matching book */
+            state->book_filter_idx = 0;
+            uint8_t all_filtered[BIBLE_BOOK_COUNT];
+            uint8_t all_count = get_filtered_books(0, all_filtered);
+            if(all_count > 0) {
+                state->selected_book = all_filtered[0];
+            }
+            state->book_scroll = 0;
+            return true; /* consumed — stay on BookList */
+        } else {
+            /* Already "All" — quit the app */
+            view_dispatcher_stop(app->view_dispatcher);
+            return true; /* consumed — app will exit */
+        }
+    }
     return false;
 }
 
@@ -29,14 +66,31 @@ static void bible_bsb_scene_book_list_on_exit(void* context) {
     UNUSED(context);
 }
 
+/* ============================================================================
+ * Scene handlers — BookFilter
+ * ============================================================================ */
+
 static void bible_bsb_scene_book_filter_on_enter(void* context) {
     BibleApp* app = context;
+    app->state->current_scene = BibleSceneBookFilter;
     view_dispatcher_switch_to_view(app->view_dispatcher, BibleViewBookFilter);
 }
 
 static bool bible_bsb_scene_book_filter_on_event(void* context, SceneManagerEvent event) {
-    UNUSED(context);
-    UNUSED(event);
+    BibleApp* app = context;
+    BibleAppState* state = app->state;
+
+    if(event.type == SceneManagerEventTypeBack) {
+        /* Apply filter and return to BookList */
+        uint8_t filtered[BIBLE_BOOK_COUNT];
+        uint8_t filtered_count = get_filtered_books(state->book_filter_idx, filtered);
+        if(filtered_count > 0) {
+            state->selected_book = filtered[0];
+            state->book_scroll = 0;
+        }
+        scene_manager_previous_scene(app->scene_manager);
+        return true;
+    }
     return false;
 }
 
@@ -44,14 +98,23 @@ static void bible_bsb_scene_book_filter_on_exit(void* context) {
     UNUSED(context);
 }
 
+/* ============================================================================
+ * Scene handlers — ChapterList
+ * ============================================================================ */
+
 static void bible_bsb_scene_chapter_list_on_enter(void* context) {
     BibleApp* app = context;
+    app->state->current_scene = BibleSceneChapterList;
     view_dispatcher_switch_to_view(app->view_dispatcher, BibleViewChapterList);
 }
 
 static bool bible_bsb_scene_chapter_list_on_event(void* context, SceneManagerEvent event) {
-    UNUSED(context);
-    UNUSED(event);
+    BibleApp* app = context;
+
+    if(event.type == SceneManagerEventTypeBack) {
+        scene_manager_previous_scene(app->scene_manager);
+        return true;
+    }
     return false;
 }
 
@@ -59,14 +122,23 @@ static void bible_bsb_scene_chapter_list_on_exit(void* context) {
     UNUSED(context);
 }
 
+/* ============================================================================
+ * Scene handlers — VerseSelect
+ * ============================================================================ */
+
 static void bible_bsb_scene_verse_select_on_enter(void* context) {
     BibleApp* app = context;
+    app->state->current_scene = BibleSceneVerseSelect;
     view_dispatcher_switch_to_view(app->view_dispatcher, BibleViewVerseSelect);
 }
 
 static bool bible_bsb_scene_verse_select_on_event(void* context, SceneManagerEvent event) {
-    UNUSED(context);
-    UNUSED(event);
+    BibleApp* app = context;
+
+    if(event.type == SceneManagerEventTypeBack) {
+        scene_manager_previous_scene(app->scene_manager);
+        return true;
+    }
     return false;
 }
 
@@ -74,8 +146,13 @@ static void bible_bsb_scene_verse_select_on_exit(void* context) {
     UNUSED(context);
 }
 
+/* ============================================================================
+ * Scene handlers — Reader (stub for future feature)
+ * ============================================================================ */
+
 static void bible_bsb_scene_reader_on_enter(void* context) {
     BibleApp* app = context;
+    app->state->current_scene = BibleSceneReader;
     view_dispatcher_switch_to_view(app->view_dispatcher, BibleViewReader);
 }
 
@@ -89,8 +166,13 @@ static void bible_bsb_scene_reader_on_exit(void* context) {
     UNUSED(context);
 }
 
+/* ============================================================================
+ * Scene handlers — ActionMenu (stub for future feature)
+ * ============================================================================ */
+
 static void bible_bsb_scene_action_menu_on_enter(void* context) {
     BibleApp* app = context;
+    app->state->current_scene = BibleSceneActionMenu;
     view_dispatcher_switch_to_view(app->view_dispatcher, BibleViewActionMenu);
 }
 
@@ -104,8 +186,13 @@ static void bible_bsb_scene_action_menu_on_exit(void* context) {
     UNUSED(context);
 }
 
+/* ============================================================================
+ * Scene handlers — Collection (stub for future feature)
+ * ============================================================================ */
+
 static void bible_bsb_scene_collection_on_enter(void* context) {
     BibleApp* app = context;
+    app->state->current_scene = BibleSceneCollection;
     view_dispatcher_switch_to_view(app->view_dispatcher, BibleViewCollection);
 }
 
@@ -119,8 +206,13 @@ static void bible_bsb_scene_collection_on_exit(void* context) {
     UNUSED(context);
 }
 
+/* ============================================================================
+ * Scene handlers — NfcShare (stub for future feature)
+ * ============================================================================ */
+
 static void bible_bsb_scene_nfc_share_on_enter(void* context) {
     BibleApp* app = context;
+    app->state->current_scene = BibleSceneNfcShare;
     view_dispatcher_switch_to_view(app->view_dispatcher, BibleViewNfcShare);
 }
 
@@ -178,7 +270,7 @@ static const SceneManagerHandlers bible_bsb_scene_handlers = {
 };
 
 /* ============================================================================
- * Custom view draw callbacks — minimal stubs
+ * Custom view draw/input callbacks — 4 navigation views + 4 future stubs
  * ============================================================================ */
 
 static void bible_bsb_wrapper_book_filter_draw(Canvas* canvas, void* ctx) {
@@ -274,16 +366,15 @@ BibleApp* bible_app_alloc(void) {
     app->view_dispatcher = view_dispatcher_alloc();
     app->scene_manager = scene_manager_alloc(&bible_bsb_scene_handlers, app);
     view_dispatcher_set_event_callback_context(app->view_dispatcher, app);
-    view_dispatcher_set_custom_event_callback(
-        app->view_dispatcher, NULL); /* set per-scene later */
+    view_dispatcher_set_custom_event_callback(app->view_dispatcher, NULL);
     view_dispatcher_set_navigation_event_callback(
-        app->view_dispatcher, NULL); /* set per-scene later */
+        app->view_dispatcher, bible_bsb_navigation_event_callback);
 
     /* GUI */
     app->gui = furi_record_open(RECORD_GUI);
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
-    /* Custom views */
+    /* Custom views — all 8 views registered with ViewDispatcher */
     View* view;
 
     view = view_alloc();

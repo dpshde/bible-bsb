@@ -162,9 +162,8 @@ bool bible_bsb_view_chapter_list_input(InputEvent* event, void* ctx) {
         consumed = true;
 
     } else if(event->key == InputKeyBack && event->type == InputTypeShort) {
-        /* Return to BookList */
-        scene_manager_previous_scene(app->scene_manager);
-        consumed = true;
+        /* Return to BookList — let SceneManager handle it via on_event. */
+        consumed = false;
     }
 
     return consumed;

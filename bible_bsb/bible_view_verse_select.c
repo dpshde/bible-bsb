@@ -229,9 +229,8 @@ bool bible_bsb_view_verse_select_input(InputEvent* event, void* ctx) {
         consumed = true;
 
     } else if(event->key == InputKeyBack && event->type == InputTypeShort) {
-        /* Back (Short): return to ChapterList */
-        scene_manager_previous_scene(app->scene_manager);
-        consumed = true;
+        /* Back (Short): let SceneManager handle via VerseSelect scene on_event. */
+        consumed = false;
     }
 
     return consumed;
