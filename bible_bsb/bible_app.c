@@ -1,4 +1,5 @@
 #include "bible_app.h"
+#include "bible_view_book_list.h"
 
 #include <furi.h>
 #include <gui/gui.h>
@@ -176,18 +177,6 @@ static const SceneManagerHandlers bible_bsb_scene_handlers = {
 /* ============================================================================
  * Custom view draw callbacks — minimal stubs
  * ============================================================================ */
-static void bible_bsb_view_book_list_draw(Canvas* canvas, void* ctx) {
-    UNUSED(ctx);
-    canvas_clear(canvas);
-    canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 2, 10, "Book List");
-}
-
-static bool bible_bsb_view_book_list_input(InputEvent* event, void* ctx) {
-    UNUSED(event);
-    UNUSED(ctx);
-    return false;
-}
 
 static void bible_bsb_view_book_filter_draw(Canvas* canvas, void* ctx) {
     UNUSED(ctx);
