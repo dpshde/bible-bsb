@@ -380,8 +380,7 @@ BibleApp* bible_app_alloc(void) {
     view_dispatcher_set_navigation_event_callback(
         app->view_dispatcher, bible_bsb_navigation_event_callback);
     /* 33ms ~ 30fps tick for toast timer and NFC animation */
-    view_dispatcher_set_tick_event_callback(
-        app->view_dispatcher, bible_bsb_tick_callback, 33);
+    view_dispatcher_set_tick_event_callback(app->view_dispatcher, bible_bsb_tick_callback, 33);
 
     /* GUI */
     app->gui = furi_record_open(RECORD_GUI);

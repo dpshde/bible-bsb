@@ -13,16 +13,16 @@
 /* ============================================================================
  * NDEF constants — match Rust nfc_share.rs exactly
  * ============================================================================ */
-#define NDEF_HEADER       0xD1 /* MB=1, ME=1, SR=1, TNF=01 (Well-known) */
-#define NDEF_TYPE_LEN     0x01 /* Single-byte type */
-#define NDEF_TYPE_URI     0x55 /* 'U' — URI record */
-#define URI_PREFIX_HTTPS  0x04 /* https:// */
-#define NDEF_TYPE_TEXT    0x54 /* 'T' — Text record */
+#define NDEF_HEADER      0xD1 /* MB=1, ME=1, SR=1, TNF=01 (Well-known) */
+#define NDEF_TYPE_LEN    0x01 /* Single-byte type */
+#define NDEF_TYPE_URI    0x55 /* 'U' — URI record */
+#define URI_PREFIX_HTTPS 0x04 /* https:// */
+#define NDEF_TYPE_TEXT   0x54 /* 'T' — Text record */
 
 /* NTAG215 capacity */
-#define NTAG215_USER_PAGES 126
+#define NTAG215_USER_PAGES  126
 #define NTAG215_TOTAL_BYTES (NTAG215_USER_PAGES * MF_ULTRALIGHT_PAGE_SIZE)
-#define CC_PAGE 3
+#define CC_PAGE             3
 
 /* ============================================================================
  * Emulation state (static — one active emulation at a time)
@@ -145,10 +145,8 @@ static bool build_ndef_text(const char* text, uint8_t* out_ndef, uint8_t* out_nd
  * @param pages     MfUltralightData page array (modified in place)
  * @return number of pages written, or 0 if too large
  */
-static uint16_t write_ndef_to_ntag215_pages(
-    const uint8_t* ndef,
-    uint8_t ndef_len,
-    MfUltralightPage* pages) {
+static uint16_t
+    write_ndef_to_ntag215_pages(const uint8_t* ndef, uint8_t ndef_len, MfUltralightPage* pages) {
     furi_check(ndef);
     furi_check(pages);
 
@@ -245,8 +243,7 @@ static bool start_ndef_emulation(const uint8_t* ndef, uint8_t ndef_len) {
     }
 
     MfUltralightData* mf_data = (MfUltralightData*)data;
-    uint16_t pages_written =
-        write_ndef_to_ntag215_pages(ndef, ndef_len, mf_data->page);
+    uint16_t pages_written = write_ndef_to_ntag215_pages(ndef, ndef_len, mf_data->page);
     if(pages_written == 0) {
         nfc_device_free(device);
         emulation_state.device = NULL;

@@ -7,11 +7,11 @@
 /* ============================================================================
  * NfcShare layout constants — match Rust src/views/nfc_share.rs exactly
  * ============================================================================ */
-#define NFC_SHARE_HEADER_Y    10
-#define NFC_SHARE_DIVIDER_Y   12
-#define NFC_SHARE_PROMPT_Y    24
-#define NFC_SHARE_PREVIEW_Y   38
-#define NFC_SHARE_CANCEL_Y    62
+#define NFC_SHARE_HEADER_Y  10
+#define NFC_SHARE_DIVIDER_Y 12
+#define NFC_SHARE_PROMPT_Y  24
+#define NFC_SHARE_PREVIEW_Y 38
+#define NFC_SHARE_CANCEL_Y  62
 
 /* ============================================================================
  * NfcShare view — draw callback
@@ -94,8 +94,7 @@ bool bible_bsb_view_nfc_share_input(InputEvent* event, void* ctx) {
             scene_manager_search_and_switch_to_another_scene(
                 app->scene_manager, BibleSceneCollection);
         } else {
-            scene_manager_search_and_switch_to_another_scene(
-                app->scene_manager, BibleSceneReader);
+            scene_manager_search_and_switch_to_another_scene(app->scene_manager, BibleSceneReader);
         }
         consumed = true;
     }

@@ -8,9 +8,9 @@
 /* ============================================================================
  * Collection layout constants — match Rust src/views/collection.rs exactly
  * ============================================================================ */
-#define COLLECTION_HEADER_Y   10
-#define COLLECTION_DIVIDER_Y  12
-#define COLLECTION_LINE_H     12
+#define COLLECTION_HEADER_Y  10
+#define COLLECTION_DIVIDER_Y 12
+#define COLLECTION_LINE_H    12
 
 /* ============================================================================
  * Collection view — draw callback
@@ -57,13 +57,18 @@ void bible_bsb_view_collection_draw(Canvas* canvas, void* ctx) {
                 BIBLE_MARGIN_X + 4,
                 y);
         } else {
-            canvas_draw_str(canvas, BIBLE_MARGIN_X + 4, y, state->collection[idx].scripture_display_ref);
+            canvas_draw_str(
+                canvas, BIBLE_MARGIN_X + 4, y, state->collection[idx].scripture_display_ref);
         }
     }
 
     /* Scroll indicator */
     bible_draw_scroll_indicator(
-        canvas, state->collection_scroll, state->collection_count, max_visible, COLLECTION_DIVIDER_Y);
+        canvas,
+        state->collection_scroll,
+        state->collection_count,
+        max_visible,
+        COLLECTION_DIVIDER_Y);
 
     /* Bottom hint */
     canvas_set_font(canvas, FontSecondary);
@@ -144,7 +149,8 @@ bool bible_bsb_view_collection_input(InputEvent* event, void* ctx) {
             }
             state->collection_count--;
 
-            if(state->collection_count > 0 && state->collection_scroll >= state->collection_count) {
+            if(state->collection_count > 0 &&
+               state->collection_scroll >= state->collection_count) {
                 state->collection_scroll = state->collection_count - 1;
             }
 
