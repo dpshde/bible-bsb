@@ -350,6 +350,16 @@ static bool bible_bsb_wrapper_nfc_share_input(InputEvent* event, void* ctx) {
 }
 
 /* ============================================================================
+ * Tick callback — called every frame to update toast timer, animations, etc.
+ * ============================================================================ */
+static void bible_bsb_tick_callback(void* context) {
+    BibleApp* app = context;
+    if(app && app->state) {
+        bible_toast_tick(&app->state->toast);
+    }
+}
+
+/* ============================================================================
  * Allocation
  * ============================================================================ */
 BibleApp* bible_app_alloc(void) {
@@ -369,6 +379,9 @@ BibleApp* bible_app_alloc(void) {
     view_dispatcher_set_custom_event_callback(app->view_dispatcher, NULL);
     view_dispatcher_set_navigation_event_callback(
         app->view_dispatcher, bible_bsb_navigation_event_callback);
+    /* 33ms ~ 30fps tick for toast timer and NFC animation */
+    view_dispatcher_set_tick_event_callback(
+        app->view_dispatcher, bible_bsb_tick_callback, 33);
 
     /* GUI */
     app->gui = furi_record_open(RECORD_GUI);
@@ -455,6 +468,7 @@ void bible_app_free(BibleApp* app) {
     furi_record_close(RECORD_GUI);
 
     /* Dispatcher + SceneManager */
+    view_dispatcher_set_tick_event_callback(app->view_dispatcher, NULL, 0);
     view_dispatcher_free(app->view_dispatcher);
     scene_manager_free(app->scene_manager);
 
