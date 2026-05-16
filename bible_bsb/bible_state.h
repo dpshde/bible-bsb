@@ -9,15 +9,15 @@
 /* ============================================================================
  * Max values
  * ============================================================================ */
-#define BIBLE_MAX_BOOKS          66
-#define BIBLE_MAX_CHAPTERS       150
-#define BIBLE_MAX_FILTER_OPTIONS 22
-#define BIBLE_MAX_COLLECTION     100
-#define BIBLE_MAX_VERSES         176 /* Psalms 119 = 176 verses */
-#define BIBLE_MAX_LINES          512
-#define BIBLE_MAX_FILE_SIZE      20000
+#define BIBLE_MAX_BOOKS           66
+#define BIBLE_MAX_CHAPTERS        150
+#define BIBLE_MAX_FILTER_OPTIONS  22
+#define BIBLE_MAX_COLLECTION      100
+#define BIBLE_MAX_VERSES          176 /* Psalms 119 = 176 verses */
+#define BIBLE_MAX_LINES           512
+#define BIBLE_MAX_FILE_SIZE       20000
 #define BIBLE_MAX_COLLECTION_SIZE 2048
-#define BIBLE_READ_CHUNK         1024
+#define BIBLE_READ_CHUNK          1024
 
 /* ============================================================================
  * Toast system
@@ -58,9 +58,9 @@ static inline bool bible_toast_active(const BibleToast* toast) {
  * Line (rendered wrapped line)
  * ============================================================================ */
 typedef struct {
-    char text[64];          /* max chars per line + verse prefix + safety */
-    uint16_t verse_number;  /* verse this line belongs to (0 = unassigned) */
-    bool is_verse_number;   /* true if first line of a verse (has number prefix) */
+    char text[64]; /* max chars per line + verse prefix + safety */
+    uint16_t verse_number; /* verse this line belongs to (0 = unassigned) */
+    bool is_verse_number; /* true if first line of a verse (has number prefix) */
 } BibleLine;
 
 /* ============================================================================
@@ -75,8 +75,8 @@ typedef struct {
  * Passage (currently loaded chapter data)
  * ============================================================================ */
 typedef struct {
-    uint8_t book_index;     /* 0-65 */
-    uint16_t chapter;       /* 1-150 */
+    uint8_t book_index; /* 0-65 */
+    uint16_t chapter; /* 1-150 */
     uint16_t start_verse;
     uint16_t end_verse;
     uint16_t verse_count;
@@ -103,12 +103,12 @@ typedef struct {
  * ============================================================================ */
 typedef struct BibleAppState {
     /* Navigation */
-    uint8_t selected_book;          /* 0-65 */
-    uint16_t selected_chapter;    /* 1-150 */
+    uint8_t selected_book; /* 0-65 */
+    uint16_t selected_chapter; /* 1-150 */
     uint16_t selected_start_verse;
     uint16_t selected_end_verse;
-    uint8_t verse_select_mode;      /* 0=All, 1=Start, 2=End */
-    uint8_t book_filter_idx;        /* 0-21 */
+    uint8_t verse_select_mode; /* 0=All, 1=Start, 2=End */
+    uint8_t book_filter_idx; /* 0-21 */
     uint16_t scroll_offset;
     uint16_t book_scroll;
     uint16_t collection_scroll;

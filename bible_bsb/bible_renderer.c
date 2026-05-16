@@ -13,7 +13,6 @@ void bible_word_wrap(
     BibleLine* out_lines,
     uint16_t* out_count,
     uint16_t max_lines) {
-
     furi_check(text);
     furi_check(out_lines);
     furi_check(out_count);
@@ -25,7 +24,7 @@ void bible_word_wrap(
 
     /* Effective char budget for the first line (with prefix) and rest */
     uint8_t first_max = (max_chars > prefix_len) ? (max_chars - prefix_len) : 0;
-    uint8_t rest_max  = max_chars;
+    uint8_t rest_max = max_chars;
 
     bool first_line = true;
     char current[64];
@@ -161,7 +160,6 @@ void bible_wrap_verses(
     BibleLine* out_lines,
     uint16_t* out_count,
     uint16_t max_lines) {
-
     furi_check(verses);
     furi_check(out_lines);
     furi_check(out_count);
@@ -187,7 +185,6 @@ void bible_draw_scroll_indicator(
     uint16_t total,
     uint16_t visible,
     uint8_t header_height) {
-
     if(total <= visible) {
         return;
     }
@@ -251,7 +248,6 @@ void bible_draw_inverted_highlight(
     const char* text,
     uint8_t text_x,
     uint8_t text_y) {
-
     /* Black filled box */
     canvas_draw_box(canvas, x, y, w, h);
 

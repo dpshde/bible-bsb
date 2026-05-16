@@ -11,7 +11,7 @@
  * ============================================================================ */
 
 #define BIBLE_BOOK_COUNT 66
-#define OT_COUNT         39   /* Malachi is index 38, Matthew is index 39 */
+#define OT_COUNT         39 /* Malachi is index 38, Matthew is index 39 */
 
 /* --------------------------------------------------------------------------
  * 22 filter options: "All" + 21 initial letters

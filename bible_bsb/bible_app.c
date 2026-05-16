@@ -1,5 +1,6 @@
 #include "bible_app.h"
 #include "bible_view_book_list.h"
+#include "bible_view_book_filter.h"
 
 #include <furi.h>
 #include <gui/gui.h>
@@ -178,17 +179,12 @@ static const SceneManagerHandlers bible_bsb_scene_handlers = {
  * Custom view draw callbacks — minimal stubs
  * ============================================================================ */
 
-static void bible_bsb_view_book_filter_draw(Canvas* canvas, void* ctx) {
-    UNUSED(ctx);
-    canvas_clear(canvas);
-    canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 2, 10, "Book Filter");
+static void bible_bsb_wrapper_book_filter_draw(Canvas* canvas, void* ctx) {
+    bible_bsb_view_book_filter_draw(canvas, ctx);
 }
 
-static bool bible_bsb_view_book_filter_input(InputEvent* event, void* ctx) {
-    UNUSED(event);
-    UNUSED(ctx);
-    return false;
+static bool bible_bsb_wrapper_book_filter_input(InputEvent* event, void* ctx) {
+    return bible_bsb_view_book_filter_input(event, ctx);
 }
 
 static void bible_bsb_view_chapter_list_draw(Canvas* canvas, void* ctx) {
@@ -289,13 +285,11 @@ BibleApp* bible_app_alloc(void) {
     view_dispatcher_set_custom_event_callback(
         app->view_dispatcher, NULL); /* set per-scene later */
     view_dispatcher_set_navigation_event_callback(
-        app->view_dispatcher,
-        NULL); /* set per-scene later */
+        app->view_dispatcher, NULL); /* set per-scene later */
 
     /* GUI */
     app->gui = furi_record_open(RECORD_GUI);
-    view_dispatcher_attach_to_gui(
-        app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
+    view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
     /* Custom views */
     View* view;
@@ -308,8 +302,8 @@ BibleApp* bible_app_alloc(void) {
     view_dispatcher_add_view(app->view_dispatcher, BibleViewBookList, view);
 
     view = view_alloc();
-    view_set_draw_callback(view, bible_bsb_view_book_filter_draw);
-    view_set_input_callback(view, bible_bsb_view_book_filter_input);
+    view_set_draw_callback(view, bible_bsb_wrapper_book_filter_draw);
+    view_set_input_callback(view, bible_bsb_wrapper_book_filter_input);
     view_set_context(view, app);
     app->views[BibleViewBookFilter] = view;
     view_dispatcher_add_view(app->view_dispatcher, BibleViewBookFilter, view);
