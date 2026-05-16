@@ -5,9 +5,17 @@
 #include <stdio.h>
 
 /* ============================================================================
- * URL builder stub — full implementation by route-url-builder feature.
+ * route.bible URL builder
  *
- * For now: builds a basic URL so ActionMenu NFC share can proceed.
+ * Canonical URL format (mirrors Rust src/route_url.rs exactly):
+ *
+ *   All verses:     https://route.bible/{book_lower}.{chapter}?v=BSB&src=kindled_spark
+ *   Single verse:   https://route.bible/{book_lower}.{chapter}.{verse}?v=BSB&src=kindled_spark
+ *   Verse range:    https://route.bible/{book_lower}.{chapter}.{start}-{book_lower}.{chapter}.{end}?v=BSB&src=kindled_spark
+ *
+ * Book names use lowercased OSIS codes (e.g., "gen", "jhn", "rev").
+ * Used by ActionMenu NFC share (bible_view_action_menu.c) and
+ * Collection NFC bulk export (bible_view_collection.c).
  * ============================================================================ */
 
 bool bible_build_route_url(const BiblePassage* passage, char* out, size_t out_len) {
@@ -33,6 +41,7 @@ bool bible_build_route_url(const BiblePassage* passage, char* out, size_t out_le
     }
 
     if(passage->start_verse > 0 && passage->end_verse > passage->start_verse) {
+        /* Verse range */
         snprintf(
             out,
             out_len,
@@ -44,6 +53,7 @@ bool bible_build_route_url(const BiblePassage* passage, char* out, size_t out_le
             (unsigned int)passage->chapter,
             (unsigned int)passage->end_verse);
     } else if(passage->start_verse > 0) {
+        /* Single verse */
         snprintf(
             out,
             out_len,
@@ -52,10 +62,11 @@ bool bible_build_route_url(const BiblePassage* passage, char* out, size_t out_le
             (unsigned int)passage->chapter,
             (unsigned int)passage->start_verse);
     } else {
+        /* All verses — no verse number appended, matching Rust build_url */
         snprintf(
             out,
             out_len,
-            "https://route.bible/%s.%u.1?v=BSB&src=kindled_spark",
+            "https://route.bible/%s.%u?v=BSB&src=kindled_spark",
             book_lower,
             (unsigned int)passage->chapter);
     }
