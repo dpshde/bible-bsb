@@ -2,6 +2,7 @@
 #include "bible_view_book_list.h"
 #include "bible_view_book_filter.h"
 #include "bible_view_chapter_list.h"
+#include "bible_view_verse_select.h"
 
 #include <furi.h>
 #include <gui/gui.h>
@@ -196,17 +197,12 @@ static bool bible_bsb_wrapper_chapter_list_input(InputEvent* event, void* ctx) {
     return bible_bsb_view_chapter_list_input(event, ctx);
 }
 
-static void bible_bsb_view_verse_select_draw(Canvas* canvas, void* ctx) {
-    UNUSED(ctx);
-    canvas_clear(canvas);
-    canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 2, 10, "Verse Select");
+static void bible_bsb_wrapper_verse_select_draw(Canvas* canvas, void* ctx) {
+    bible_bsb_view_verse_select_draw(canvas, ctx);
 }
 
-static bool bible_bsb_view_verse_select_input(InputEvent* event, void* ctx) {
-    UNUSED(event);
-    UNUSED(ctx);
-    return false;
+static bool bible_bsb_wrapper_verse_select_input(InputEvent* event, void* ctx) {
+    return bible_bsb_view_verse_select_input(event, ctx);
 }
 
 static void bible_bsb_view_reader_draw(Canvas* canvas, void* ctx) {
@@ -312,8 +308,8 @@ BibleApp* bible_app_alloc(void) {
     view_dispatcher_add_view(app->view_dispatcher, BibleViewChapterList, view);
 
     view = view_alloc();
-    view_set_draw_callback(view, bible_bsb_view_verse_select_draw);
-    view_set_input_callback(view, bible_bsb_view_verse_select_input);
+    view_set_draw_callback(view, bible_bsb_wrapper_verse_select_draw);
+    view_set_input_callback(view, bible_bsb_wrapper_verse_select_input);
     view_set_context(view, app);
     app->views[BibleViewVerseSelect] = view;
     view_dispatcher_add_view(app->view_dispatcher, BibleViewVerseSelect, view);
