@@ -267,10 +267,7 @@ void bible_render_page(
     }
 }
 
-uint16_t bible_total_pages(
-    const BibleLine* lines,
-    uint16_t line_count,
-    int16_t y_offset) {
+uint16_t bible_total_pages(const BibleLine* lines, uint16_t line_count, int16_t y_offset) {
     UNUSED(lines);
     uint16_t max_visible = bible_max_visible_lines(y_offset);
     if(line_count == 0 || max_visible == 0) return 1;

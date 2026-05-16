@@ -8,12 +8,12 @@
 /* ============================================================================
  * VerseSelect layout constants — match Rust src/views/verse_select.rs exactly
  * ============================================================================ */
-#define VERSE_SELECT_HEADER_H  12
-#define VERSE_SELECT_LINE_H    12
-#define VERSE_SELECT_ROW_1_Y   (VERSE_SELECT_HEADER_H + 10)  /* y = 22 */
-#define VERSE_SELECT_ROW_2_Y   (VERSE_SELECT_ROW_1_Y + VERSE_SELECT_LINE_H) /* y = 34 */
-#define VERSE_SELECT_ROW_3_Y   (VERSE_SELECT_ROW_2_Y + VERSE_SELECT_LINE_H) /* y = 46 */
-#define VERSE_SELECT_HINT_Y    60
+#define VERSE_SELECT_HEADER_H 12
+#define VERSE_SELECT_LINE_H   12
+#define VERSE_SELECT_ROW_1_Y  (VERSE_SELECT_HEADER_H + 10) /* y = 22 */
+#define VERSE_SELECT_ROW_2_Y  (VERSE_SELECT_ROW_1_Y + VERSE_SELECT_LINE_H) /* y = 34 */
+#define VERSE_SELECT_ROW_3_Y  (VERSE_SELECT_ROW_2_Y + VERSE_SELECT_LINE_H) /* y = 46 */
+#define VERSE_SELECT_HINT_Y   60
 
 /* ============================================================================
  * VerseSelect view — draw callback
@@ -34,11 +34,9 @@ void bible_bsb_view_verse_select_draw(Canvas* canvas, void* ctx) {
         OSIS_BOOK_NAMES[state->selected_book],
         (unsigned int)state->selected_chapter);
     canvas_draw_str(canvas, BIBLE_MARGIN_X, 10, header);
-    canvas_draw_line(
-        canvas, 0, VERSE_SELECT_HEADER_H, BIBLE_SCREEN_WIDTH, VERSE_SELECT_HEADER_H);
+    canvas_draw_line(canvas, 0, VERSE_SELECT_HEADER_H, BIBLE_SCREEN_WIDTH, VERSE_SELECT_HEADER_H);
 
-    uint16_t actual_max =
-        max_verse_for_chapter(state->selected_book, state->selected_chapter);
+    uint16_t actual_max = max_verse_for_chapter(state->selected_book, state->selected_chapter);
     if(actual_max == 0) {
         actual_max = 40;
     }
@@ -63,10 +61,7 @@ void bible_bsb_view_verse_select_draw(Canvas* canvas, void* ctx) {
     bool start_selected = (state->verse_select_mode == 1);
     char start_label[32];
     snprintf(
-        start_label,
-        sizeof(start_label),
-        "Start: %u",
-        (unsigned int)state->selected_start_verse);
+        start_label, sizeof(start_label), "Start: %u", (unsigned int)state->selected_start_verse);
     if(start_selected) {
         bible_draw_inverted_highlight(
             canvas,
@@ -84,11 +79,7 @@ void bible_bsb_view_verse_select_draw(Canvas* canvas, void* ctx) {
     /* --- Row 3: "End: {n}" --- */
     bool end_selected = (state->verse_select_mode == 2);
     char end_label[32];
-    snprintf(
-        end_label,
-        sizeof(end_label),
-        "End: %u",
-        (unsigned int)state->selected_end_verse);
+    snprintf(end_label, sizeof(end_label), "End: %u", (unsigned int)state->selected_end_verse);
     if(end_selected) {
         bible_draw_inverted_highlight(
             canvas,
@@ -127,8 +118,7 @@ bool bible_bsb_view_verse_select_input(InputEvent* event, void* ctx) {
         return false;
     }
 
-    uint16_t max_v =
-        max_verse_for_chapter(state->selected_book, state->selected_chapter);
+    uint16_t max_v = max_verse_for_chapter(state->selected_book, state->selected_chapter);
     uint16_t actual_max = (max_v > 0) ? max_v : 40;
 
     bool consumed = false;
@@ -195,20 +185,14 @@ bool bible_bsb_view_verse_select_input(InputEvent* event, void* ctx) {
 
     } else if(event->key == InputKeyOk && event->type == InputTypeShort) {
         /* OK (Short): load chapter and go to Reader */
-        uint16_t start_verse =
-            (state->verse_select_mode == 0) ? 0 : state->selected_start_verse;
-        uint16_t end_verse =
-            (state->verse_select_mode == 0) ? 0 : state->selected_end_verse;
+        uint16_t start_verse = (state->verse_select_mode == 0) ? 0 : state->selected_start_verse;
+        uint16_t end_verse = (state->verse_select_mode == 0) ? 0 : state->selected_end_verse;
 
         BiblePassage* passage = &state->passage;
         memset(passage, 0, sizeof(BiblePassage));
 
         bool loaded = bible_load_chapter(
-            state->selected_book,
-            state->selected_chapter,
-            start_verse,
-            end_verse,
-            passage);
+            state->selected_book, state->selected_chapter, start_verse, end_verse, passage);
 
         if(loaded && passage->verse_count > 0) {
             /* Wrap verses into display lines */

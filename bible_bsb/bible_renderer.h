@@ -130,10 +130,7 @@ uint16_t bible_max_visible_lines(int16_t y_offset);
  * @param y_offset    top pixel where text begins
  * @return total page count (at least 1)
  */
-uint16_t bible_total_pages(
-    const BibleLine* lines,
-    uint16_t line_count,
-    int16_t y_offset);
+uint16_t bible_total_pages(const BibleLine* lines, uint16_t line_count, int16_t y_offset);
 
 /* ============================================================================
  * Inverted highlight

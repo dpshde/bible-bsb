@@ -398,7 +398,8 @@ static void build_canonical_ref(const BiblePassage* passage, char* out, size_t o
             (unsigned int)passage->chapter,
             (unsigned int)passage->start_verse);
     } else {
-        snprintf(out, out_len, "%s.%u.1", osis, (unsigned int)passage->chapter);
+        /* All verses — canonical ref has no verse number (matches Rust) */
+        snprintf(out, out_len, "%s.%u", osis, (unsigned int)passage->chapter);
     }
 }
 

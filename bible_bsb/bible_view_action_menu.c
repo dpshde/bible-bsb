@@ -76,8 +76,9 @@ bool bible_bsb_view_action_menu_input(InputEvent* event, void* ctx) {
         }
         consumed = true;
 
-    } else if(event->key == InputKeyDown &&
-              (event->type == InputTypePress || event->type == InputTypeRepeat)) {
+    } else if(
+        event->key == InputKeyDown &&
+        (event->type == InputTypePress || event->type == InputTypeRepeat)) {
         /* Wrap selection down */
         if(state->action_menu_selection < (ACTION_MENU_ITEM_COUNT - 1)) {
             state->action_menu_selection += 1;

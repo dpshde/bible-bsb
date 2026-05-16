@@ -103,6 +103,9 @@ bool bible_bsb_view_collection_input(InputEvent* event, void* ctx) {
 
     /* Right (Short): navigate to BookList */
     else if(event->key == InputKeyRight && event->type == InputTypeShort) {
+        /* BookList is NOT in the scene history stack (Collection was entered
+         * directly from BookList via scene_manager_next_scene), so
+         * we must search-and-switch rather than previous_scene. */
         scene_manager_search_and_switch_to_another_scene(app->scene_manager, BibleSceneBookList);
         consumed = true;
     }

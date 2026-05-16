@@ -82,7 +82,8 @@ static uint16_t bible_parse_verses(
         if(*p == '"' && *(p + 1) == 'n' && *(p + 2) == '"' && *(p + 3) == ':') {
             p += 4;
             /* Skip whitespace */
-            while(*p == ' ' || *p == '\t') p++;
+            while(*p == ' ' || *p == '\t')
+                p++;
 
             /* Parse verse number */
             uint16_t verse_num = 0;
@@ -162,12 +163,7 @@ bool bible_load_chapter(
 
     /* Build path: /ext/apps_data/kindled_spark/bsb/{osis_lower}/{chapter}.json */
     char path[128];
-    snprintf(
-        path,
-        sizeof(path),
-        BSB_PATH_PREFIX "%s/%u.json",
-        osis,
-        (unsigned int)chapter);
+    snprintf(path, sizeof(path), BSB_PATH_PREFIX "%s/%u.json", osis, (unsigned int)chapter);
 
     /* Convert OSIS code to lowercase in-place */
     for(size_t i = strlen(BSB_PATH_PREFIX); path[i] != '/' && path[i] != '\0'; i++) {
@@ -232,12 +228,7 @@ bool bible_load_chapter(
 
     /* Parse verses */
     uint16_t verse_count = bible_parse_verses(
-        (const char*)buf,
-        total,
-        start_verse,
-        end_verse,
-        out_passage->verses,
-        BIBLE_MAX_VERSES);
+        (const char*)buf, total, start_verse, end_verse, out_passage->verses, BIBLE_MAX_VERSES);
 
     free(buf);
 

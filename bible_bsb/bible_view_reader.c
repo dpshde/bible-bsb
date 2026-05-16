@@ -9,9 +9,9 @@
 /* ============================================================================
  * Reader layout constants — match Rust src/views/reader.rs exactly
  * ============================================================================ */
-#define READER_HEADER_Y      8
-#define READER_DIVIDER_Y     10
-#define READER_CONTENT_Y     16
+#define READER_HEADER_Y  8
+#define READER_DIVIDER_Y 10
+#define READER_CONTENT_Y 16
 
 /* ============================================================================
  * Display ref builder — mirrors Rust Passage::display_ref()
@@ -43,8 +43,7 @@ static void bible_passage_display_ref(const BiblePassage* passage, char* out, si
                 (unsigned int)passage->start_verse);
         }
     } else {
-        snprintf(
-            out, out_len, "%s %u", book_name, (unsigned int)passage->chapter);
+        snprintf(out, out_len, "%s %u", book_name, (unsigned int)passage->chapter);
     }
 }
 
@@ -52,10 +51,8 @@ static void bible_passage_display_ref(const BiblePassage* passage, char* out, si
  * Verse-first-line navigation helpers — match Rust next_verse_offset / prev_verse_offset
  * ============================================================================ */
 
-static uint16_t reader_next_verse_offset(
-    const BibleLine* lines,
-    uint16_t line_count,
-    uint16_t current) {
+static uint16_t
+    reader_next_verse_offset(const BibleLine* lines, uint16_t line_count, uint16_t current) {
     if(current >= line_count) return current;
 
     uint16_t current_verse = lines[current].verse_number;
@@ -67,10 +64,8 @@ static uint16_t reader_next_verse_offset(
     return current; /* no next verse */
 }
 
-static uint16_t reader_prev_verse_offset(
-    const BibleLine* lines,
-    uint16_t line_count,
-    uint16_t current) {
+static uint16_t
+    reader_prev_verse_offset(const BibleLine* lines, uint16_t line_count, uint16_t current) {
     if(current >= line_count || line_count == 0) return 0;
 
     uint16_t current_verse = lines[current].verse_number;
@@ -125,11 +120,7 @@ void bible_bsb_view_reader_draw(Canvas* canvas, void* ctx) {
 
     /* Render paginated text */
     bible_render_page(
-        canvas,
-        state->lines,
-        state->line_count,
-        state->scroll_offset,
-        READER_CONTENT_Y);
+        canvas, state->lines, state->line_count, state->scroll_offset, READER_CONTENT_Y);
 
     /* Page indicator */
     uint16_t max_visible = bible_max_visible_lines(READER_CONTENT_Y);
@@ -145,7 +136,11 @@ void bible_bsb_view_reader_draw(Canvas* canvas, void* ctx) {
         canvas_set_font(canvas, FontSecondary);
         char page_str[16];
         snprintf(
-            page_str, sizeof(page_str), "%u/%u", (unsigned int)current_page, (unsigned int)total_pages);
+            page_str,
+            sizeof(page_str),
+            "%u/%u",
+            (unsigned int)current_page,
+            (unsigned int)total_pages);
         uint8_t width = canvas_string_width(canvas, page_str);
         int16_t x = BIBLE_SCREEN_WIDTH - (int16_t)width - BIBLE_MARGIN_X;
         canvas_draw_str(canvas, x, BIBLE_SCREEN_HEIGHT - 1, page_str);
@@ -177,16 +172,17 @@ bool bible_bsb_view_reader_input(InputEvent* event, void* ctx) {
     if(event->key == InputKeyUp &&
        (event->type == InputTypePress || event->type == InputTypeRepeat)) {
         /* Up: jump to previous verse's first line */
-        uint16_t new_offset = reader_prev_verse_offset(
-            state->lines, state->line_count, state->scroll_offset);
+        uint16_t new_offset =
+            reader_prev_verse_offset(state->lines, state->line_count, state->scroll_offset);
         state->scroll_offset = new_offset;
         consumed = true;
 
-    } else if(event->key == InputKeyDown &&
-              (event->type == InputTypePress || event->type == InputTypeRepeat)) {
+    } else if(
+        event->key == InputKeyDown &&
+        (event->type == InputTypePress || event->type == InputTypeRepeat)) {
         /* Down: jump to next verse's first line */
-        uint16_t new_offset = reader_next_verse_offset(
-            state->lines, state->line_count, state->scroll_offset);
+        uint16_t new_offset =
+            reader_next_verse_offset(state->lines, state->line_count, state->scroll_offset);
         if(new_offset <= max_scroll) {
             state->scroll_offset = new_offset;
         } else {
@@ -194,16 +190,18 @@ bool bible_bsb_view_reader_input(InputEvent* event, void* ctx) {
         }
         consumed = true;
 
-    } else if(event->key == InputKeyLeft &&
-              (event->type == InputTypePress || event->type == InputTypeRepeat)) {
+    } else if(
+        event->key == InputKeyLeft &&
+        (event->type == InputTypePress || event->type == InputTypeRepeat)) {
         /* Left: scroll up by 1 line */
         if(state->scroll_offset > 0) {
             state->scroll_offset -= 1;
         }
         consumed = true;
 
-    } else if(event->key == InputKeyRight &&
-              (event->type == InputTypePress || event->type == InputTypeRepeat)) {
+    } else if(
+        event->key == InputKeyRight &&
+        (event->type == InputTypePress || event->type == InputTypeRepeat)) {
         /* Right: scroll down by 1 line */
         if(state->scroll_offset < max_scroll) {
             state->scroll_offset += 1;
@@ -224,7 +222,8 @@ bool bible_bsb_view_reader_input(InputEvent* event, void* ctx) {
     } else if(event->key == InputKeyBack && event->type == InputTypeShort) {
         /* Back: return to VerseSelect or Collection */
         if(state->reader_came_from_collection) {
-            scene_manager_next_scene(app->scene_manager, BibleSceneCollection);
+            scene_manager_search_and_switch_to_another_scene(
+                app->scene_manager, BibleSceneCollection);
         } else {
             scene_manager_previous_scene(app->scene_manager);
         }

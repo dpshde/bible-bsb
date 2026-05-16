@@ -36,9 +36,8 @@ void bible_bsb_view_nfc_share_draw(Canvas* canvas, void* ctx) {
     canvas_draw_str(canvas, BIBLE_MARGIN_X, NFC_SHARE_PROMPT_Y, "Hold near reader...");
 
     /* Animated pulsing dots — cycle every 10 frames */
-    static uint8_t pulse_counter = 0;
-    uint8_t pulse = (pulse_counter / 10) % 4;
-    pulse_counter++;
+    uint8_t pulse = (state->nfc_pulse_counter / 10) % 4;
+    state->nfc_pulse_counter++;
     char dots[8] = {0};
     uint8_t d = 0;
     for(uint8_t i = 0; i <= pulse && d < (sizeof(dots) - 1); i++) {
