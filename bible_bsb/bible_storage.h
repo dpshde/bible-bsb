@@ -71,4 +71,4 @@ bool bible_storage_load_verses_for_entry(BibleAppState* state, uint8_t entry_ind
  * @param out_len  capacity of out_buf
  * @return true if JSON was fully written into buffer
  */
-bool bible_storage_build_kindled_json(const BibleAppState* state, char* out_buf, size_t out_len);
+bool bible_storage_build_kindled_json(BibleAppState* state, char* out_buf, size_t out_len);
