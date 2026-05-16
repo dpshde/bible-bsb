@@ -1,5 +1,8 @@
 #include "bible_view_action_menu.h"
 #include "bible_renderer.h"
+#include "bible_storage.h"
+#include "bible_url.h"
+#include "bible_nfc.h"
 
 #include <string.h>
 
@@ -65,30 +68,48 @@ bool bible_bsb_view_action_menu_input(InputEvent* event, void* ctx) {
 
     if(event->key == InputKeyUp &&
        (event->type == InputTypePress || event->type == InputTypeRepeat)) {
+        /* Wrap selection up */
         if(state->action_menu_selection > 0) {
             state->action_menu_selection -= 1;
+        } else {
+            state->action_menu_selection = ACTION_MENU_ITEM_COUNT - 1;
         }
         consumed = true;
 
     } else if(event->key == InputKeyDown &&
               (event->type == InputTypePress || event->type == InputTypeRepeat)) {
+        /* Wrap selection down */
         if(state->action_menu_selection < (ACTION_MENU_ITEM_COUNT - 1)) {
             state->action_menu_selection += 1;
+        } else {
+            state->action_menu_selection = 0;
         }
         consumed = true;
 
     } else if(event->key == InputKeyOk && event->type == InputTypeShort) {
         switch(state->action_menu_selection) {
         case 0: /* Save to collection */
-            /* Stub: storage-collection feature will implement full save logic */
-            bible_toast_set(&state->toast, "Saved!");
+            bible_save_passage(state);
             scene_manager_previous_scene(app->scene_manager);
             break;
 
         case 1: /* Share via NFC */
-            /* Stub: NFC share feature will implement full URL + NFC logic */
-            bible_toast_set(&state->toast, "NFC: stub");
-            scene_manager_previous_scene(app->scene_manager);
+            if(state->passage.verse_count > 0) {
+                if(bible_build_route_url(&state->passage, state->nfc_url, sizeof(state->nfc_url))) {
+                    if(bible_nfc_start_url(state)) {
+                        scene_manager_next_scene(app->scene_manager, BibleSceneNfcShare);
+                    } else {
+                        bible_toast_set(&state->toast, "NFC failed");
+                        scene_manager_previous_scene(app->scene_manager);
+                    }
+                } else {
+                    bible_toast_set(&state->toast, "URL failed");
+                    scene_manager_previous_scene(app->scene_manager);
+                }
+            } else {
+                bible_toast_set(&state->toast, "No passage");
+                scene_manager_previous_scene(app->scene_manager);
+            }
             break;
 
         case 2: /* Back to reading */

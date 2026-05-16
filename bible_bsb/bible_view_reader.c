@@ -2,6 +2,7 @@
 #include "bible_renderer.h"
 #include "bible_books.h"
 #include "bible_loader.h"
+#include "bible_storage.h"
 
 #include <string.h>
 
@@ -210,8 +211,8 @@ bool bible_bsb_view_reader_input(InputEvent* event, void* ctx) {
         consumed = true;
 
     } else if(event->key == InputKeyOk && event->type == InputTypeLong) {
-        /* OK Long: quick save — stub; storage-collection feature will wire this */
-        bible_toast_set(&state->toast, "Saved!");
+        /* OK Long: quick save */
+        bible_save_passage(state);
         consumed = true;
 
     } else if(event->key == InputKeyOk && event->type == InputTypeShort) {
