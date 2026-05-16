@@ -5,6 +5,8 @@
 #include "bible_view_verse_select.h"
 #include "bible_view_reader.h"
 #include "bible_view_action_menu.h"
+#include "bible_view_collection.h"
+#include "bible_storage.h"
 #include "bible_books.h"
 
 #include <furi.h>
@@ -189,18 +191,29 @@ static void bible_bsb_scene_action_menu_on_exit(void* context) {
 }
 
 /* ============================================================================
- * Scene handlers — Collection (stub for future feature)
+ * Scene handlers — Collection
  * ============================================================================ */
 
 static void bible_bsb_scene_collection_on_enter(void* context) {
     BibleApp* app = context;
-    app->state->current_scene = BibleSceneCollection;
+    BibleAppState* state = app->state;
+    state->current_scene = BibleSceneCollection;
+
+    /* Ensure collection is loaded from SD on first visit */
+    if(!state->collection_loaded) {
+        bible_storage_load_collection(state);
+    }
+
     view_dispatcher_switch_to_view(app->view_dispatcher, BibleViewCollection);
 }
 
 static bool bible_bsb_scene_collection_on_event(void* context, SceneManagerEvent event) {
-    UNUSED(context);
-    UNUSED(event);
+    BibleApp* app = context;
+
+    if(event.type == SceneManagerEventTypeBack) {
+        scene_manager_search_and_switch_to_another_scene(app->scene_manager, BibleSceneBookList);
+        return true;
+    }
     return false;
 }
 
@@ -315,17 +328,12 @@ static bool bible_bsb_wrapper_action_menu_input(InputEvent* event, void* ctx) {
     return bible_bsb_view_action_menu_input(event, ctx);
 }
 
-static void bible_bsb_view_collection_draw(Canvas* canvas, void* ctx) {
-    UNUSED(ctx);
-    canvas_clear(canvas);
-    canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 2, 10, "Collection");
+static void bible_bsb_wrapper_collection_draw(Canvas* canvas, void* ctx) {
+    bible_bsb_view_collection_draw(canvas, ctx);
 }
 
-static bool bible_bsb_view_collection_input(InputEvent* event, void* ctx) {
-    UNUSED(event);
-    UNUSED(ctx);
-    return false;
+static bool bible_bsb_wrapper_collection_input(InputEvent* event, void* ctx) {
+    return bible_bsb_view_collection_input(event, ctx);
 }
 
 static void bible_bsb_view_nfc_share_draw(Canvas* canvas, void* ctx) {
@@ -412,8 +420,8 @@ BibleApp* bible_app_alloc(void) {
     view_dispatcher_add_view(app->view_dispatcher, BibleViewActionMenu, view);
 
     view = view_alloc();
-    view_set_draw_callback(view, bible_bsb_view_collection_draw);
-    view_set_input_callback(view, bible_bsb_view_collection_input);
+    view_set_draw_callback(view, bible_bsb_wrapper_collection_draw);
+    view_set_input_callback(view, bible_bsb_wrapper_collection_input);
     view_set_context(view, app);
     app->views[BibleViewCollection] = view;
     view_dispatcher_add_view(app->view_dispatcher, BibleViewCollection, view);
