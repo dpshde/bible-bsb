@@ -613,7 +613,7 @@ static bool json_buf_append_escaped(char* buf, size_t buf_len, size_t* pos, cons
     return true;
 }
 
-bool bible_storage_build_kindled_json(const BibleAppState* state, char* out_buf, size_t out_len) {
+bool bible_storage_build_kindled_json(BibleAppState* state, char* out_buf, size_t out_len) {
     furi_check(state);
     furi_check(out_buf);
     furi_check(out_len > 0);
@@ -646,24 +646,32 @@ bool bible_storage_build_kindled_json(const BibleAppState* state, char* out_buf,
            "\"data\":{\"blocks\":["))
         return false;
 
-    /* Heap-allocate temp_passage — too large (90KB) for the 4KB stack */
-    BiblePassage* temp_passage = malloc(sizeof(BiblePassage));
-    if(!temp_passage) return false;
+    /* Save reader state so we can use state->passage as a temporary scratch
+     * area.  This avoids a ~90 KB heap allocation that would always fail on
+     * the Flipper's ~16-32 KB heap. */
+    BiblePassage saved_passage = state->passage;
+    BibleLine saved_lines[BIBLE_MAX_LINES];
+    memcpy(saved_lines, state->lines, sizeof(saved_lines));
+    uint16_t saved_line_count = state->line_count;
+    uint16_t saved_scroll = state->scroll_offset;
+
+    /* Clear lines to defragment heap before loading each entry */
+    state->line_count = 0;
+    memset(state->lines, 0, sizeof(state->lines));
 
     for(uint8_t i = 0; i < state->collection_count; i++) {
         if(i > 0) {
             if(!json_buf_append(out_buf, out_len, &pos, ",")) {
-                free(temp_passage);
-                return false;
+                goto build_fail;
             }
         }
 
         const BibleCollectionEntry* e = &state->collection[i];
 
         /* Load verses for this entry to include text */
-        memset(temp_passage, 0, sizeof(BiblePassage));
+        memset(&state->passage, 0, sizeof(BiblePassage));
         bool loaded = bible_load_chapter(
-            e->book_index, e->chapter, e->start_verse, e->end_verse, temp_passage);
+            e->book_index, e->chapter, e->start_verse, e->end_verse, &state->passage);
 
         char block_buf[256];
         snprintf(
@@ -672,12 +680,10 @@ bool bible_storage_build_kindled_json(const BibleAppState* state, char* out_buf,
             "{\"id\":\"block-%u\",\"type\":\"scripture\",\"content\":\"",
             (unsigned int)i);
         if(!json_buf_append(out_buf, out_len, &pos, block_buf)) {
-            free(temp_passage);
-            return false;
+            goto build_fail;
         }
         if(!json_buf_append_escaped(out_buf, out_len, &pos, e->scripture_display_ref)) {
-            free(temp_passage);
-            return false;
+            goto build_fail;
         }
 
         snprintf(
@@ -686,12 +692,10 @@ bool bible_storage_build_kindled_json(const BibleAppState* state, char* out_buf,
             "\",\"scripture_ref\":\"%s\",\"scripture_display_ref\":\"",
             e->scripture_ref);
         if(!json_buf_append(out_buf, out_len, &pos, block_buf)) {
-            free(temp_passage);
-            return false;
+            goto build_fail;
         }
         if(!json_buf_append_escaped(out_buf, out_len, &pos, e->scripture_display_ref)) {
-            free(temp_passage);
-            return false;
+            goto build_fail;
         }
 
         snprintf(
@@ -700,57 +704,48 @@ bool bible_storage_build_kindled_json(const BibleAppState* state, char* out_buf,
             "\",\"scripture_translation\":\"%s\",\"scripture_verses\":[",
             e->scripture_translation);
         if(!json_buf_append(out_buf, out_len, &pos, block_buf)) {
-            free(temp_passage);
-            return false;
+            goto build_fail;
         }
 
         if(loaded) {
-            for(uint16_t v = 0; v < temp_passage->verse_count; v++) {
+            for(uint16_t v = 0; v < state->passage.verse_count; v++) {
                 if(v > 0) {
                     if(!json_buf_append(out_buf, out_len, &pos, ",")) {
-                        free(temp_passage);
-                        return false;
+                        goto build_fail;
                     }
                 }
                 snprintf(
                     block_buf,
                     sizeof(block_buf),
                     "{\"number\":%u,\"text\":\"",
-                    (unsigned int)temp_passage->verses[v].number);
+                    (unsigned int)state->passage.verses[v].number);
                 if(!json_buf_append(out_buf, out_len, &pos, block_buf)) {
-                    free(temp_passage);
-                    return false;
+                    goto build_fail;
                 }
-                if(!json_buf_append_escaped(out_buf, out_len, &pos, temp_passage->verses[v].text)) {
-                    free(temp_passage);
-                    return false;
+                if(!json_buf_append_escaped(
+                       out_buf, out_len, &pos, state->passage.verses[v].text)) {
+                    goto build_fail;
                 }
                 if(!json_buf_append(out_buf, out_len, &pos, "\"}")) {
-                    free(temp_passage);
-                    return false;
+                    goto build_fail;
                 }
             }
         }
 
         if(!json_buf_append(out_buf, out_len, &pos, "],\"source\":\"manual\",\"captured_at\":\"")) {
-            free(temp_passage);
-            return false;
+            goto build_fail;
         }
         if(!json_buf_append_escaped(out_buf, out_len, &pos, e->captured_at)) {
-            free(temp_passage);
-            return false;
+            goto build_fail;
         }
         if(!json_buf_append(out_buf, out_len, &pos, "\",\"modified_at\":\"")) {
-            free(temp_passage);
-            return false;
+            goto build_fail;
         }
         if(!json_buf_append_escaped(out_buf, out_len, &pos, e->captured_at)) {
-            free(temp_passage);
-            return false;
+            goto build_fail;
         }
         if(!json_buf_append(out_buf, out_len, &pos, "\",\"tags\":[]}")) {
-            free(temp_passage);
-            return false;
+            goto build_fail;
         }
     }
 
@@ -759,10 +754,21 @@ bool bible_storage_build_kindled_json(const BibleAppState* state, char* out_buf,
            out_len,
            &pos,
            "],\"entities\":[],\"links\":[],\"reflections\":[],\"life_stages\":[]}}")) {
-        free(temp_passage);
-        return false;
+        goto build_fail;
     }
 
-    free(temp_passage);
+    /* Restore original reader state */
+    state->passage = saved_passage;
+    memcpy(state->lines, saved_lines, sizeof(saved_lines));
+    state->line_count = saved_line_count;
+    state->scroll_offset = saved_scroll;
     return true;
+
+build_fail:
+    /* Restore original reader state on failure too */
+    state->passage = saved_passage;
+    memcpy(state->lines, saved_lines, sizeof(saved_lines));
+    state->line_count = saved_line_count;
+    state->scroll_offset = saved_scroll;
+    return false;
 }
