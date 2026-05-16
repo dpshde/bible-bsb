@@ -60,9 +60,12 @@ static void bible_sanitize_text(char* text, size_t max_len) {
     }
 }
 
-/* Minimal JSON parser: scan for "n": and "t":" pairs */
+/* Minimal JSON parser: scan for "n": and "t":" pairs.
+ * json_len is the byte length of the JSON buffer (not counting null terminator).
+ */
 static uint16_t bible_parse_verses(
     const char* json,
+    size_t json_len,
     uint16_t start_verse,
     uint16_t end_verse,
     BibleVerse* out_verses,
@@ -71,6 +74,10 @@ static uint16_t bible_parse_verses(
     uint16_t count = 0;
 
     while(*p != '\0' && count < max_verses) {
+        /* Bounds-check before looking for "n": (need 4 bytes ahead) */
+        size_t offset = (size_t)(p - json);
+        if(offset + 4 > json_len) break;
+
         /* Look for "n": */
         if(*p == '"' && *(p + 1) == 'n' && *(p + 2) == '"' && *(p + 3) == ':') {
             p += 4;
@@ -86,6 +93,9 @@ static uint16_t bible_parse_verses(
 
             /* Look for "t":" */
             while(*p != '\0') {
+                offset = (size_t)(p - json);
+                if(offset + 5 > json_len) break;
+
                 if(*p == '"' && *(p + 1) == 't' && *(p + 2) == '"' && *(p + 3) == ':' &&
                    *(p + 4) == '"') {
                     p += 5;
@@ -187,12 +197,18 @@ bool bible_load_chapter(
         size_t n = storage_file_read(file, chunk, sizeof(chunk));
         if(n == 0) break;
 
+        /* Clamp so total never exceeds max file size */
+        if(total + n > BIBLE_MAX_FILE_SIZE) {
+            n = BIBLE_MAX_FILE_SIZE - total;
+        }
+
         if(total + n > capacity) {
             size_t new_cap = capacity + BIBLE_READ_CHUNK;
             if(new_cap > BIBLE_MAX_FILE_SIZE) {
                 new_cap = BIBLE_MAX_FILE_SIZE;
             }
-            uint8_t* new_buf = realloc(buf, new_cap);
+            /* +1 ensures room for null terminator without extra realloc */
+            uint8_t* new_buf = realloc(buf, new_cap + 1);
             if(!new_buf) break;
             buf = new_buf;
             capacity = new_cap;
@@ -211,18 +227,13 @@ bool bible_load_chapter(
         return false;
     }
 
-    /* Null-terminate the buffer */
-    if(total >= capacity) {
-        uint8_t* new_buf = realloc(buf, capacity + 1);
-        if(new_buf) {
-            buf = new_buf;
-        }
-    }
+    /* Null-terminate — capacity always has +1 headroom from realloc above */
     buf[total] = '\0';
 
     /* Parse verses */
     uint16_t verse_count = bible_parse_verses(
         (const char*)buf,
+        total,
         start_verse,
         end_verse,
         out_passage->verses,
