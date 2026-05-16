@@ -7,17 +7,6 @@
 #include <furi.h>
 
 /* ============================================================================
- * Canvas layout constants — match the Rust app exactly
- * ============================================================================ */
-#define BIBLE_CHAR_WIDTH    6
-#define BIBLE_CHAR_HEIGHT   8
-#define BIBLE_LINE_HEIGHT   12
-#define BIBLE_SCREEN_WIDTH  128
-#define BIBLE_SCREEN_HEIGHT 64
-#define BIBLE_MARGIN_X      2
-#define BIBLE_MARGIN_Y      2
-
-/* ============================================================================
  * Max values
  * ============================================================================ */
 #define BIBLE_MAX_BOOKS          66
@@ -69,9 +58,9 @@ static inline bool bible_toast_active(const BibleToast* toast) {
  * Line (rendered wrapped line)
  * ============================================================================ */
 typedef struct {
-    char text[42];          /* ~20 chars * 2 bytes + safety */
-    uint8_t verse_number;   /* 0 = not a verse-number line */
-    bool is_verse_number;   /* first line of a verse */
+    char text[64];          /* max chars per line + verse prefix + safety */
+    uint16_t verse_number;  /* verse this line belongs to (0 = unassigned) */
+    bool is_verse_number;   /* true if first line of a verse (has number prefix) */
 } BibleLine;
 
 /* ============================================================================
