@@ -98,6 +98,44 @@ void bible_draw_scroll_indicator(
 void bible_draw_toast(Canvas* canvas, const BibleToast* toast);
 
 /* ============================================================================
+ * Page rendering and pagination
+ * ============================================================================ */
+
+/**
+ * Render a page of lines starting at scroll_offset.
+ *
+ * @param canvas         canvas handle
+ * @param lines          array of BibleLine
+ * @param line_count     number of lines
+ * @param scroll_offset  first visible line index
+ * @param y_offset       top pixel where text begins (e.g. 16, below header)
+ */
+void bible_render_page(
+    Canvas* canvas,
+    const BibleLine* lines,
+    uint16_t line_count,
+    uint16_t scroll_offset,
+    int16_t y_offset);
+
+/**
+ * Max visible lines for a given y_offset.
+ */
+uint16_t bible_max_visible_lines(int16_t y_offset);
+
+/**
+ * Calculate total pages given lines and visible lines count.
+ *
+ * @param lines       array of BibleLine
+ * @param line_count  number of lines
+ * @param y_offset    top pixel where text begins
+ * @return total page count (at least 1)
+ */
+uint16_t bible_total_pages(
+    const BibleLine* lines,
+    uint16_t line_count,
+    int16_t y_offset);
+
+/* ============================================================================
  * Inverted highlight
  * ============================================================================ */
 

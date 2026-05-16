@@ -3,6 +3,8 @@
 #include "bible_view_book_filter.h"
 #include "bible_view_chapter_list.h"
 #include "bible_view_verse_select.h"
+#include "bible_view_reader.h"
+#include "bible_view_action_menu.h"
 #include "bible_books.h"
 
 #include <furi.h>
@@ -147,7 +149,7 @@ static void bible_bsb_scene_verse_select_on_exit(void* context) {
 }
 
 /* ============================================================================
- * Scene handlers — Reader (stub for future feature)
+ * Scene handlers — Reader
  * ============================================================================ */
 
 static void bible_bsb_scene_reader_on_enter(void* context) {
@@ -167,7 +169,7 @@ static void bible_bsb_scene_reader_on_exit(void* context) {
 }
 
 /* ============================================================================
- * Scene handlers — ActionMenu (stub for future feature)
+ * Scene handlers — ActionMenu
  * ============================================================================ */
 
 static void bible_bsb_scene_action_menu_on_enter(void* context) {
@@ -297,30 +299,20 @@ static bool bible_bsb_wrapper_verse_select_input(InputEvent* event, void* ctx) {
     return bible_bsb_view_verse_select_input(event, ctx);
 }
 
-static void bible_bsb_view_reader_draw(Canvas* canvas, void* ctx) {
-    UNUSED(ctx);
-    canvas_clear(canvas);
-    canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 2, 10, "Reader");
+static void bible_bsb_wrapper_reader_draw(Canvas* canvas, void* ctx) {
+    bible_bsb_view_reader_draw(canvas, ctx);
 }
 
-static bool bible_bsb_view_reader_input(InputEvent* event, void* ctx) {
-    UNUSED(event);
-    UNUSED(ctx);
-    return false;
+static bool bible_bsb_wrapper_reader_input(InputEvent* event, void* ctx) {
+    return bible_bsb_view_reader_input(event, ctx);
 }
 
-static void bible_bsb_view_action_menu_draw(Canvas* canvas, void* ctx) {
-    UNUSED(ctx);
-    canvas_clear(canvas);
-    canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 2, 10, "Action Menu");
+static void bible_bsb_wrapper_action_menu_draw(Canvas* canvas, void* ctx) {
+    bible_bsb_view_action_menu_draw(canvas, ctx);
 }
 
-static bool bible_bsb_view_action_menu_input(InputEvent* event, void* ctx) {
-    UNUSED(event);
-    UNUSED(ctx);
-    return false;
+static bool bible_bsb_wrapper_action_menu_input(InputEvent* event, void* ctx) {
+    return bible_bsb_view_action_menu_input(event, ctx);
 }
 
 static void bible_bsb_view_collection_draw(Canvas* canvas, void* ctx) {
@@ -406,15 +398,15 @@ BibleApp* bible_app_alloc(void) {
     view_dispatcher_add_view(app->view_dispatcher, BibleViewVerseSelect, view);
 
     view = view_alloc();
-    view_set_draw_callback(view, bible_bsb_view_reader_draw);
-    view_set_input_callback(view, bible_bsb_view_reader_input);
+    view_set_draw_callback(view, bible_bsb_wrapper_reader_draw);
+    view_set_input_callback(view, bible_bsb_wrapper_reader_input);
     view_set_context(view, app);
     app->views[BibleViewReader] = view;
     view_dispatcher_add_view(app->view_dispatcher, BibleViewReader, view);
 
     view = view_alloc();
-    view_set_draw_callback(view, bible_bsb_view_action_menu_draw);
-    view_set_input_callback(view, bible_bsb_view_action_menu_input);
+    view_set_draw_callback(view, bible_bsb_wrapper_action_menu_draw);
+    view_set_input_callback(view, bible_bsb_wrapper_action_menu_input);
     view_set_context(view, app);
     app->views[BibleViewActionMenu] = view;
     view_dispatcher_add_view(app->view_dispatcher, BibleViewActionMenu, view);

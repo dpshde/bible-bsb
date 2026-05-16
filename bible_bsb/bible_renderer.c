@@ -236,6 +236,48 @@ void bible_draw_toast(Canvas* canvas, const BibleToast* toast) {
 }
 
 /* ============================================================================
+ * Page rendering and pagination
+ * ============================================================================ */
+
+uint16_t bible_max_visible_lines(int16_t y_offset) {
+    int16_t max_v = (BIBLE_SCREEN_HEIGHT - y_offset - BIBLE_MARGIN_Y) / BIBLE_LINE_HEIGHT;
+    if(max_v < 1) max_v = 1;
+    return (uint16_t)max_v;
+}
+
+void bible_render_page(
+    Canvas* canvas,
+    const BibleLine* lines,
+    uint16_t line_count,
+    uint16_t scroll_offset,
+    int16_t y_offset) {
+    if(!lines || line_count == 0) return;
+
+    uint16_t max_visible = bible_max_visible_lines(y_offset);
+    canvas_set_font(canvas, FontPrimary);
+
+    for(uint16_t i = 0; i < max_visible; i++) {
+        uint16_t idx = scroll_offset + i;
+        if(idx >= line_count) break;
+
+        int16_t y = y_offset + ((int16_t)i * BIBLE_LINE_HEIGHT);
+        if(y + BIBLE_LINE_HEIGHT > BIBLE_SCREEN_HEIGHT - BIBLE_MARGIN_Y) break;
+
+        canvas_draw_str(canvas, BIBLE_MARGIN_X, y + BIBLE_CHAR_HEIGHT - 1, lines[idx].text);
+    }
+}
+
+uint16_t bible_total_pages(
+    const BibleLine* lines,
+    uint16_t line_count,
+    int16_t y_offset) {
+    UNUSED(lines);
+    uint16_t max_visible = bible_max_visible_lines(y_offset);
+    if(line_count == 0 || max_visible == 0) return 1;
+    return (line_count + max_visible - 1) / max_visible;
+}
+
+/* ============================================================================
  * Inverted highlight — black box + white text
  * ============================================================================ */
 
