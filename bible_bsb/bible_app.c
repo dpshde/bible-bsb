@@ -6,8 +6,10 @@
 #include "bible_view_reader.h"
 #include "bible_view_action_menu.h"
 #include "bible_view_collection.h"
+#include "bible_view_nfc_share.h"
 #include "bible_storage.h"
 #include "bible_books.h"
+#include "bible_nfc.h"
 
 #include <furi.h>
 #include <gui/gui.h>
@@ -238,7 +240,10 @@ static bool bible_bsb_scene_nfc_share_on_event(void* context, SceneManagerEvent 
 }
 
 static void bible_bsb_scene_nfc_share_on_exit(void* context) {
-    UNUSED(context);
+    BibleApp* app = context;
+    if(app && app->state && app->state->nfc_emitting) {
+        bible_nfc_stop(app->state);
+    }
 }
 
 /* ============================================================================
@@ -336,17 +341,12 @@ static bool bible_bsb_wrapper_collection_input(InputEvent* event, void* ctx) {
     return bible_bsb_view_collection_input(event, ctx);
 }
 
-static void bible_bsb_view_nfc_share_draw(Canvas* canvas, void* ctx) {
-    UNUSED(ctx);
-    canvas_clear(canvas);
-    canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 2, 10, "NFC Share");
+static void bible_bsb_wrapper_nfc_share_draw(Canvas* canvas, void* ctx) {
+    bible_bsb_view_nfc_share_draw(canvas, ctx);
 }
 
-static bool bible_bsb_view_nfc_share_input(InputEvent* event, void* ctx) {
-    UNUSED(event);
-    UNUSED(ctx);
-    return false;
+static bool bible_bsb_wrapper_nfc_share_input(InputEvent* event, void* ctx) {
+    return bible_bsb_view_nfc_share_input(event, ctx);
 }
 
 /* ============================================================================
@@ -427,8 +427,8 @@ BibleApp* bible_app_alloc(void) {
     view_dispatcher_add_view(app->view_dispatcher, BibleViewCollection, view);
 
     view = view_alloc();
-    view_set_draw_callback(view, bible_bsb_view_nfc_share_draw);
-    view_set_input_callback(view, bible_bsb_view_nfc_share_input);
+    view_set_draw_callback(view, bible_bsb_wrapper_nfc_share_draw);
+    view_set_input_callback(view, bible_bsb_wrapper_nfc_share_input);
     view_set_context(view, app);
     app->views[BibleViewNfcShare] = view;
     view_dispatcher_add_view(app->view_dispatcher, BibleViewNfcShare, view);

@@ -134,6 +134,7 @@ typedef struct BibleAppState {
     char nfc_url[128];
     bool nfc_emitting;
     bool nfc_is_export;
+    uint8_t nfc_pulse_counter;
 } BibleAppState;
 
 /* ============================================================================
