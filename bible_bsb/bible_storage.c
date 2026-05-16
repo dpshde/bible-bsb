@@ -82,6 +82,10 @@ static void json_writer_push_escaped(JsonWriter* w, const char* s) {
             json_writer_push_str(w, "\\\\");
         } else if(c == '\n') {
             json_writer_push_str(w, "\\n");
+        } else if(c == '\r') {
+            json_writer_push_str(w, "\\r");
+        } else if(c == '\t') {
+            json_writer_push_str(w, "\\t");
         } else {
             json_writer_push_byte(w, (uint8_t)c);
         }
@@ -178,14 +182,12 @@ static int32_t find_key_value(
     size_t i = start;
 
     while(i + key_len + 3 < len) {
-        if(data[i] == '"' &&
-           memcmp(&data[i + 1], key, key_len) == 0 &&
+        if(data[i] == '"' && memcmp(&data[i + 1], key, key_len) == 0 &&
            data[i + 1 + key_len] == '"') {
             i += key_len + 2; /* skip past "key" */
             /* skip colon and whitespace */
-            while(i < len &&
-                  (data[i] == ':' || data[i] == ' ' || data[i] == '\t' || data[i] == '\n' ||
-                   data[i] == '\r')) {
+            while(i < len && (data[i] == ':' || data[i] == ' ' || data[i] == '\t' ||
+                              data[i] == '\n' || data[i] == '\r')) {
                 i++;
             }
             if(i >= len) return -1;
@@ -337,7 +339,8 @@ bool bible_storage_load_collection(BibleAppState* state) {
             find_key_value(buf, total, (size_t)ref_start, "book_index", &is_string);
         e->book_index = (uint8_t)extract_u16_value(buf, total, book_idx_start);
 
-        int32_t chapter_start = find_key_value(buf, total, (size_t)ref_start, "chapter", &is_string);
+        int32_t chapter_start =
+            find_key_value(buf, total, (size_t)ref_start, "chapter", &is_string);
         e->chapter = extract_u16_value(buf, total, chapter_start);
 
         int32_t start_verse_start =
@@ -395,8 +398,7 @@ static void build_canonical_ref(const BiblePassage* passage, char* out, size_t o
             (unsigned int)passage->chapter,
             (unsigned int)passage->start_verse);
     } else {
-        snprintf(
-            out, out_len, "%s.%u.1", osis, (unsigned int)passage->chapter);
+        snprintf(out, out_len, "%s.%u.1", osis, (unsigned int)passage->chapter);
     }
 }
 
@@ -579,11 +581,7 @@ static bool json_buf_append(char* buf, size_t buf_len, size_t* pos, const char* 
     return true;
 }
 
-static bool json_buf_append_escaped(
-    char* buf,
-    size_t buf_len,
-    size_t* pos,
-    const char* s) {
+static bool json_buf_append_escaped(char* buf, size_t buf_len, size_t* pos, const char* s) {
     const char* p = s;
     while(*p != '\0') {
         char c = *p;
@@ -594,6 +592,10 @@ static bool json_buf_append_escaped(
             esc = "\\\\";
         } else if(c == '\n') {
             esc = "\\n";
+        } else if(c == '\r') {
+            esc = "\\r";
+        } else if(c == '\t') {
+            esc = "\\t";
         }
         if(esc != NULL) {
             size_t esc_len = strlen(esc);
@@ -610,10 +612,7 @@ static bool json_buf_append_escaped(
     return true;
 }
 
-bool bible_storage_build_kindled_json(
-    const BibleAppState* state,
-    char* out_buf,
-    size_t out_len) {
+bool bible_storage_build_kindled_json(const BibleAppState* state, char* out_buf, size_t out_len) {
     furi_check(state);
     furi_check(out_buf);
     furi_check(out_len > 0);
@@ -646,18 +645,24 @@ bool bible_storage_build_kindled_json(
            "\"data\":{\"blocks\":["))
         return false;
 
+    /* Heap-allocate temp_passage — too large (90KB) for the 4KB stack */
+    BiblePassage* temp_passage = malloc(sizeof(BiblePassage));
+    if(!temp_passage) return false;
+
     for(uint8_t i = 0; i < state->collection_count; i++) {
         if(i > 0) {
-            if(!json_buf_append(out_buf, out_len, &pos, ",")) return false;
+            if(!json_buf_append(out_buf, out_len, &pos, ",")) {
+                free(temp_passage);
+                return false;
+            }
         }
 
         const BibleCollectionEntry* e = &state->collection[i];
 
         /* Load verses for this entry to include text */
-        BiblePassage temp_passage;
-        memset(&temp_passage, 0, sizeof(temp_passage));
+        memset(temp_passage, 0, sizeof(BiblePassage));
         bool loaded = bible_load_chapter(
-            e->book_index, e->chapter, e->start_verse, e->end_verse, &temp_passage);
+            e->book_index, e->chapter, e->start_verse, e->end_verse, temp_passage);
 
         char block_buf[256];
         snprintf(
@@ -665,65 +670,98 @@ bool bible_storage_build_kindled_json(
             sizeof(block_buf),
             "{\"id\":\"block-%u\",\"type\":\"scripture\",\"content\":\"",
             (unsigned int)i);
-        if(!json_buf_append(out_buf, out_len, &pos, block_buf)) return false;
-        if(!json_buf_append_escaped(out_buf, out_len, &pos, e->scripture_display_ref)) return false;
+        if(!json_buf_append(out_buf, out_len, &pos, block_buf)) {
+            free(temp_passage);
+            return false;
+        }
+        if(!json_buf_append_escaped(out_buf, out_len, &pos, e->scripture_display_ref)) {
+            free(temp_passage);
+            return false;
+        }
 
         snprintf(
             block_buf,
             sizeof(block_buf),
             "\",\"scripture_ref\":\"%s\",\"scripture_display_ref\":\"",
             e->scripture_ref);
-        if(!json_buf_append(out_buf, out_len, &pos, block_buf)) return false;
-        if(!json_buf_append_escaped(out_buf, out_len, &pos, e->scripture_display_ref)) return false;
+        if(!json_buf_append(out_buf, out_len, &pos, block_buf)) {
+            free(temp_passage);
+            return false;
+        }
+        if(!json_buf_append_escaped(out_buf, out_len, &pos, e->scripture_display_ref)) {
+            free(temp_passage);
+            return false;
+        }
 
         snprintf(
             block_buf,
             sizeof(block_buf),
             "\",\"scripture_translation\":\"%s\",\"scripture_verses\":[",
             e->scripture_translation);
-        if(!json_buf_append(out_buf, out_len, &pos, block_buf)) return false;
+        if(!json_buf_append(out_buf, out_len, &pos, block_buf)) {
+            free(temp_passage);
+            return false;
+        }
 
         if(loaded) {
-            for(uint16_t v = 0; v < temp_passage.verse_count; v++) {
+            for(uint16_t v = 0; v < temp_passage->verse_count; v++) {
                 if(v > 0) {
-                    if(!json_buf_append(out_buf, out_len, &pos, ",")) return false;
+                    if(!json_buf_append(out_buf, out_len, &pos, ",")) {
+                        free(temp_passage);
+                        return false;
+                    }
                 }
                 snprintf(
                     block_buf,
                     sizeof(block_buf),
                     "{\"number\":%u,\"text\":\"",
-                    (unsigned int)temp_passage.verses[v].number);
-                if(!json_buf_append(out_buf, out_len, &pos, block_buf)) return false;
-                if(!json_buf_append_escaped(
-                       out_buf, out_len, &pos, temp_passage.verses[v].text))
+                    (unsigned int)temp_passage->verses[v].number);
+                if(!json_buf_append(out_buf, out_len, &pos, block_buf)) {
+                    free(temp_passage);
                     return false;
-                if(!json_buf_append(out_buf, out_len, &pos, "\"}")) return false;
+                }
+                if(!json_buf_append_escaped(out_buf, out_len, &pos, temp_passage->verses[v].text)) {
+                    free(temp_passage);
+                    return false;
+                }
+                if(!json_buf_append(out_buf, out_len, &pos, "\"}")) {
+                    free(temp_passage);
+                    return false;
+                }
             }
         }
 
-        if(!json_buf_append(
-               out_buf,
-               out_len,
-               &pos,
-               "],\"source\":\"manual\",\"captured_at\":\""))
+        if(!json_buf_append(out_buf, out_len, &pos, "],\"source\":\"manual\",\"captured_at\":\"")) {
+            free(temp_passage);
             return false;
-        if(!json_buf_append_escaped(out_buf, out_len, &pos, e->captured_at)) return false;
-        if(!json_buf_append(
-               out_buf,
-               out_len,
-               &pos,
-               "\",\"modified_at\":\""))
+        }
+        if(!json_buf_append_escaped(out_buf, out_len, &pos, e->captured_at)) {
+            free(temp_passage);
             return false;
-        if(!json_buf_append_escaped(out_buf, out_len, &pos, e->captured_at)) return false;
-        if(!json_buf_append(out_buf, out_len, &pos, "\",\"tags\":[]}")) return false;
+        }
+        if(!json_buf_append(out_buf, out_len, &pos, "\",\"modified_at\":\"")) {
+            free(temp_passage);
+            return false;
+        }
+        if(!json_buf_append_escaped(out_buf, out_len, &pos, e->captured_at)) {
+            free(temp_passage);
+            return false;
+        }
+        if(!json_buf_append(out_buf, out_len, &pos, "\",\"tags\":[]}")) {
+            free(temp_passage);
+            return false;
+        }
     }
 
     if(!json_buf_append(
            out_buf,
            out_len,
            &pos,
-           "],\"entities\":[],\"links\":[],\"reflections\":[],\"life_stages\":[]}}"))
+           "],\"entities\":[],\"links\":[],\"reflections\":[],\"life_stages\":[]}}")) {
+        free(temp_passage);
         return false;
+    }
 
+    free(temp_passage);
     return true;
 }
