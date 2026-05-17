@@ -471,7 +471,8 @@ void bible_app_free(BibleApp* app) {
     view_dispatcher_free(app->view_dispatcher);
     scene_manager_free(app->scene_manager);
 
-    /* State */
+    /* State — free dynamic arrays first, then the state struct */
+    bible_app_state_deinit(app->state);
     free(app->state);
     free(app);
 }

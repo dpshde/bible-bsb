@@ -189,6 +189,7 @@ bool bible_bsb_view_verse_select_input(InputEvent* event, void* ctx) {
         uint16_t end_verse = (state->verse_select_mode == 0) ? 0 : state->selected_end_verse;
 
         BiblePassage* passage = &state->passage;
+        bible_passage_free_verses(passage);
         memset(passage, 0, sizeof(BiblePassage));
 
         bool loaded = bible_load_chapter(
@@ -197,12 +198,13 @@ bool bible_bsb_view_verse_select_input(InputEvent* event, void* ctx) {
         if(loaded && passage->verse_count > 0) {
             /* Wrap verses into display lines */
             state->line_count = 0;
+            bible_lines_ensure(state, BIBLE_MAX_LINES);
             bible_wrap_verses(
                 passage->verses,
                 passage->verse_count,
                 state->lines,
                 &state->line_count,
-                BIBLE_MAX_LINES);
+                state->lines_capacity);
 
             state->scroll_offset = 0;
             state->reader_came_from_collection = false;

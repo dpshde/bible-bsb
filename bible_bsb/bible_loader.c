@@ -62,6 +62,9 @@ static void bible_sanitize_text(char* text, size_t max_len) {
 
 /* Minimal JSON parser: scan for "n": and "t":" pairs.
  * json_len is the byte length of the JSON buffer (not counting null terminator).
+ *
+ * If out_verses is NULL, this function only counts matching verses (pass 1).
+ * If out_verses is non-NULL, it fills up to max_verses entries (pass 2).
  */
 static uint16_t bible_parse_verses(
     const char* json,
@@ -73,7 +76,7 @@ static uint16_t bible_parse_verses(
     const char* p = json;
     uint16_t count = 0;
 
-    while(*p != '\0' && count < max_verses) {
+    while(*p != '\0' && (out_verses == NULL || count < max_verses)) {
         /* Bounds-check before looking for "n": (need 4 bytes ahead) */
         size_t offset = (size_t)(p - json);
         if(offset + 4 > json_len) break;
@@ -131,9 +134,14 @@ static uint16_t bible_parse_verses(
 
                     /* Apply filter and sanitization */
                     if(start_verse == 0 || (verse_num >= start_verse && verse_num <= end_verse)) {
-                        out_verses[count].number = verse_num;
-                        bible_sanitize_text(text_buf, 511);
-                        strlcpy(out_verses[count].text, text_buf, sizeof(out_verses[count].text));
+                        if(out_verses != NULL) {
+                            out_verses[count].number = verse_num;
+                            bible_sanitize_text(text_buf, 511);
+                            strlcpy(
+                                out_verses[count].text,
+                                text_buf,
+                                sizeof(out_verses[count].text));
+                        }
                         count++;
                     }
                     break;
@@ -226,20 +234,43 @@ bool bible_load_chapter(
     /* Null-terminate — capacity always has +1 headroom from realloc above */
     buf[total] = '\0';
 
-    /* Parse verses */
+    /* Two-pass parse: first count matching verses, then allocate, then fill. */
     uint16_t verse_count = bible_parse_verses(
-        (const char*)buf, total, start_verse, end_verse, out_passage->verses, BIBLE_MAX_VERSES);
+        (const char*)buf, total, start_verse, end_verse, NULL, BIBLE_MAX_VERSES);
+
+    if(verse_count == 0) {
+        free(buf);
+        return false;
+    }
+
+    /* Free any previously allocated verses */
+    if(out_passage->verses) {
+        free(out_passage->verses);
+        out_passage->verses = NULL;
+    }
+
+    /* Allocate exactly the number of verses we need */
+    out_passage->verses = malloc(verse_count * sizeof(BibleVerse));
+    if(!out_passage->verses) {
+        free(buf);
+        return false;
+    }
+
+    /* Second pass: fill the allocated array */
+    bible_parse_verses(
+        (const char*)buf,
+        total,
+        start_verse,
+        end_verse,
+        out_passage->verses,
+        verse_count);
 
     free(buf);
 
-    if(verse_count > 0) {
-        out_passage->book_index = book_index;
-        out_passage->chapter = chapter;
-        out_passage->start_verse = start_verse;
-        out_passage->end_verse = end_verse;
-        out_passage->verse_count = verse_count;
-        return true;
-    }
-
-    return false;
+    out_passage->book_index = book_index;
+    out_passage->chapter = chapter;
+    out_passage->start_verse = start_verse;
+    out_passage->end_verse = end_verse;
+    out_passage->verse_count = verse_count;
+    return true;
 }

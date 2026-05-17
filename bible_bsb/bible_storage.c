@@ -308,6 +308,11 @@ bool bible_storage_load_collection(BibleAppState* state) {
         int32_t ref_start = find_key_value(buf, total, i, "scripture_ref", &is_string);
         if(ref_start < 0) break;
 
+        /* Ensure collection array has room */
+        if(!bible_collection_ensure(state, state->collection_count + 1)) {
+            break;
+        }
+
         BibleCollectionEntry* e = &state->collection[state->collection_count];
         memset(e, 0, sizeof(BibleCollectionEntry));
 
@@ -440,7 +445,6 @@ void bible_save_passage(BibleAppState* state) {
 
     /* 2. Clear lines (heap defrag) */
     state->line_count = 0;
-    memset(state->lines, 0, sizeof(state->lines));
 
     /* 3. Load collection from SD if not already loaded */
     if(!state->collection_loaded) {
@@ -456,12 +460,13 @@ void bible_save_passage(BibleAppState* state) {
         if(strcmp(state->collection[i].scripture_ref, new_ref) == 0) {
             /* Duplicate found — reload lines and show toast */
             state->line_count = 0;
+            bible_lines_ensure(state, BIBLE_MAX_LINES);
             bible_wrap_verses(
                 state->passage.verses,
                 state->passage.verse_count,
                 state->lines,
                 &state->line_count,
-                BIBLE_MAX_LINES);
+                state->lines_capacity);
             state->scroll_offset = saved_scroll;
             bible_toast_set(&state->toast, "Already saved");
             return;
@@ -471,12 +476,13 @@ void bible_save_passage(BibleAppState* state) {
     /* 6. Check capacity */
     if(state->collection_count >= BIBLE_MAX_COLLECTION) {
         state->line_count = 0;
+        bible_lines_ensure(state, BIBLE_MAX_LINES);
         bible_wrap_verses(
             state->passage.verses,
             state->passage.verse_count,
             state->lines,
             &state->line_count,
-            BIBLE_MAX_LINES);
+            state->lines_capacity);
         state->scroll_offset = saved_scroll;
         bible_toast_set(&state->toast, "Collection full");
         return;
@@ -486,7 +492,8 @@ void bible_save_passage(BibleAppState* state) {
     char display_ref[32];
     build_display_ref(&state->passage, display_ref, sizeof(display_ref));
 
-    /* 8. Append new entry */
+    /* 8. Ensure collection capacity and append new entry */
+    bible_collection_ensure(state, state->collection_count + 1);
     BibleCollectionEntry* e = &state->collection[state->collection_count];
     memset(e, 0, sizeof(BibleCollectionEntry));
     strlcpy(e->scripture_ref, new_ref, sizeof(e->scripture_ref));
@@ -506,12 +513,13 @@ void bible_save_passage(BibleAppState* state) {
 
     /* 10. Reload lines (restore reader display) */
     state->line_count = 0;
+    bible_lines_ensure(state, BIBLE_MAX_LINES);
     bible_wrap_verses(
         state->passage.verses,
         state->passage.verse_count,
         state->lines,
         &state->line_count,
-        BIBLE_MAX_LINES);
+        state->lines_capacity);
     state->scroll_offset = saved_scroll;
 
     /* 11. Toast */
@@ -537,7 +545,6 @@ bool bible_storage_load_verses_for_entry(BibleAppState* state, uint8_t entry_ind
     /* 1. Save scroll and clear lines (defrag) */
     uint16_t saved_scroll = state->scroll_offset;
     state->line_count = 0;
-    memset(state->lines, 0, sizeof(state->lines));
 
     /* 2. Load the chapter from SD */
     bool loaded = bible_load_chapter(
@@ -551,12 +558,13 @@ bool bible_storage_load_verses_for_entry(BibleAppState* state, uint8_t entry_ind
 
     /* 3. Wrap verses into lines */
     state->line_count = 0;
+    bible_lines_ensure(state, BIBLE_MAX_LINES);
     bible_wrap_verses(
         state->passage.verses,
         state->passage.verse_count,
         state->lines,
         &state->line_count,
-        BIBLE_MAX_LINES);
+        state->lines_capacity);
 
     /* 4. Set navigation state */
     state->selected_book = e->book_index;
@@ -646,18 +654,10 @@ bool bible_storage_build_kindled_json(BibleAppState* state, char* out_buf, size_
            "\"data\":{\"blocks\":["))
         return false;
 
-    /* Save reader state so we can use state->passage as a temporary scratch
-     * area.  This avoids a ~90 KB heap allocation that would always fail on
-     * the Flipper's ~16-32 KB heap. */
+    /* Save original passage so we can use state->passage as scratch area.
+     * We only save/restore passage; lines are not touched by this function
+     * (caller is on Collection screen, not Reader). */
     BiblePassage saved_passage = state->passage;
-    BibleLine saved_lines[BIBLE_MAX_LINES];
-    memcpy(saved_lines, state->lines, sizeof(saved_lines));
-    uint16_t saved_line_count = state->line_count;
-    uint16_t saved_scroll = state->scroll_offset;
-
-    /* Clear lines to defragment heap before loading each entry */
-    state->line_count = 0;
-    memset(state->lines, 0, sizeof(state->lines));
 
     for(uint8_t i = 0; i < state->collection_count; i++) {
         if(i > 0) {
@@ -668,8 +668,10 @@ bool bible_storage_build_kindled_json(BibleAppState* state, char* out_buf, size_
 
         const BibleCollectionEntry* e = &state->collection[i];
 
+        /* Free any previous scratch verses before loading next entry */
+        bible_passage_free_verses(&state->passage);
+
         /* Load verses for this entry to include text */
-        memset(&state->passage, 0, sizeof(BiblePassage));
         bool loaded = bible_load_chapter(
             e->book_index, e->chapter, e->start_verse, e->end_verse, &state->passage);
 
@@ -757,18 +759,14 @@ bool bible_storage_build_kindled_json(BibleAppState* state, char* out_buf, size_
         goto build_fail;
     }
 
-    /* Restore original reader state */
+    /* Restore original passage state */
+    bible_passage_free_verses(&state->passage);
     state->passage = saved_passage;
-    memcpy(state->lines, saved_lines, sizeof(saved_lines));
-    state->line_count = saved_line_count;
-    state->scroll_offset = saved_scroll;
     return true;
 
 build_fail:
-    /* Restore original reader state on failure too */
+    /* Restore original passage state on failure too */
+    bible_passage_free_verses(&state->passage);
     state->passage = saved_passage;
-    memcpy(state->lines, saved_lines, sizeof(saved_lines));
-    state->line_count = saved_line_count;
-    state->scroll_offset = saved_scroll;
     return false;
 }

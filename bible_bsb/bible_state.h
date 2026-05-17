@@ -80,7 +80,7 @@ typedef struct {
     uint16_t start_verse;
     uint16_t end_verse;
     uint16_t verse_count;
-    BibleVerse verses[BIBLE_MAX_VERSES];
+    BibleVerse* verses; /* dynamically allocated, NULL if no verses loaded */
 } BiblePassage;
 
 /* ============================================================================
@@ -117,13 +117,15 @@ typedef struct BibleAppState {
 
     /* Data */
     BiblePassage passage;
-    BibleCollectionEntry collection[BIBLE_MAX_COLLECTION];
+    BibleCollectionEntry* collection; /* dynamically allocated, NULL if empty */
     uint8_t collection_count;
+    uint8_t collection_capacity;
     bool collection_loaded;
 
     /* Rendering */
-    BibleLine lines[BIBLE_MAX_LINES];
+    BibleLine* lines; /* dynamically allocated, NULL if no lines */
     uint16_t line_count;
+    uint16_t lines_capacity;
     uint16_t current_page;
 
     /* Feedback */
@@ -136,6 +138,87 @@ typedef struct BibleAppState {
     bool nfc_is_export;
     uint8_t nfc_pulse_counter;
 } BibleAppState;
+
+/* ============================================================================
+ * Dynamic memory helpers
+ * ============================================================================ */
+
+/** Free verses inside a passage (does not free the passage struct itself). */
+static inline void bible_passage_free_verses(BiblePassage* passage) {
+    if(passage && passage->verses) {
+        free(passage->verses);
+        passage->verses = NULL;
+        passage->verse_count = 0;
+    }
+}
+
+/** Ensure lines array has at least `capacity` slots. Grows incrementally (max ~1KB per realloc). */
+static inline bool bible_lines_ensure(BibleAppState* state, uint16_t capacity) {
+    furi_check(state);
+    if(capacity == 0) return true;
+    if(state->lines && state->lines_capacity >= capacity) return true;
+
+    /* Max 15 lines per realloc: 15 * sizeof(BibleLine) <= 1020 bytes */
+    const uint16_t LINES_PER_GROW = 15;
+
+    uint16_t new_cap = state->lines_capacity;
+    while(new_cap < capacity) {
+        new_cap += LINES_PER_GROW;
+    }
+    if(new_cap > BIBLE_MAX_LINES) new_cap = BIBLE_MAX_LINES;
+
+    BibleLine* new_lines = realloc(state->lines, new_cap * sizeof(BibleLine));
+    if(!new_lines) return false;
+    /* Zero-initialize newly allocated slots */
+    if(new_cap > state->lines_capacity) {
+        memset(
+            new_lines + state->lines_capacity,
+            0,
+            (new_cap - state->lines_capacity) * sizeof(BibleLine));
+    }
+    state->lines = new_lines;
+    state->lines_capacity = new_cap;
+    return true;
+}
+
+/** Free the lines array. */
+static inline void bible_lines_free(BibleAppState* state) {
+    furi_check(state);
+    if(state->lines) {
+        free(state->lines);
+        state->lines = NULL;
+    }
+    state->line_count = 0;
+    state->lines_capacity = 0;
+}
+
+/** Ensure collection array has at least `capacity` slots. */
+static inline bool bible_collection_ensure(BibleAppState* state, uint16_t capacity) {
+    furi_check(state);
+    if(capacity == 0) return true;
+    if(state->collection && state->collection_capacity >= capacity) return true;
+
+    uint16_t new_cap = state->collection_capacity > 0 ? state->collection_capacity * 2 : 8;
+    while(new_cap < capacity) new_cap *= 2;
+    if(new_cap > BIBLE_MAX_COLLECTION) new_cap = BIBLE_MAX_COLLECTION;
+
+    BibleCollectionEntry* new_col = realloc(state->collection, new_cap * sizeof(BibleCollectionEntry));
+    if(!new_col) return false;
+    state->collection = new_col;
+    state->collection_capacity = new_cap;
+    return true;
+}
+
+/** Free the collection array. */
+static inline void bible_collection_free(BibleAppState* state) {
+    furi_check(state);
+    if(state->collection) {
+        free(state->collection);
+        state->collection = NULL;
+    }
+    state->collection_count = 0;
+    state->collection_capacity = 0;
+}
 
 /* ============================================================================
  * Helpers
@@ -154,8 +237,17 @@ static inline void bible_app_state_init(BibleAppState* state) {
     state->collection_count = 0;
     state->collection_loaded = false;
     state->line_count = 0;
+    state->lines_capacity = 0;
     state->current_page = 0;
     state->reader_came_from_collection = false;
     state->nfc_emitting = false;
     state->nfc_is_export = false;
+}
+
+/** Free all dynamically allocated memory in the state. Call before free(state). */
+static inline void bible_app_state_deinit(BibleAppState* state) {
+    furi_check(state);
+    bible_passage_free_verses(&state->passage);
+    bible_lines_free(state);
+    bible_collection_free(state);
 }
