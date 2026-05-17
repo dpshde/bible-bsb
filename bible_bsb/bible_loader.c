@@ -138,9 +138,7 @@ static uint16_t bible_parse_verses(
                             out_verses[count].number = verse_num;
                             bible_sanitize_text(text_buf, 511);
                             strlcpy(
-                                out_verses[count].text,
-                                text_buf,
-                                sizeof(out_verses[count].text));
+                                out_verses[count].text, text_buf, sizeof(out_verses[count].text));
                         }
                         count++;
                     }
@@ -258,12 +256,7 @@ bool bible_load_chapter(
 
     /* Second pass: fill the allocated array */
     bible_parse_verses(
-        (const char*)buf,
-        total,
-        start_verse,
-        end_verse,
-        out_passage->verses,
-        verse_count);
+        (const char*)buf, total, start_verse, end_verse, out_passage->verses, verse_count);
 
     free(buf);
 

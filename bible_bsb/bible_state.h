@@ -199,10 +199,12 @@ static inline bool bible_collection_ensure(BibleAppState* state, uint16_t capaci
     if(state->collection && state->collection_capacity >= capacity) return true;
 
     uint16_t new_cap = state->collection_capacity > 0 ? state->collection_capacity * 2 : 8;
-    while(new_cap < capacity) new_cap *= 2;
+    while(new_cap < capacity)
+        new_cap *= 2;
     if(new_cap > BIBLE_MAX_COLLECTION) new_cap = BIBLE_MAX_COLLECTION;
 
-    BibleCollectionEntry* new_col = realloc(state->collection, new_cap * sizeof(BibleCollectionEntry));
+    BibleCollectionEntry* new_col =
+        realloc(state->collection, new_cap * sizeof(BibleCollectionEntry));
     if(!new_col) return false;
     state->collection = new_col;
     state->collection_capacity = new_cap;

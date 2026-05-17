@@ -493,7 +493,19 @@ void bible_save_passage(BibleAppState* state) {
     build_display_ref(&state->passage, display_ref, sizeof(display_ref));
 
     /* 8. Ensure collection capacity and append new entry */
-    bible_collection_ensure(state, state->collection_count + 1);
+    if(!bible_collection_ensure(state, state->collection_count + 1)) {
+        state->line_count = 0;
+        bible_lines_ensure(state, BIBLE_MAX_LINES);
+        bible_wrap_verses(
+            state->passage.verses,
+            state->passage.verse_count,
+            state->lines,
+            &state->line_count,
+            state->lines_capacity);
+        state->scroll_offset = saved_scroll;
+        bible_toast_set(&state->toast, "Save failed");
+        return;
+    }
     BibleCollectionEntry* e = &state->collection[state->collection_count];
     memset(e, 0, sizeof(BibleCollectionEntry));
     strlcpy(e->scripture_ref, new_ref, sizeof(e->scripture_ref));
