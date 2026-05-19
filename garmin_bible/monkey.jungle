@@ -3,6 +3,21 @@ project.manifest = manifest.xml
 base.sourcePath = source
 base.resourcePath = resources
 
-# Device-specific resource overrides can be added here when needed.
-# For example:
-# instinct3solar45mm.resourcePath = $(base.resourcePath);resources-instinct3solar45mm
+# Device-specific resource overrides
+# ─────────────────────────────────
+# This app uses runtime adaptive rendering (not XML layouts), so per-device
+# resource overrides are intentionally NOT required:
+#
+# • Launcher icon — A single bitmap is declared in drawables.xml. The Connect IQ
+#   resource compiler scales it automatically for each target DPI.
+# • Fonts — The app selects system fonts at runtime (FONT_SMALL / FONT_MEDIUM /
+#   FONT_LARGE) based on screen width in BibleRenderer.mc. No custom TTF files.
+# • Layouts — All UI is drawn programmatically on the canvas; there are no
+#   per-device layout XML files.
+#
+# If a future feature requires custom resources for a specific device family,
+# add an override line below using the pattern:
+#   <device-id>.resourcePath = $(base.resourcePath);resources-<family>
+#
+# For example, if a custom high-resolution font is ever needed for AMOLED devices:
+#   venu3.resourcePath = $(base.resourcePath);resources-venu3
