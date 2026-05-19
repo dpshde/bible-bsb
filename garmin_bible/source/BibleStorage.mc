@@ -96,13 +96,13 @@ class BibleStorage {
             return false;
         }
         collection.remove(collection[index]);
-        Application.Storage.setValue(COLLECTION_KEY, collection as Application.Storage.ValueType);
-        return true;
+        var saved = BibleError.safeStorageSet(COLLECTION_KEY, collection);
+        return saved;
     }
 
     // Clear all collection entries.
     static function clearAll() as Void {
-        Application.Storage.setValue(COLLECTION_KEY, [] as Application.Storage.ValueType);
+        BibleError.safeStorageSet(COLLECTION_KEY, [] as Array<Dictionary>);
     }
 
     // Format current UTC time as ISO8601 timestamp: YYYY-MM-DDTHH:MM:SSZ

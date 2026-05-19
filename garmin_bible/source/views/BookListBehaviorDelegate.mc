@@ -24,6 +24,9 @@ class BookListBehaviorDelegate extends Ui.BehaviorDelegate {
         var app = Application.getApp() as BibleApp;
         var state = app.state;
 
+        // Clamp book index to valid range
+        state.selectedBookIndex = BibleError.safeBookIndex(state.selectedBookIndex);
+
         // Set the passage state from the selected book
         state.bookIndex = state.selectedBookIndex;
         state.chapter = 1;
@@ -159,7 +162,7 @@ class BookListBehaviorDelegate extends Ui.BehaviorDelegate {
         total as Number
     ) as Number {
         // Estimate visible rows (we don't have dc here, use a conservative estimate)
-        // On a 176x176 screen with HEADER_HEIGHT=14 and LINE_HEIGHT=14:
+        // On a 176x176 screen with HEADER_HEIGHT=14 and lineHeight=14:
         // contentHeight = 176 - 14 - 2 = 160; maxVisible = 160 / 14 = ~11
         var maxVisible = 11;
 

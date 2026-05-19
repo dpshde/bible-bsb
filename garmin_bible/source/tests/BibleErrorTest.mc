@@ -41,8 +41,10 @@ class BibleErrorTest {
     }
 
     function testErrorMessage200(logger as Test.Logger) as Boolean {
+        // HTTP 200 is a success code; the error-message helper returns
+        // an empty string for 2xx so callers can distinguish success.
         var msg = BibleError.getErrorMessageForCode(200);
-        return msg.equals(BibleError.MSG_LOAD_FAILED);
+        return msg.length() == 0;
     }
 
     // ------------------------------------------------------------------
@@ -375,10 +377,27 @@ class BibleErrorTest {
     // ------------------------------------------------------------------
 
     function testCollectionFullWhenAtMax(logger as Test.Logger) as Boolean {
-        // We can't easily force a full collection in a unit test,
-        // but we can verify the check logic works.
-        // This test documents the expected behavior.
-        return true;
+        // Fill storage to the maximum entry count and verify isCollectionFull
+        // returns true. Clean up afterward so later tests start fresh.
+        var key = BibleStorage.COLLECTION_KEY;
+        var fullArr = [] as Array<Dictionary>;
+        for (var i = 0; i < BibleStorage.MAX_ENTRIES; i++) {
+            var entry = {} as Dictionary;
+            entry.put("scripture_ref", "ref." + i + ".1");
+            entry.put("display_ref", "Ref " + i + ":1");
+            entry.put("translation", "BSB");
+            entry.put("book_index", 0);
+            entry.put("chapter", 1);
+            entry.put("start_verse", 1);
+            entry.put("end_verse", 1);
+            entry.put("captured_at", "2025-01-01T00:00:00Z");
+            fullArr.add(entry);
+        }
+        Application.Storage.setValue(key, fullArr as Application.Storage.ValueType);
+        var isFull = BibleError.isCollectionFull();
+        // Restore empty state for subsequent tests
+        Application.Storage.setValue(key, [] as Application.Storage.ValueType);
+        return isFull;
     }
 
     // ------------------------------------------------------------------

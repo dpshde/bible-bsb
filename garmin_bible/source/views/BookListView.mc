@@ -3,7 +3,6 @@ import Toybox.Lang;
 using Toybox.WatchUi as Ui;
 
 class BookListView extends Ui.View {
-    private const LINE_HEIGHT = 14;
     private const SCROLL_BAR_WIDTH = 3;
 
     var layout as Dictionary?;
@@ -24,6 +23,10 @@ class BookListView extends Ui.View {
         var selectBg = safeLayout.get("selectBg") as Number;
         var selectText = safeLayout.get("selectText") as Number;
         var fontSize = safeLayout.get("fontSize") as Number;
+        var lineHeight = safeLayout.get("lineHeight") as Number;
+        if (lineHeight < 1) {
+            lineHeight = 1;
+        }
 
         // Clear background
         dc.setColor(textColor, bgColor);
@@ -43,8 +46,10 @@ class BookListView extends Ui.View {
         }
 
         // Calculate visible range
-        var contentHeight = height - BibleLayout.HEADER_HEIGHT - 2;
-        var maxVisible = contentHeight / LINE_HEIGHT;
+        var contentTop = safeLayout.get("contentTop") as Number;
+        var contentBottom = safeLayout.get("contentBottom") as Number;
+        var contentHeight = contentBottom - contentTop;
+        var maxVisible = contentHeight / lineHeight;
         if (maxVisible < 1) {
             maxVisible = 1;
         }
@@ -66,12 +71,12 @@ class BookListView extends Ui.View {
             }
 
             var bookIndex = filteredBooks[bookListIdx] as Number;
-            var y = BibleLayout.HEADER_HEIGHT + 2 + (i * LINE_HEIGHT);
+            var y = contentTop + (i * lineHeight);
             var isSelected = (bookIndex == state.selectedBookIndex);
 
             if (isSelected) {
                 dc.setColor(selectBg, selectText);
-                dc.fillRectangle(0, y, width, LINE_HEIGHT);
+                dc.fillRectangle(0, y, width, lineHeight);
                 dc.setColor(selectText, selectBg);
             } else {
                 dc.setColor(textColor, bgColor);
@@ -90,7 +95,7 @@ class BookListView extends Ui.View {
             }
             dc.drawText(
                 marginX,
-                y + (LINE_HEIGHT / 2) - 1,
+                y + (lineHeight / 2) - 1,
                 font,
                 bookName,
                 Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER

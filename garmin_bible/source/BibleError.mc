@@ -18,7 +18,9 @@ module BibleError {
     // HTTP response code → user-visible message
     // ------------------------------------------------------------------
     function getErrorMessageForCode(responseCode as Number) as String {
-        if (responseCode == 404) {
+        if (responseCode >= 200 && responseCode < 300) {
+            return "";
+        } else if (responseCode == 404) {
             return MSG_CHAPTER_NOT_FOUND;
         } else if (responseCode < 0) {
             return MSG_NO_CONNECTION;
@@ -26,24 +28,6 @@ module BibleError {
             return MSG_LOAD_FAILED;
         }
         return MSG_LOAD_FAILED;
-    }
-
-    // ------------------------------------------------------------------
-    // Safe resource string loader: returns fallback if load fails
-    // ------------------------------------------------------------------
-    function safeLoadString(resourceId as ResourceId, fallback as String) as String {
-        try {
-            var raw = Ui.loadResource(resourceId);
-            if (raw != null) {
-                var str = raw as String;
-                if (str != null && str.length() > 0) {
-                    return str;
-                }
-            }
-        } catch (e) {
-            // Resource missing or type mismatch — use fallback
-        }
-        return fallback;
     }
 
     // ------------------------------------------------------------------

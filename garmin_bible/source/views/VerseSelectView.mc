@@ -3,7 +3,6 @@ import Toybox.Lang;
 using Toybox.WatchUi as Ui;
 
 class VerseSelectView extends Ui.View {
-    private const LINE_HEIGHT = 14;
     private const ROW_SPACING = 10;
 
     var layout as Dictionary?;
@@ -23,6 +22,10 @@ class VerseSelectView extends Ui.View {
         var selectBg = safeLayout.get("selectBg") as Number;
         var selectText = safeLayout.get("selectText") as Number;
         var fontSize = safeLayout.get("fontSize") as Number;
+        var lineHeight = safeLayout.get("lineHeight") as Number;
+        if (lineHeight < 1) {
+            lineHeight = 1;
+        }
 
         // Clear background
         dc.setColor(textColor, bgColor);
@@ -51,9 +54,9 @@ class VerseSelectView extends Ui.View {
         if (displayEnd < displayStart) { displayEnd = displayStart; }
 
         var row1Y = BibleLayout.HEADER_HEIGHT + ROW_SPACING;
-        var row2Y = row1Y + LINE_HEIGHT;
-        var row3Y = row2Y + LINE_HEIGHT;
-        var hintY = row3Y + LINE_HEIGHT + 4;
+        var row2Y = row1Y + lineHeight;
+        var row3Y = row2Y + lineHeight;
+        var hintY = row3Y + lineHeight + 4;
         var screenHeight = dc.getHeight();
         if (hintY > screenHeight - 8) {
             hintY = screenHeight - 8;
@@ -61,15 +64,15 @@ class VerseSelectView extends Ui.View {
 
         // Row 1: "All verses"
         var allSelected = (state.verseSelectMode == 0);
-        drawRow(dc, safeLayout, row1Y, "All verses", allSelected);
+        drawRow(dc, safeLayout, row1Y, lineHeight, "All verses", allSelected);
 
         // Row 2: "Start: N"
         var startSelected = (state.verseSelectMode == 1);
-        drawRow(dc, safeLayout, row2Y, "Start: " + displayStart, startSelected);
+        drawRow(dc, safeLayout, row2Y, lineHeight, "Start: " + displayStart, startSelected);
 
         // Row 3: "End: N"
         var endSelected = (state.verseSelectMode == 2);
-        drawRow(dc, safeLayout, row3Y, "End: " + displayEnd, endSelected);
+        drawRow(dc, safeLayout, row3Y, lineHeight, "End: " + displayEnd, endSelected);
 
         // Bottom hint
         dc.setColor(textColor, bgColor);
@@ -96,6 +99,7 @@ class VerseSelectView extends Ui.View {
         dc as Graphics.Dc,
         layout as Dictionary,
         y as Number,
+        rowHeight as Number,
         text as String,
         isSelected as Boolean
     ) as Void {
@@ -109,7 +113,7 @@ class VerseSelectView extends Ui.View {
 
         if (isSelected) {
             dc.setColor(selectBg, selectText);
-            dc.fillRectangle(0, y - 10, width, LINE_HEIGHT);
+            dc.fillRectangle(0, y - 10, width, rowHeight);
             dc.setColor(selectText, selectBg);
         } else {
             dc.setColor(textColor, bgColor);

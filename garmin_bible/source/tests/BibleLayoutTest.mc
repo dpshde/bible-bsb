@@ -168,17 +168,17 @@ class BibleLayoutTest {
     function testMockLayout176ContentHeight(logger as Test.Logger) as Boolean {
         var layout = BibleLayout.mockLayout(176, 176, BibleLayout.FONT_SMALL, 14, true, System.SCREEN_SHAPE_SEMI_OCTAGON);
         var ch = layout.get("contentHeight") as Number;
-        // contentTop = 14 + 1 + 4 = 19
+        // contentTop = max(14 + 1 + 4, 18 + 14) = max(19, 32) = 32
         // contentBottom = 176 - 18 - 8 = 150
-        // contentHeight = 150 - 19 = 131
-        return ch == 131;
+        // contentHeight = 150 - 32 = 118
+        return ch == 118;
     }
 
     function testMockLayout176LinesPerPage(logger as Test.Logger) as Boolean {
         var layout = BibleLayout.mockLayout(176, 176, BibleLayout.FONT_SMALL, 14, true, System.SCREEN_SHAPE_SEMI_OCTAGON);
         var lpp = layout.get("linesPerPage") as Number;
-        // 131 / 14 = 9
-        return lpp == 9;
+        // 118 / 14 = 8
+        return lpp == 8;
     }
 
     // ------------------------------------------------------------------

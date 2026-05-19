@@ -9,7 +9,7 @@
 #   instincte40mm        — 176x176 MIP, 1-bit
 #   instincte45mm        — 176x176 MIP, 1-bit
 #   descentg2            — 176x176 MIP, dive computer
-#   fenix7               — 260x260 AMOLED, color, round
+#   fenix7               — 260x260 MIP LCD, color, round
 #   venu3                — 390x390 AMOLED, color, round, touch
 #   d2mach1              — 260x260 AMOLED, color, round
 #   approachs50          — 260x260 AMOLED, color, round
@@ -27,8 +27,10 @@ KEY="/tmp/dev_key.der"
 OUT_DIR="$SCRIPT_DIR/bin"
 OUT_FILE="$OUT_DIR/bible_${DEVICE}.prg"
 
-if [ -z "$DEVICE" ]; then
-    echo "Usage: $0 <device-id>"
+# DEVICE is always set via default above, but we keep a basic
+# argument check for any future expansion.
+if [ $# -gt 1 ]; then
+    echo "Usage: $0 [device-id]"
     echo "Example: $0 instinct3solar45mm"
     echo ""
     echo "Available devices:"

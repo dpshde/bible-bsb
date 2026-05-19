@@ -101,7 +101,10 @@ class ActionMenuView extends Ui.View {
         // Draw menu items
         var itemLabels = ["Save", "Share", "Back"] as Array<String>;
         var itemY = overlayTop + 2;
-        var lineH = 14;
+        var lineH = layout.get("lineHeight") as Number;
+        if (lineH < 1) {
+            lineH = 1;
+        }
 
         for (var i = 0; i < ITEM_COUNT; i++) {
             if (i == selectedItem) {

@@ -16,7 +16,7 @@
 #   instincte40mm        — 176x176 MIP, 1-bit
 #   instincte45mm        — 176x176 MIP, 1-bit
 #   descentg2            — 176x176 MIP, dive computer
-#   fenix7               — 260x260 AMOLED, color, round
+#   fenix7               — 260x260 MIP LCD, color, round
 #   venu3                — 390x390 AMOLED, color, round, touch
 #   d2mach1              — 260x260 AMOLED, color, round
 #   approachs50          — 260x260 AMOLED, color, round

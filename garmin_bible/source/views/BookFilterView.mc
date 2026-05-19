@@ -4,8 +4,6 @@ using Toybox.WatchUi as Ui;
 
 class BookFilterView extends Ui.View {
     private const COLS = 5;
-    private const CELL_W = 34;  // 170/5 = 34 (fits within 176 width with margins)
-    private const CELL_H = 16;
 
     var layout as Dictionary?;
 
@@ -43,10 +41,21 @@ class BookFilterView extends Ui.View {
         var totalOptions = BibleBooks.FILTER_COUNT;
         var totalRows = (totalOptions + COLS - 1) / COLS;
 
-        // Calculate visible rows
-        var contentTop = BibleLayout.HEADER_HEIGHT + marginTop;
-        var contentHeight = height - contentTop - marginBottom;
-        var maxVisibleRows = contentHeight / CELL_H;
+        // Derive cell dimensions from layout
+        var contentTop = safeLayout.get("contentTop") as Number;
+        var contentBottom = safeLayout.get("contentBottom") as Number;
+        var contentHeight = contentBottom - contentTop;
+        var contentWidth = safeLayout.get("contentWidth") as Number;
+        var cellW = contentWidth / COLS;
+        if (cellW < 1) {
+            cellW = 1;
+        }
+        var cellH = safeLayout.get("lineHeight") as Number;
+        if (cellH < 1) {
+            cellH = 1;
+        }
+
+        var maxVisibleRows = contentHeight / cellH;
         if (maxVisibleRows < 1) {
             maxVisibleRows = 1;
         }
@@ -85,13 +94,13 @@ class BookFilterView extends Ui.View {
             }
 
             var displayRow = row - startRow;
-            var x = marginX + (col * CELL_W);
-            var y = contentTop + (displayRow * CELL_H);
+            var x = marginX + (col * cellW);
+            var y = contentTop + (displayRow * cellH);
             var isSelected = (i == selectedFilter);
 
             if (isSelected) {
                 dc.setColor(selectBg, selectText);
-                dc.fillRectangle(x, y, CELL_W - 2, CELL_H - 2);
+                dc.fillRectangle(x, y, cellW - 2, cellH - 2);
                 dc.setColor(selectText, selectBg);
             } else {
                 dc.setColor(textColor, bgColor);
@@ -99,8 +108,8 @@ class BookFilterView extends Ui.View {
 
             var opt = BibleBooks.getFilterOption(i);
             dc.drawText(
-                x + (CELL_W / 2) - 1,
-                y + (CELL_H / 2) - 1,
+                x + (cellW / 2) - 1,
+                y + (cellH / 2) - 1,
                 cellFont,
                 opt,
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER

@@ -4,9 +4,6 @@ using Toybox.WatchUi as Ui;
 
 class ChapterListView extends Ui.View {
     private const COLS = 5;
-    private const CELL_W = 34;
-    private const CELL_H = 16;
-    private const MAX_VISIBLE_ROWS = 3;
 
     var layout as Dictionary?;
 
@@ -51,12 +48,31 @@ class ChapterListView extends Ui.View {
             totalRows = 1;
         }
 
+        // Derive cell dimensions from layout
+        var contentTop = safeLayout.get("contentTop") as Number;
+        var contentBottom = safeLayout.get("contentBottom") as Number;
+        var contentHeight = contentBottom - contentTop;
+        var contentWidth = safeLayout.get("contentWidth") as Number;
+        var cellW = contentWidth / COLS;
+        if (cellW < 1) {
+            cellW = 1;
+        }
+        var cellH = safeLayout.get("lineHeight") as Number;
+        if (cellH < 1) {
+            cellH = 1;
+        }
+
+        var maxVisibleRows = contentHeight / cellH;
+        if (maxVisibleRows < 1) {
+            maxVisibleRows = 1;
+        }
+
         var selectedRow = (state.chapter - 1) / COLS;
 
         // Determine which row range to show
         var startRow;
-        if (selectedRow >= MAX_VISIBLE_ROWS) {
-            startRow = selectedRow - MAX_VISIBLE_ROWS + 1;
+        if (selectedRow >= maxVisibleRows) {
+            startRow = selectedRow - maxVisibleRows + 1;
         } else {
             startRow = 0;
         }
@@ -77,7 +93,7 @@ class ChapterListView extends Ui.View {
         }
 
         // Draw grid cells
-        for (var row = startRow; row < startRow + MAX_VISIBLE_ROWS && row < totalRows; row++) {
+        for (var row = startRow; row < startRow + maxVisibleRows && row < totalRows; row++) {
             for (var col = 0; col < COLS; col++) {
                 var chapterNum = row * COLS + col + 1;
                 if (chapterNum > maxChapter) {
@@ -85,21 +101,21 @@ class ChapterListView extends Ui.View {
                 }
 
                 var displayRow = row - startRow;
-                var x = marginX + (col * CELL_W);
-                var y = BibleLayout.HEADER_HEIGHT + marginY + (displayRow * CELL_H);
+                var x = marginX + (col * cellW);
+                var y = contentTop + (displayRow * cellH);
                 var isSelected = (chapterNum == state.chapter);
 
                 if (isSelected) {
                     dc.setColor(selectBg, selectText);
-                    dc.fillRectangle(x, y, CELL_W - 2, CELL_H - 2);
+                    dc.fillRectangle(x, y, cellW - 2, cellH - 2);
                     dc.setColor(selectText, selectBg);
                 } else {
                     dc.setColor(textColor, bgColor);
                 }
 
                 dc.drawText(
-                    x + (CELL_W / 2) - 1,
-                    y + (CELL_H / 2) - 1,
+                    x + (cellW / 2) - 1,
+                    y + (cellH / 2) - 1,
                     cellFont,
                     chapterNum.toString(),
                     Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
@@ -108,8 +124,8 @@ class ChapterListView extends Ui.View {
         }
 
         // Draw scroll indicator if needed
-        if (totalRows > MAX_VISIBLE_ROWS) {
-            drawScrollIndicator(dc, safeLayout, startRow, totalRows, MAX_VISIBLE_ROWS, height);
+        if (totalRows > maxVisibleRows) {
+            drawScrollIndicator(dc, safeLayout, startRow, totalRows, maxVisibleRows, height);
         }
     }
 

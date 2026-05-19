@@ -310,6 +310,9 @@ module BibleLayout {
         layout.put("marginBottom", marginBottom);
 
         var contentTop = HEADER_HEIGHT + DIVIDER_HEIGHT + CONTENT_PADDING;
+        if (contentTop < marginTop + HEADER_HEIGHT) {
+            contentTop = marginTop + HEADER_HEIGHT;
+        }
         layout.put("contentTop", contentTop);
 
         var contentBottom = screenHeight - marginBottom - FOOTER_HEIGHT;
