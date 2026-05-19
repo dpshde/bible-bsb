@@ -72,14 +72,14 @@ module BibleBooks {
     // Titus(T), Philemon(P), Hebrews(H), James(J), 1 Peter(1),
     // 2 Peter(2), 1 John(1), 2 John(2), 3 John(3), Jude(J),
     // Revelation(R)
-    // Unique first characters = 21: A, C, D, E, G, H, I, J, K, L, M, N, O, P, R, S, T, Z, 1, 2, 3
-    // Total filter options = All + 21 = 22
+    // Unique first characters = 20: A, C, D, E, G, H, I, J, L, M, N, O, P, R, S, T, Z, 1, 2, 3
+    // Total filter options = All + 20 = 21
     const FILTER_OPTIONS = [
-        "All", "A", "C", "D", "E", "G", "H", "I", "J", "K",
+        "All", "A", "C", "D", "E", "G", "H", "I", "J",
         "L", "M", "N", "O", "P", "R", "S", "T", "Z", "1",
         "2", "3"
     ];
-    const FILTER_COUNT = 22;
+    const FILTER_COUNT = 21;
 
     function getBookName(index as Number) as String {
         if (index < 0 || index >= BOOK_COUNT) {

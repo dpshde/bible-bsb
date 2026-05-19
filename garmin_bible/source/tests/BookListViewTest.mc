@@ -101,9 +101,9 @@ class BookListViewTest {
         return books.size() == 3;
     }
 
-    function testFilterGReturns3Books(logger as Test.Logger) as Boolean {
+    function testFilterGReturns2Books(logger as Test.Logger) as Boolean {
         var books = BibleBooks.getFilteredBooks("G");
-        return books.size() == 3;
+        return books.size() == 2;
     }
 
     function testFilter1Returns8Books(logger as Test.Logger) as Boolean {
@@ -116,8 +116,8 @@ class BookListViewTest {
         return books.size() == 66;
     }
 
-    function testFilterCountIs22(logger as Test.Logger) as Boolean {
-        return BibleBooks.FILTER_COUNT == 22;
+    function testFilterCountIs21(logger as Test.Logger) as Boolean {
+        return BibleBooks.FILTER_COUNT == 21;
     }
 
     function testFilterEmptyReturns66(logger as Test.Logger) as Boolean {
@@ -132,7 +132,7 @@ class BookListViewTest {
         var state = app.state;
 
         // Simulate applying "R" filter
-        state.filterIndex = 15; // "R" is at index 15 in FILTER_OPTIONS
+        state.filterIndex = 14; // "R" is at index 14 in FILTER_OPTIONS
         var filterOpt = BibleBooks.getFilterOption(state.filterIndex);
         var filteredBooks = BibleBooks.getFilteredBooks(filterOpt);
 

@@ -26,7 +26,7 @@ class BibleBooksTest {
 
     function testFilterOptionsCount(logger as Test.Logger) as Boolean {
         var count = BibleBooks.FILTER_COUNT;
-        return count == 22;
+        return count == 21;
     }
 
     function testFilterAllReturns66(logger as Test.Logger) as Boolean {
@@ -39,9 +39,9 @@ class BibleBooksTest {
         return books.size() == 3;
     }
 
-    function testFilterGReturns3(logger as Test.Logger) as Boolean {
+    function testFilterGReturns2(logger as Test.Logger) as Boolean {
         var books = BibleBooks.getFilteredBooks("G");
-        return books.size() == 3;
+        return books.size() == 2;
     }
 
     function testFilter1Returns8Books(logger as Test.Logger) as Boolean {
