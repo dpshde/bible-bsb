@@ -19,6 +19,13 @@ class BibleState {
     // Navigation origin tracking
     var cameFromCollection as Boolean;
 
+    // Reader state (populated by ReaderView, used by ReaderBehaviorDelegate)
+    var readerLines as Array<Dictionary>;
+    var readerScroll as Number;
+    var readerLinesPerPage as Number;
+    var readerIsLoading as Boolean;
+    var readerError as String;
+
     function initialize() {
         bookIndex = 0;
         chapter = 1;
@@ -29,6 +36,11 @@ class BibleState {
         filterIndex = 0;
         verseSelectMode = 0;
         cameFromCollection = false;
+        readerLines = [] as Array<Dictionary>;
+        readerScroll = 0;
+        readerLinesPerPage = 1;
+        readerIsLoading = false;
+        readerError = "";
     }
 
     function setPassage(b as Number, c as Number, s as Number, e as Number) as Void {

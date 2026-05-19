@@ -1,36 +1,196 @@
 using Toybox.Graphics;
 import Toybox.Lang;
 using Toybox.WatchUi as Ui;
+using Toybox.System;
+using Toybox.Application;
 
 class ReaderView extends Ui.View {
+    var layout as Dictionary?;
+
     function initialize() {
         View.initialize();
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-        dc.clear();
+        var app = getApp();
+        var state = app.state;
+
+        // Compute layout on first draw
+        if (layout == null) {
+            layout = BibleRenderer.computeLayout(dc);
+        }
+
+        var safeLayout = layout as Dictionary;
+        var headerText = state.getDisplayRef();
+        if (headerText == null || headerText.length() == 0) {
+            headerText = "(unknown)";
+        }
+
+        if (state.readerIsLoading) {
+            BibleRenderer.renderEmptyPage(
+                dc,
+                safeLayout,
+                headerText,
+                WatchUi.loadResource(Rez.Strings.Loading) as String
+            );
+            return;
+        }
+
+        if (state.readerError != null && (state.readerError as String).length() > 0) {
+            BibleRenderer.renderEmptyPage(
+                dc,
+                safeLayout,
+                headerText,
+                state.readerError as String
+            );
+            return;
+        }
+
+        if (state.readerLines == null || state.readerLines.size() == 0) {
+            BibleRenderer.renderEmptyPage(
+                dc,
+                safeLayout,
+                headerText,
+                WatchUi.loadResource(Rez.Strings.ErrorLoadFailed) as String
+            );
+            return;
+        }
+
+        var lineCount = state.readerLines.size();
+        var linesPerPage = state.readerLinesPerPage;
+        if (linesPerPage < 1) {
+            linesPerPage = 1;
+        }
+        var totalPages = BibleRenderer.computeTotalPages(lineCount, linesPerPage);
+        var currentPage = BibleRenderer.scrollToPage(state.readerScroll, linesPerPage);
+        currentPage = BibleRenderer.clampPage(currentPage, totalPages);
+
+        var pageIndicator = BibleRenderer.buildPageIndicator(currentPage, totalPages);
+
+        BibleRenderer.renderPage(
+            dc,
+            state.readerLines,
+            state.readerScroll,
+            safeLayout,
+            headerText,
+            pageIndicator
+        );
+    }
+
+    function onShow() as Void {
+        layout = null;
 
         var app = getApp();
         var state = app.state;
-        var ref = state.getDisplayRef();
 
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-        dc.drawText(
-            dc.getWidth() / 2,
-            dc.getHeight() / 2 - 10,
-            Graphics.FONT_SMALL,
-            ref,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-        );
+        // Clear old lines before loading new chapter (memory safety)
+        state.readerLines = [] as Array<Dictionary>;
+        state.readerScroll = 0;
+        state.readerError = "";
+        state.readerIsLoading = true;
+        state.readerLinesPerPage = 1;
 
-        dc.drawText(
-            dc.getWidth() / 2,
-            dc.getHeight() / 2 + 10,
-            Graphics.FONT_SMALL,
-            "Reader",
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-        );
+        var bookIndex = state.bookIndex;
+        var chapter = state.chapter;
+        var startVerse = state.startVerse;
+        var endVerse = state.endVerse;
+
+        // Check offline first, then API
+        if (BibleApi.isOfflineAvailable(bookIndex, chapter)) {
+            var verses = BibleApi.loadFromResource(bookIndex, chapter);
+            if (verses != null && verses.size() > 0) {
+                finishLoad(verses, startVerse, endVerse);
+                return;
+            }
+        }
+
+        // Online fetch
+        BibleApi.fetchChapter(bookIndex, chapter, method(:onChapterResponse));
+    }
+
+    function onChapterResponse(
+        responseCode as Number,
+        data as Dictionary or String or Null
+    ) as Void {
+        var app = getApp();
+        var state = app.state;
+
+        if (responseCode != 200 || data == null) {
+            // Try offline fallback
+            if (BibleApi.isOfflineAvailable(state.bookIndex, state.chapter)) {
+                var verses = BibleApi.loadFromResource(state.bookIndex, state.chapter);
+                if (verses != null && verses.size() > 0) {
+                    finishLoad(verses, state.startVerse, state.endVerse);
+                    return;
+                }
+            }
+
+            var errorMsg;
+            if (responseCode == 404) {
+                errorMsg = WatchUi.loadResource(Rez.Strings.ErrorChapterNotFound) as String;
+            } else if (responseCode < 0) {
+                errorMsg = WatchUi.loadResource(Rez.Strings.ErrorNoConnection) as String;
+            } else {
+                errorMsg = WatchUi.loadResource(Rez.Strings.ErrorLoadFailed) as String;
+            }
+            state.readerIsLoading = false;
+            state.readerError = errorMsg;
+            Ui.requestUpdate();
+            return;
+        }
+
+        var verses = BibleApi.parseResponse(data);
+        if (verses == null || verses.size() == 0) {
+            state.readerIsLoading = false;
+            state.readerError = WatchUi.loadResource(Rez.Strings.ErrorLoadFailed) as String;
+            Ui.requestUpdate();
+            return;
+        }
+
+        finishLoad(verses, state.startVerse, state.endVerse);
+    }
+
+    function finishLoad(
+        verses as Array<Dictionary>,
+        startVerse as Number,
+        endVerse as Number
+    ) as Void {
+        var app = getApp();
+        var state = app.state;
+
+        // Filter to verse range if needed
+        var filtered = [] as Array<Dictionary>;
+        for (var i = 0; i < verses.size(); i++) {
+            var v = verses[i] as Dictionary;
+            var num = v.get("verseNumber") as Number;
+            if (num >= startVerse && num <= endVerse) {
+                filtered.add(v);
+            }
+        }
+
+        if (layout == null) {
+            // We'll wrap when onUpdate runs with a valid DC
+            state.readerIsLoading = false;
+            state.readerError = "";
+            state.readerLines = filtered;
+            Ui.requestUpdate();
+            return;
+        }
+
+        var safeLayout = layout as Dictionary;
+        var contentWidth = safeLayout.get("contentWidth") as Number;
+        var charWidth = safeLayout.get("charWidth") as Number;
+        var linesPerPage = safeLayout.get("linesPerPage") as Number;
+
+        var wrapped = BibleRenderer.wrapVerses(filtered, contentWidth, charWidth);
+
+        state.readerLines = wrapped;
+        state.readerScroll = 0;
+        state.readerLinesPerPage = linesPerPage;
+        state.readerIsLoading = false;
+        state.readerError = "";
+
+        Ui.requestUpdate();
     }
 
     private function getApp() as BibleApp {
