@@ -24,8 +24,18 @@ class BibleStorage {
         return entry;
     }
 
-    // Save an entry to Storage. Returns true if saved, false if duplicate.
+    // Save an entry to Storage. Returns true if saved, false if duplicate or invalid.
     static function saveEntry(entry as Dictionary) as Boolean {
+        if (entry == null) {
+            return false;
+        }
+
+        // Validate entry has minimum required fields
+        if (!BibleError.isValidCollectionEntry(entry)) {
+            // Attempt to sanitize the entry
+            entry = BibleError.safeCollectionEntry(entry);
+        }
+
         var collection = loadAll();
         var ref = entry.get("scripture_ref") as String;
         if (ref == null) {
@@ -35,6 +45,9 @@ class BibleStorage {
         // Check for duplicate by scripture_ref
         for (var i = 0; i < collection.size(); i++) {
             var existing = collection[i] as Dictionary;
+            if (existing == null) {
+                continue;
+            }
             var existingRef = existing.get("scripture_ref") as String;
             if (existingRef != null && existingRef.equals(ref)) {
                 return false;
@@ -43,30 +56,21 @@ class BibleStorage {
 
         // FIFO: if at max, remove oldest entry (index 0)
         if (collection.size() >= MAX_ENTRIES) {
-            collection.remove(collection[0]);
+            if (collection.size() > 0) {
+                collection.remove(collection[0]);
+            }
         }
 
         collection.add(entry);
-        Application.Storage.setValue(COLLECTION_KEY, collection as Application.Storage.ValueType);
-        return true;
+        var saved = BibleError.safeStorageSet(COLLECTION_KEY, collection);
+        return saved;
     }
 
     // Load all collection entries as Array<Dictionary>.
     // Oldest entry is at index 0; newest at index size-1.
+    // Uses safeStorageGet for defensive null handling.
     static function loadAll() as Array<Dictionary> {
-        var raw = Application.Storage.getValue(COLLECTION_KEY);
-        if (raw != null && raw instanceof Array) {
-            var arr = raw as Array;
-            var result = [] as Array<Dictionary>;
-            for (var i = 0; i < arr.size(); i++) {
-                var item = arr[i];
-                if (item != null && item instanceof Dictionary) {
-                    result.add(item as Dictionary);
-                }
-            }
-            return result;
-        }
-        return [] as Array<Dictionary>;
+        return BibleError.safeStorageGet(COLLECTION_KEY);
     }
 
     // Load a single entry by storage index.

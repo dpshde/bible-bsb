@@ -19,11 +19,29 @@ class ReaderView extends Ui.View {
         if (layout == null) {
             layout = BibleLayout.computeLayout(dc);
         }
-
         var safeLayout = layout as Dictionary;
+
+        // Validate passage state — show error if invalid
+        if (!BibleError.isValidPassageState(state)) {
+            var fallbackRef = "(unknown)";
+            if (state != null) {
+                var ref = state.getDisplayRef();
+                if (ref != null && ref.length() > 0) {
+                    fallbackRef = ref;
+                }
+            }
+            BibleRenderer.renderEmptyPage(
+                dc,
+                safeLayout,
+                fallbackRef,
+                BibleError.MSG_LOAD_FAILED
+            );
+            return;
+        }
+
         var headerText = state.getDisplayRef();
         if (headerText == null || headerText.length() == 0) {
-            headerText = "(unknown)";
+            headerText = BibleError.MSG_UNKNOWN;
         }
 
         if (state.readerIsLoading) {
@@ -109,10 +127,25 @@ class ReaderView extends Ui.View {
         state.readerIsLoading = true;
         state.readerLinesPerPage = 1;
 
+        // Validate passage state before attempting any fetch
+        if (!BibleError.isValidPassageState(state)) {
+            state.readerIsLoading = false;
+            state.readerError = BibleError.MSG_LOAD_FAILED;
+            Ui.requestUpdate();
+            return;
+        }
+
         var bookIndex = state.bookIndex;
         var chapter = state.chapter;
         var startVerse = state.startVerse;
         var endVerse = state.endVerse;
+
+        // Clamp to safe bounds before loading
+        var clamped = BibleError.clampVerseRange(bookIndex, chapter, startVerse, endVerse);
+        startVerse = clamped[0];
+        endVerse = clamped[1];
+        state.startVerse = startVerse;
+        state.endVerse = endVerse;
 
         // Check offline first, then API
         if (BibleApi.isOfflineAvailable(bookIndex, chapter)) {

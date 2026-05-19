@@ -29,17 +29,15 @@ module BibleApi {
         if (str == null || str.length() == 0) {
             return [] as Array<Dictionary>;
         }
-        return BibleJsonScanner.parseVerses(str);
+        var verses = BibleJsonScanner.parseVerses(str);
+        if (verses == null) {
+            return [] as Array<Dictionary>;
+        }
+        return verses;
     }
 
     function getErrorMessage(responseCode as Number) as String {
-        if (responseCode == 404) {
-            return "Chapter not found";
-        } else if (responseCode < 0) {
-            return "No connection";
-        } else {
-            return "Failed to load chapter";
-        }
+        return BibleError.getErrorMessageForCode(responseCode);
     }
 
     // Offline resource fallback ----------------------------------------------

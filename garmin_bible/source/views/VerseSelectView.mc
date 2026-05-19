@@ -41,6 +41,15 @@ class VerseSelectView extends Ui.View {
             maxVerse = 40;
         }
 
+        // Clamp displayed verse values to valid range
+        var displayStart = state.startVerse;
+        var displayEnd = state.endVerse;
+        if (displayStart < 1) { displayStart = 1; }
+        if (displayStart > maxVerse) { displayStart = maxVerse; }
+        if (displayEnd < 1) { displayEnd = 1; }
+        if (displayEnd > maxVerse) { displayEnd = maxVerse; }
+        if (displayEnd < displayStart) { displayEnd = displayStart; }
+
         var row1Y = BibleLayout.HEADER_HEIGHT + ROW_SPACING;
         var row2Y = row1Y + LINE_HEIGHT;
         var row3Y = row2Y + LINE_HEIGHT;
@@ -56,11 +65,11 @@ class VerseSelectView extends Ui.View {
 
         // Row 2: "Start: N"
         var startSelected = (state.verseSelectMode == 1);
-        drawRow(dc, safeLayout, row2Y, "Start: " + state.startVerse, startSelected);
+        drawRow(dc, safeLayout, row2Y, "Start: " + displayStart, startSelected);
 
         // Row 3: "End: N"
         var endSelected = (state.verseSelectMode == 2);
-        drawRow(dc, safeLayout, row3Y, "End: " + state.endVerse, endSelected);
+        drawRow(dc, safeLayout, row3Y, "End: " + displayEnd, endSelected);
 
         // Bottom hint
         dc.setColor(textColor, bgColor);

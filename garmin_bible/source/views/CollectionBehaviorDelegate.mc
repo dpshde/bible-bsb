@@ -81,11 +81,31 @@ class CollectionBehaviorDelegate extends Ui.BehaviorDelegate {
         var app = Application.getApp() as BibleApp;
         var state = app.state;
 
-        // Load passage state from entry
-        state.bookIndex = entry.get("book_index") as Number;
-        state.chapter = entry.get("chapter") as Number;
-        state.startVerse = entry.get("start_verse") as Number;
-        state.endVerse = entry.get("end_verse") as Number;
+        // Load passage state from entry with null-safe extraction
+        var rawBookIndex = entry.get("book_index");
+        var rawChapter = entry.get("chapter");
+        var rawStartVerse = entry.get("start_verse");
+        var rawEndVerse = entry.get("end_verse");
+
+        if (rawBookIndex == null || rawChapter == null || rawStartVerse == null || rawEndVerse == null) {
+            // Invalid entry — show error and stay in collection
+            view.toastMessage = "Invalid entry";
+            view.toastEndTime = System.getTimer() + 1500;
+            Ui.requestUpdate();
+            return;
+        }
+
+        var loadedBookIndex = rawBookIndex as Number;
+        var loadedChapter = rawChapter as Number;
+        var loadedStartVerse = rawStartVerse as Number;
+        var loadedEndVerse = rawEndVerse as Number;
+
+        // Clamp to valid bounds
+        state.bookIndex = BibleError.safeBookIndex(loadedBookIndex);
+        state.chapter = BibleError.safeChapter(state.bookIndex, loadedChapter);
+        var clamped = BibleError.clampVerseRange(state.bookIndex, state.chapter, loadedStartVerse, loadedEndVerse);
+        state.startVerse = clamped[0];
+        state.endVerse = clamped[1];
         state.cameFromCollection = true;
 
         // Push ReaderView

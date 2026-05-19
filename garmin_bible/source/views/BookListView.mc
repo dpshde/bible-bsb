@@ -37,7 +37,7 @@ class BookListView extends Ui.View {
         var state = app.state;
         var filteredBooks = state.getFilteredBookIndices();
 
-        if (filteredBooks.size() == 0) {
+        if (filteredBooks == null || filteredBooks.size() == 0) {
             BibleLayout.drawMessage(dc, safeLayout, "No books");
             return;
         }

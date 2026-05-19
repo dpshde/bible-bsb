@@ -63,6 +63,14 @@ class CollectionView extends Ui.View {
             return;
         }
 
+        // Clamp selectedIndex to valid range
+        if (selectedIndex >= collection.size()) {
+            selectedIndex = collection.size() - 1;
+        }
+        if (selectedIndex < 0) {
+            selectedIndex = 0;
+        }
+
         var contentHeight = height - BibleLayout.HEADER_HEIGHT - 2;
         var maxVisible = contentHeight / LINE_HEIGHT;
         if (maxVisible < 1) {

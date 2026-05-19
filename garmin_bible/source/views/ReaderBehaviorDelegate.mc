@@ -92,13 +92,31 @@ class ReaderBehaviorDelegate extends Ui.BehaviorDelegate {
         var app = Application.getApp() as BibleApp;
         var state = app.state;
 
+        // Validate passage state before saving
+        if (!BibleError.isValidPassageState(state)) {
+            BibleError.showToast(state, BibleError.MSG_LOAD_FAILED, 1500);
+            Ui.requestUpdate();
+            return;
+        }
+
+        // Check for collection full before saving
+        if (BibleError.isCollectionFull()) {
+            BibleError.showToast(state, BibleError.MSG_COLLECTION_FULL, 1500);
+            Ui.requestUpdate();
+            return;
+        }
+
         // Build a collection entry via BibleStorage
         var entry = BibleStorage.buildEntry(state);
 
         // Delegate to BibleStorage module
-        BibleStorage.saveEntry(entry);
-
-        showSavedToast(state);
+        var saved = BibleStorage.saveEntry(entry);
+        if (saved) {
+            showSavedToast(state);
+        } else {
+            BibleError.showToast(state, "Already saved", 1500);
+            Ui.requestUpdate();
+        }
     }
 
     private function showSavedToast(state as BibleState) as Void {

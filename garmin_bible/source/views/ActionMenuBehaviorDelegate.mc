@@ -65,17 +65,31 @@ class ActionMenuBehaviorDelegate extends Ui.BehaviorDelegate {
         var app = Application.getApp() as BibleApp;
         var state = app.state;
 
+        // Validate passage state before saving
+        if (!BibleError.isValidPassageState(state)) {
+            showToastMessage(state, BibleError.MSG_LOAD_FAILED);
+            return;
+        }
+
         // Build a collection entry via BibleStorage
         var entry = BibleStorage.buildEntry(state);
 
-        // Delegate to BibleStorage module
-        BibleStorage.saveEntry(entry);
+        // Check for collection full before saving
+        if (BibleError.isCollectionFull()) {
+            showToastMessage(state, BibleError.MSG_COLLECTION_FULL);
+            return;
+        }
 
-        showSavedToast(state);
+        // Delegate to BibleStorage module
+        var saved = BibleStorage.saveEntry(entry);
+        if (saved) {
+            showToastMessage(state, WatchUi.loadResource(Rez.Strings.Saved) as String);
+        } else {
+            showToastMessage(state, "Already saved");
+        }
     }
 
-    private function showSavedToast(state as BibleState) as Void {
-        state.readerToastMessage = WatchUi.loadResource(Rez.Strings.Saved) as String;
-        state.readerToastEndTime = System.getTimer() + 1500;
+    private function showToastMessage(state as BibleState, msg as String) as Void {
+        BibleError.showToast(state, msg, 1500);
     }
 }

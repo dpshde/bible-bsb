@@ -41,7 +41,7 @@ class ChapterListView extends Ui.View {
         BibleLayout.drawHeader(dc, safeLayout, bookName);
 
         var maxChapter = BibleBooks.getChapterCount(state.bookIndex);
-        if (maxChapter <= 0) {
+        if (maxChapter <= 0 || state.bookIndex < 0 || state.bookIndex >= BibleBooks.BOOK_COUNT) {
             BibleLayout.drawMessage(dc, safeLayout, "No chapters");
             return;
         }

@@ -108,11 +108,16 @@ class VerseSelectBehaviorDelegate extends Ui.BehaviorDelegate {
         }
         // For mode 1 or 2, startVerse/endVerse are already set by the user
 
+        // Clamp verse range to valid bounds before loading Reader
+        var clamped = BibleError.clampVerseRange(state.bookIndex, state.chapter, state.startVerse, state.endVerse);
+        state.startVerse = clamped[0];
+        state.endVerse = clamped[1];
+
         // Store passage in state
         state.setPassage(state.bookIndex, state.chapter, state.startVerse, state.endVerse);
         state.cameFromCollection = false;
 
-        // Push ReaderView — placeholder since Reader is a future feature
+        // Push ReaderView
         var readerView = new ReaderView();
         var readerDelegate = new ReaderBehaviorDelegate(readerView);
         Ui.pushView(readerView, readerDelegate, Ui.SLIDE_LEFT);
