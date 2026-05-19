@@ -1,0 +1,94 @@
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc"; @line = 1; @symbol_usingdef<0> = [Toybox,1,6,12]; @symbol_usingdef<1> = [Application,1,13,24]; ]
+using Toybox.Application;
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc"; @line = 2; @symbol_importdef<0> = [Toybox,2,7,13]; @symbol_importdef<1> = [Lang,2,14,18]; ]
+import Toybox.Lang;
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc"; @line = 3; @symbol_usingdef<0> = [Toybox,3,6,12]; @symbol_usingdef<1> = [WatchUi,3,13,20]; @symbol_usingAlias = [Ui,3,24,26]; ]
+using Toybox.WatchUi as :Ui;
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc"; @line = 5; @symbol_classdef = [BibleApp,5,6,14]; @symbol_extends<0> = [Application,5,23,34]; @symbol_extends<1> = [AppBase,5,35,42]; ]
+class BibleApp extends Application.AppBase {
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc"; @line = 5; ]
+    <init> {
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc"; @line = 5; ]
+    static
+    <init> {
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc"; @line = 6; @position = 8; @symbol_vardef = [state,6,8,13]; @symbol_type<0> = [BibleState,6,17,27]; ]
+    var state as BibleState;
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc"; @line = 8; @symbol_functiondef = [initialize,8,13,23]; ]
+    function initialize() as Void {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleApp_mc_8_26_11_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc" 9 8 ]
+        symbol [ AppBase %tmp.2 9 8 15 ];
+        %tmp.2 = getv ? :AppBase;
+        symbol [ initialize %tmp.3 9 16 26 ];
+        %tmp.3 = getv function %tmp.2 :initialize;
+        invoke %tmp.2 %tmp.3();
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc" 10 8 ]
+        symbol [ BibleState %tmp.7 10 20 30 ];
+        %tmp.7 = getv ? :BibleState;
+        %tmp.4 = newc %tmp.7 ();
+        symbol [ state ? 10 8 13 ];
+        putv self :state %tmp.4;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleApp_mc_8_26_11_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc"; @line = 13; @symbol_functiondef = [onStart,13,13,20]; @symbol_param<0> = [state,13,21,26]; @symbol_param<0>_type<0> = [Dictionary,13,30,40]; ]
+    function onStart(state as Dictionary or Null) as Void {
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc"; @line = 16; @symbol_functiondef = [onStop,16,13,19]; @symbol_param<0> = [state,16,20,25]; @symbol_param<0>_type<0> = [Dictionary,16,29,39]; ]
+    function onStop(state as Dictionary or Null) as Void {
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc"; @line = 19; @symbol_functiondef = [getInitialView,19,13,27]; ]
+    function getInitialView() {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleApp_mc_19_30_23_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc" 20 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleApp_mc_19_30_23_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleApp_mc_19_30_23_4_stop" ]
+        %view.1 = local;
+        symbol [ view %view.1 20 12 16 ];
+        symbol [ BookListView %tmp.4 20 23 35 ];
+        %tmp.4 = getv ? :BookListView;
+        %tmp.1 = newc %tmp.4 ();
+        lputv %view.1 %tmp.1;
+        symbol [ view %view.1 20 12 16 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc" 21 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleApp_mc_19_30_23_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleApp_mc_19_30_23_4_stop" ]
+        %delegate.2 = local;
+        symbol [ delegate %delegate.2 21 12 20 ];
+        symbol [ BookListBehaviorDelegate %tmp.8 21 27 51 ];
+        %tmp.8 = getv ? :BookListBehaviorDelegate;
+        %tmp.9 = lgetv %view.1;
+        symbol [ view %tmp.9 21 52 56 ];
+        %tmp.5 = newc %tmp.8 (%tmp.9);
+        lputv %delegate.2 %tmp.5;
+        symbol [ delegate %delegate.2 21 12 20 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc" 22 8 ]
+        %tmp.10 = newa 2;
+        %tmp.11 = lgetv %view.1;
+        symbol [ view %tmp.11 22 16 20 ];
+        %tmp.12 = dup %tmp.10;
+        %tmp.13 = aputv %tmp.12 0 %tmp.11;
+        %tmp.14 = lgetv %delegate.2;
+        symbol [ delegate %tmp.14 22 22 30 ];
+        %tmp.15 = dup %tmp.13;
+        %tmp.16 = aputv %tmp.15 1 %tmp.14;
+        ret %tmp.16;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleApp_mc_19_30_23_4_stop:
+    }
+}
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc"; @line = 26; @symbol_functiondef = [getApp,26,9,15]; @symbol_return<0> = [BibleApp,26,21,29]; ]
+function getApp() as BibleApp {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleApp_mc_26_30_28_0_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc" 27 4 ]
+    symbol [ Application %tmp.1 27 11 22 ];
+    %tmp.1 = getm $.Toybox.Application;
+    symbol [ getApp %tmp.2 27 23 29 ];
+    %tmp.2 = getv function %tmp.1 :getApp;
+    %tmp.3 = invoke %tmp.1 %tmp.2();
+    %tmp.4 = as %tmp.3 BibleApp;
+    symbol [ BibleApp %tmp.4 27 35 43 ];
+    ret %tmp.4;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleApp_mc_26_30_28_0_stop:
+}
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleApp.mc"; @line = 1; ]
+<init> {
+}

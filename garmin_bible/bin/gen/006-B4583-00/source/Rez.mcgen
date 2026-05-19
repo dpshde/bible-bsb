@@ -1,0 +1,24 @@
+import Toybox.Lang;
+using Toybox.WatchUi;
+using Toybox.WatchUi as Ui;
+using Toybox.Graphics;
+using Toybox.Graphics as Gfx;
+
+module Rez {
+    module Drawables {
+        (:initialized) var LauncherIcon as ResourceId;
+    } // Drawables
+
+    module Strings {
+        (:initialized) var ErrorNoConnection as ResourceId;
+        (:initialized) var NoSavedPassages as ResourceId;
+        (:initialized) var CollectionFull as ResourceId;
+        (:initialized) var Loading as ResourceId;
+        (:initialized) var Saved as ResourceId;
+        (:initialized) var Deleted as ResourceId;
+        (:initialized) var ErrorChapterNotFound as ResourceId;
+        (:initialized) var AppName as ResourceId;
+        (:initialized) var ErrorLoadFailed as ResourceId;
+        (:initialized) var ScanWithPhone as ResourceId;
+    } // Strings
+} // Rez

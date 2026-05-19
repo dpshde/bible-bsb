@@ -1,0 +1,8 @@
+project.manifest = manifest.xml
+
+base.sourcePath = source
+base.resourcePath = resources
+
+# Device-specific resource overrides can be added here when needed.
+# For example:
+# instinct3solar45mm.resourcePath = $(base.resourcePath);resources-instinct3solar45mm

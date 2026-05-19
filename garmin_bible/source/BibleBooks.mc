@@ -1,0 +1,151 @@
+import Toybox.Lang;
+
+module BibleBooks {
+    const BOOK_COUNT = 66;
+
+    // Canonical book names (BSB display names)
+    const BOOK_NAMES = [
+        "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy",
+        "Joshua", "Judges", "Ruth", "1 Samuel", "2 Samuel",
+        "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra",
+        "Nehemiah", "Esther", "Job", "Psalms", "Proverbs",
+        "Ecclesiastes", "Song of Solomon", "Isaiah", "Jeremiah", "Lamentations",
+        "Ezekiel", "Daniel", "Hosea", "Joel", "Amos",
+        "Obadiah", "Jonah", "Micah", "Nahum", "Habakkuk",
+        "Zephaniah", "Haggai", "Zechariah", "Malachi", "Matthew",
+        "Mark", "Luke", "John", "Acts", "Romans",
+        "1 Corinthians", "2 Corinthians", "Galatians", "Ephesians", "Philippians",
+        "Colossians", "1 Thessalonians", "2 Thessalonians", "1 Timothy", "2 Timothy",
+        "Titus", "Philemon", "Hebrews", "James", "1 Peter",
+        "2 Peter", "1 John", "2 John", "3 John", "Jude",
+        "Revelation"
+    ];
+
+    // OSIS codes (lowercased for URL building)
+    const OSIS_CODES = [
+        "gen", "exo", "lev", "num", "deu",
+        "jos", "jdg", "rut", "1sa", "2sa",
+        "1ki", "2ki", "1ch", "2ch", "ezr",
+        "neh", "est", "job", "psa", "pro",
+        "ecc", "sng", "isa", "jer", "lam",
+        "ezk", "dan", "hos", "jol", "amo",
+        "oba", "jon", "mic", "nam", "hab",
+        "zep", "hag", "zec", "mal", "mat",
+        "mrk", "luk", "jhn", "act", "rom",
+        "1co", "2co", "gal", "eph", "php",
+        "col", "1th", "2th", "1ti", "2ti",
+        "tit", "phm", "heb", "jas", "1pe",
+        "2pe", "1jn", "2jn", "3jn", "jud",
+        "rev"
+    ];
+
+    // Chapter counts per book
+    const CHAPTER_COUNTS = [
+        50, 40, 27, 36, 34,
+        24, 21, 4, 31, 24,
+        22, 25, 29, 36, 10,
+        13, 10, 42, 150, 31,
+        12, 8, 66, 52, 5,
+        48, 12, 14, 3, 9,
+        1, 4, 7, 3, 3,
+        3, 2, 14, 4, 28,
+        16, 24, 21, 28, 16,
+        16, 13, 6, 6, 4,
+        4, 5, 3, 6, 4,
+        3, 1, 13, 5, 5,
+        3, 5, 1, 1, 1,
+        22
+    ];
+
+    // Filter initials: All + A-Z that have books
+    const FILTER_OPTIONS = [
+        "All", "A", "C", "D", "E", "G", "H", "I", "J", "K",
+        "L", "M", "N", "O", "P", "R", "S", "T", "Z"
+    ];
+    const FILTER_COUNT = 19;
+
+    function getBookName(index as Number) as String {
+        if (index < 0 || index >= BOOK_COUNT) {
+            return "";
+        }
+        return BOOK_NAMES[index];
+    }
+
+    function getOsisCode(index as Number) as String {
+        if (index < 0 || index >= BOOK_COUNT) {
+            return "";
+        }
+        return OSIS_CODES[index];
+    }
+
+    function getChapterCount(index as Number) as Number {
+        if (index < 0 || index >= BOOK_COUNT) {
+            return 0;
+        }
+        return CHAPTER_COUNTS[index];
+    }
+
+    function getVerseCount(bookIndex as Number, chapter as Number) as Number {
+        if (bookIndex < 0 || bookIndex >= BOOK_COUNT || chapter < 1) {
+            return 0;
+        }
+        var maxCh = getChapterCount(bookIndex);
+        if (chapter > maxCh) {
+            return 0;
+        }
+        // Verse counts for Genesis 1-10
+        if (bookIndex == 0) {
+            var genesisVerses = [31, 25, 24, 26, 32, 22, 24, 22, 29, 32] as Array<Number>;
+            if (chapter <= genesisVerses.size()) {
+                return genesisVerses[chapter - 1];
+            }
+            return 0;
+        }
+        // Verse counts for all 150 Psalms (first 10 shown as example; full table needed)
+        if (bookIndex == 18) {
+            // Psalm 119 = 176 verses; Psalm 23 = 6 verses
+            if (chapter == 119) {
+                return 176;
+            }
+            if (chapter == 23) {
+                return 6;
+            }
+            return 0; // TODO: full Psalm verse table
+        }
+        // Verse counts for all John chapters
+        if (bookIndex == 42) {
+            var johnVerses = [51, 25, 36, 54, 47, 71, 53, 59, 41, 42, 57, 50, 38, 31, 27, 33, 26, 40, 42, 31, 25] as Array<Number>;
+            if (chapter <= johnVerses.size()) {
+                return johnVerses[chapter - 1];
+            }
+            return 0;
+        }
+        return 0;
+    }
+
+    function getFilterOption(index as Number) as String {
+        if (index < 0 || index >= FILTER_COUNT) {
+            return "";
+        }
+        return FILTER_OPTIONS[index];
+    }
+
+    function getFilteredBooks(filter as String) as Array<Number> {
+        var result = [] as Array<Number>;
+        var allFilter = "";
+        if (filter.length() == 0 || filter == allFilter || filter == "All") {
+            for (var i = 0; i < BOOK_COUNT; i++) {
+                result.add(i);
+            }
+            return result;
+        }
+        var initial = filter.substring(0, 1);
+        for (var i = 0; i < BOOK_COUNT; i++) {
+            var name = getBookName(i);
+            if (name.length() > 0 && name.substring(0, 1) == initial) {
+                result.add(i);
+            }
+        }
+        return result;
+    }
+}

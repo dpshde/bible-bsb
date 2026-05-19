@@ -1,0 +1,59 @@
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc"; @line = 1; @symbol_importdef<0> = [Toybox,1,7,13]; @symbol_importdef<1> = [Lang,1,14,18]; ]
+import Toybox.Lang;
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc"; @line = 2; @symbol_usingdef<0> = [Toybox,2,6,12]; @symbol_usingdef<1> = [WatchUi,2,13,20]; @symbol_usingAlias = [Ui,2,24,26]; ]
+using Toybox.WatchUi as :Ui;
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc"; @line = 4; @symbol_classdef = [BookListBehaviorDelegate,4,6,30]; @symbol_extends<0> = [Ui,4,39,41]; @symbol_extends<1> = [BehaviorDelegate,4,42,58]; ]
+class BookListBehaviorDelegate extends Ui.BehaviorDelegate {
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc"; @line = 4; ]
+    <init> {
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc"; @line = 4; ]
+    static
+    <init> {
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc"; @line = 5; @position = 8; @symbol_vardef = [view,5,8,12]; @symbol_type<0> = [Ui,5,16,18]; @symbol_type<1> = [View,5,19,23]; ]
+    var view as Ui.View;
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc"; @line = 7; @symbol_functiondef = [initialize,7,13,23]; @symbol_param<0> = [v,7,24,25]; @symbol_param<0>_type<0> = [Ui,7,29,31]; @symbol_param<0>_type<1> = [View,7,32,36]; ]
+    function initialize(v as Ui.View) as Void {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_views_BookListBehaviorDelegate_mc_7_38_10_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc" 8 8 ]
+        symbol [ BehaviorDelegate %tmp.2 8 8 24 ];
+        %tmp.2 = getv ? :BehaviorDelegate;
+        symbol [ initialize %tmp.3 8 25 35 ];
+        %tmp.3 = getv function %tmp.2 :initialize;
+        invoke %tmp.2 %tmp.3();
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc" 9 8 ]
+        %tmp.4 = lgetv %v;
+        symbol [ v %tmp.4 9 15 16 ];
+        symbol [ view ? 9 8 12 ];
+        putv self :view %tmp.4;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_views_BookListBehaviorDelegate_mc_7_38_10_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc"; @line = 12; @symbol_functiondef = [onMenu,12,13,19]; @symbol_return<0> = [Boolean,12,25,32]; ]
+    function onMenu() as Boolean {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_views_BookListBehaviorDelegate_mc_12_33_14_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc" 13 8 ]
+        %tmp.1 = true;
+        ret %tmp.1;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_views_BookListBehaviorDelegate_mc_12_33_14_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc"; @line = 16; @symbol_functiondef = [onSelect,16,13,21]; @symbol_return<0> = [Boolean,16,27,34]; ]
+    function onSelect() as Boolean {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_views_BookListBehaviorDelegate_mc_16_35_18_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc" 17 8 ]
+        %tmp.1 = true;
+        ret %tmp.1;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_views_BookListBehaviorDelegate_mc_16_35_18_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc"; @line = 20; @symbol_functiondef = [onBack,20,13,19]; @symbol_return<0> = [Boolean,20,25,32]; ]
+    function onBack() as Boolean {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_views_BookListBehaviorDelegate_mc_20_33_22_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc" 21 8 ]
+        %tmp.1 = false;
+        ret %tmp.1;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_views_BookListBehaviorDelegate_mc_20_33_22_4_stop:
+    }
+}
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/views/BookListBehaviorDelegate.mc"; @line = 1; ]
+<init> {
+}

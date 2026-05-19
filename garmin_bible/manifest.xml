@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="3">
+    <iq:application
+        id="a1b2c3d4e5f678901234567890123456"
+        type="watch-app"
+        name="@Strings.AppName"
+        entry="BibleApp"
+        launcherIcon="@Drawables.LauncherIcon"
+        minSdkVersion="5.1.0">
+
+        <iq:products>
+            <iq:product id="instinct3solar45mm"/>
+            <iq:product id="instinct3amoled45mm"/>
+            <iq:product id="instincte40mm"/>
+            <iq:product id="instincte45mm"/>
+            <iq:product id="descentg2"/>
+            <iq:product id="fenix7"/>
+            <iq:product id="venu3"/>
+            <iq:product id="d2mach1"/>
+            <iq:product id="approachs50"/>
+        </iq:products>
+
+        <iq:permissions>
+            <iq:uses-permission id="Communications"/>
+        </iq:permissions>
+
+        <iq:languages>
+            <iq:language>eng</iq:language>
+        </iq:languages>
+
+        <iq:barrels/>
+    </iq:application>
+</iq:manifest>

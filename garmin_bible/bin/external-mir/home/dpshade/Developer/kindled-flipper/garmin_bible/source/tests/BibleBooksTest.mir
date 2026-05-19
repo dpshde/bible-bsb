@@ -1,0 +1,230 @@
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 1; @symbol_importdef<0> = [Toybox,1,7,13]; @symbol_importdef<1> = [Lang,1,14,18]; ]
+import Toybox.Lang;
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 2; @symbol_usingdef<0> = [Toybox,2,6,12]; @symbol_usingdef<1> = [System,2,13,19]; ]
+using Toybox.System;
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 3; @symbol_usingdef<0> = [Toybox,3,6,12]; @symbol_usingdef<1> = [Test,3,13,17]; ]
+using Toybox.Test;
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 5; @symbol_classdef = [BibleBooksTest,5,6,20]; ]
+class BibleBooksTest {
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 5; ]
+    <init> {
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 5; ]
+    static
+    <init> {
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 7; @symbol_functiondef = [testBookCount,7,13,26]; @symbol_param<0> = [logger,7,27,33]; @symbol_param<0>_type<0> = [Test,7,37,41]; @symbol_param<0>_type<1> = [Logger,7,42,48]; @symbol_return<0> = [Boolean,7,53,60]; ]
+    function testBookCount(logger as Test.Logger) as Boolean {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_7_61_10_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 8 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_7_61_10_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_7_61_10_4_stop" ]
+        %count.1 = local;
+        symbol [ count %count.1 8 12 17 ];
+        symbol [ BibleBooks %tmp.2 8 20 30 ];
+        %tmp.2 = getv ? :BibleBooks;
+        symbol [ BOOK_COUNT %tmp.3 8 31 41 ];
+        %tmp.3 = getv %tmp.2 :BOOK_COUNT;
+        lputv %count.1 %tmp.3;
+        symbol [ count %count.1 8 12 17 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 9 8 ]
+        %tmp.4 = lgetv %count.1;
+        symbol [ count %tmp.4 9 15 20 ];
+        %tmp.5 = 66;
+        %tmp.6 = eq %tmp.4 %tmp.5;
+        ret %tmp.6;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_7_61_10_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 12; @symbol_functiondef = [testGenesisChapters,12,13,32]; @symbol_param<0> = [logger,12,33,39]; @symbol_param<0>_type<0> = [Test,12,43,47]; @symbol_param<0>_type<1> = [Logger,12,48,54]; @symbol_return<0> = [Boolean,12,59,66]; ]
+    function testGenesisChapters(logger as Test.Logger) as Boolean {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_12_67_15_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 13 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_12_67_15_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_12_67_15_4_stop" ]
+        %chapters.1 = local;
+        symbol [ chapters %chapters.1 13 12 20 ];
+        symbol [ BibleBooks %tmp.2 13 23 33 ];
+        %tmp.2 = getv ? :BibleBooks;
+        symbol [ getChapterCount %tmp.3 13 34 49 ];
+        %tmp.3 = getv function %tmp.2 :getChapterCount;
+        %tmp.4 = 0;
+        %tmp.5 = invoke %tmp.2 %tmp.3(%tmp.4);
+        lputv %chapters.1 %tmp.5;
+        symbol [ chapters %chapters.1 13 12 20 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 14 8 ]
+        %tmp.6 = lgetv %chapters.1;
+        symbol [ chapters %tmp.6 14 15 23 ];
+        %tmp.7 = 50;
+        %tmp.8 = eq %tmp.6 %tmp.7;
+        ret %tmp.8;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_12_67_15_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 17; @symbol_functiondef = [testPsalm119Verses,17,13,31]; @symbol_param<0> = [logger,17,32,38]; @symbol_param<0>_type<0> = [Test,17,42,46]; @symbol_param<0>_type<1> = [Logger,17,47,53]; @symbol_return<0> = [Boolean,17,58,65]; ]
+    function testPsalm119Verses(logger as Test.Logger) as Boolean {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_17_66_20_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 18 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_17_66_20_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_17_66_20_4_stop" ]
+        %verses.1 = local;
+        symbol [ verses %verses.1 18 12 18 ];
+        symbol [ BibleBooks %tmp.2 18 21 31 ];
+        %tmp.2 = getv ? :BibleBooks;
+        symbol [ getVerseCount %tmp.3 18 32 45 ];
+        %tmp.3 = getv function %tmp.2 :getVerseCount;
+        %tmp.4 = 18;
+        %tmp.5 = 119;
+        %tmp.6 = invoke %tmp.2 %tmp.3(%tmp.4, %tmp.5);
+        lputv %verses.1 %tmp.6;
+        symbol [ verses %verses.1 18 12 18 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 19 8 ]
+        %tmp.7 = lgetv %verses.1;
+        symbol [ verses %tmp.7 19 15 21 ];
+        %tmp.8 = 176;
+        %tmp.9 = eq %tmp.7 %tmp.8;
+        ret %tmp.9;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_17_66_20_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 22; @symbol_functiondef = [testJohn3Verses,22,13,28]; @symbol_param<0> = [logger,22,29,35]; @symbol_param<0>_type<0> = [Test,22,39,43]; @symbol_param<0>_type<1> = [Logger,22,44,50]; @symbol_return<0> = [Boolean,22,55,62]; ]
+    function testJohn3Verses(logger as Test.Logger) as Boolean {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_22_63_25_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 23 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_22_63_25_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_22_63_25_4_stop" ]
+        %verses.1 = local;
+        symbol [ verses %verses.1 23 12 18 ];
+        symbol [ BibleBooks %tmp.2 23 21 31 ];
+        %tmp.2 = getv ? :BibleBooks;
+        symbol [ getVerseCount %tmp.3 23 32 45 ];
+        %tmp.3 = getv function %tmp.2 :getVerseCount;
+        %tmp.4 = 42;
+        %tmp.5 = 3;
+        %tmp.6 = invoke %tmp.2 %tmp.3(%tmp.4, %tmp.5);
+        lputv %verses.1 %tmp.6;
+        symbol [ verses %verses.1 23 12 18 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 24 8 ]
+        %tmp.7 = lgetv %verses.1;
+        symbol [ verses %tmp.7 24 15 21 ];
+        %tmp.8 = 36;
+        %tmp.9 = eq %tmp.7 %tmp.8;
+        ret %tmp.9;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_22_63_25_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 27; @symbol_functiondef = [testFilterOptionsCount,27,13,35]; @symbol_param<0> = [logger,27,36,42]; @symbol_param<0>_type<0> = [Test,27,46,50]; @symbol_param<0>_type<1> = [Logger,27,51,57]; @symbol_return<0> = [Boolean,27,62,69]; ]
+    function testFilterOptionsCount(logger as Test.Logger) as Boolean {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_27_70_30_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 28 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_27_70_30_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_27_70_30_4_stop" ]
+        %count.1 = local;
+        symbol [ count %count.1 28 12 17 ];
+        symbol [ BibleBooks %tmp.2 28 20 30 ];
+        %tmp.2 = getv ? :BibleBooks;
+        symbol [ FILTER_COUNT %tmp.3 28 31 43 ];
+        %tmp.3 = getv %tmp.2 :FILTER_COUNT;
+        lputv %count.1 %tmp.3;
+        symbol [ count %count.1 28 12 17 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 29 8 ]
+        %tmp.4 = lgetv %count.1;
+        symbol [ count %tmp.4 29 15 20 ];
+        %tmp.5 = 19;
+        %tmp.6 = eq %tmp.4 %tmp.5;
+        ret %tmp.6;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_27_70_30_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 32; @symbol_functiondef = [testFilterAllReturns66,32,13,35]; @symbol_param<0> = [logger,32,36,42]; @symbol_param<0>_type<0> = [Test,32,46,50]; @symbol_param<0>_type<1> = [Logger,32,51,57]; @symbol_return<0> = [Boolean,32,62,69]; ]
+    function testFilterAllReturns66(logger as Test.Logger) as Boolean {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_32_70_35_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 33 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_32_70_35_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_32_70_35_4_stop" ]
+        %books.1 = local;
+        symbol [ books %books.1 33 12 17 ];
+        symbol [ BibleBooks %tmp.2 33 20 30 ];
+        %tmp.2 = getv ? :BibleBooks;
+        symbol [ getFilteredBooks %tmp.3 33 31 47 ];
+        %tmp.3 = getv function %tmp.2 :getFilteredBooks;
+        %tmp.4 = "All";
+        %tmp.5 = invoke %tmp.2 %tmp.3(%tmp.4);
+        lputv %books.1 %tmp.5;
+        symbol [ books %books.1 33 12 17 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 34 8 ]
+        %tmp.6 = lgetv %books.1;
+        symbol [ books %tmp.6 34 15 20 ];
+        symbol [ size %tmp.7 34 21 25 ];
+        %tmp.7 = getv function %tmp.6 :size;
+        %tmp.8 = invoke %tmp.6 %tmp.7();
+        %tmp.9 = 66;
+        %tmp.10 = eq %tmp.8 %tmp.9;
+        ret %tmp.10;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_32_70_35_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 37; @symbol_functiondef = [testFilterRReturns3,37,13,32]; @symbol_param<0> = [logger,37,33,39]; @symbol_param<0>_type<0> = [Test,37,43,47]; @symbol_param<0>_type<1> = [Logger,37,48,54]; @symbol_return<0> = [Boolean,37,59,66]; ]
+    function testFilterRReturns3(logger as Test.Logger) as Boolean {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_37_67_40_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 38 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_37_67_40_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_37_67_40_4_stop" ]
+        %books.1 = local;
+        symbol [ books %books.1 38 12 17 ];
+        symbol [ BibleBooks %tmp.2 38 20 30 ];
+        %tmp.2 = getv ? :BibleBooks;
+        symbol [ getFilteredBooks %tmp.3 38 31 47 ];
+        %tmp.3 = getv function %tmp.2 :getFilteredBooks;
+        %tmp.4 = "R";
+        %tmp.5 = invoke %tmp.2 %tmp.3(%tmp.4);
+        lputv %books.1 %tmp.5;
+        symbol [ books %books.1 38 12 17 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 39 8 ]
+        %tmp.6 = lgetv %books.1;
+        symbol [ books %tmp.6 39 15 20 ];
+        symbol [ size %tmp.7 39 21 25 ];
+        %tmp.7 = getv function %tmp.6 :size;
+        %tmp.8 = invoke %tmp.6 %tmp.7();
+        %tmp.9 = 3;
+        %tmp.10 = eq %tmp.8 %tmp.9;
+        ret %tmp.10;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_37_67_40_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 42; @symbol_functiondef = [testOsisCodeGenesis,42,13,32]; @symbol_param<0> = [logger,42,33,39]; @symbol_param<0>_type<0> = [Test,42,43,47]; @symbol_param<0>_type<1> = [Logger,42,48,54]; @symbol_return<0> = [Boolean,42,59,66]; ]
+    function testOsisCodeGenesis(logger as Test.Logger) as Boolean {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_42_67_45_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 43 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_42_67_45_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_42_67_45_4_stop" ]
+        %osis.1 = local;
+        symbol [ osis %osis.1 43 12 16 ];
+        symbol [ BibleBooks %tmp.2 43 19 29 ];
+        %tmp.2 = getv ? :BibleBooks;
+        symbol [ getOsisCode %tmp.3 43 30 41 ];
+        %tmp.3 = getv function %tmp.2 :getOsisCode;
+        %tmp.4 = 0;
+        %tmp.5 = invoke %tmp.2 %tmp.3(%tmp.4);
+        lputv %osis.1 %tmp.5;
+        symbol [ osis %osis.1 43 12 16 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 44 8 ]
+        %tmp.6 = lgetv %osis.1;
+        symbol [ osis %tmp.6 44 15 19 ];
+        %tmp.7 = "gen";
+        %tmp.8 = eq %tmp.6 %tmp.7;
+        ret %tmp.8;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_42_67_45_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 47; @symbol_functiondef = [testBookNameRevelation,47,13,35]; @symbol_param<0> = [logger,47,36,42]; @symbol_param<0>_type<0> = [Test,47,46,50]; @symbol_param<0>_type<1> = [Logger,47,51,57]; @symbol_return<0> = [Boolean,47,62,69]; ]
+    function testBookNameRevelation(logger as Test.Logger) as Boolean {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_47_70_50_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 48 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_47_70_50_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_47_70_50_4_stop" ]
+        %name.1 = local;
+        symbol [ name %name.1 48 12 16 ];
+        symbol [ BibleBooks %tmp.2 48 19 29 ];
+        %tmp.2 = getv ? :BibleBooks;
+        symbol [ getBookName %tmp.3 48 30 41 ];
+        %tmp.3 = getv function %tmp.2 :getBookName;
+        %tmp.4 = 65;
+        %tmp.5 = invoke %tmp.2 %tmp.3(%tmp.4);
+        lputv %name.1 %tmp.5;
+        symbol [ name %name.1 48 12 16 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc" 49 8 ]
+        %tmp.6 = lgetv %name.1;
+        symbol [ name %tmp.6 49 15 19 ];
+        %tmp.7 = "Revelation";
+        %tmp.8 = eq %tmp.6 %tmp.7;
+        ret %tmp.8;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_tests_BibleBooksTest_mc_47_70_50_4_stop:
+    }
+}
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/tests/BibleBooksTest.mc"; @line = 1; ]
+<init> {
+}

@@ -1,0 +1,1339 @@
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 1; @symbol_importdef<0> = [Toybox,1,7,13]; @symbol_importdef<1> = [Lang,1,14,18]; ]
+import Toybox.Lang;
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 3; @symbol_moduledef = [BibleBooks,3,7,17]; ]
+module BibleBooks {
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 3; ]
+    <init> {
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 7 10 ]
+        %tmp.1 = newa 66;
+        %tmp.2 = "Genesis";
+        %tmp.3 = dup %tmp.1;
+        %tmp.4 = aputv %tmp.3 0 %tmp.2;
+        %tmp.5 = "Exodus";
+        %tmp.6 = dup %tmp.4;
+        %tmp.7 = aputv %tmp.6 1 %tmp.5;
+        %tmp.8 = "Leviticus";
+        %tmp.9 = dup %tmp.7;
+        %tmp.10 = aputv %tmp.9 2 %tmp.8;
+        %tmp.11 = "Numbers";
+        %tmp.12 = dup %tmp.10;
+        %tmp.13 = aputv %tmp.12 3 %tmp.11;
+        %tmp.14 = "Deuteronomy";
+        %tmp.15 = dup %tmp.13;
+        %tmp.16 = aputv %tmp.15 4 %tmp.14;
+        %tmp.17 = "Joshua";
+        %tmp.18 = dup %tmp.16;
+        %tmp.19 = aputv %tmp.18 5 %tmp.17;
+        %tmp.20 = "Judges";
+        %tmp.21 = dup %tmp.19;
+        %tmp.22 = aputv %tmp.21 6 %tmp.20;
+        %tmp.23 = "Ruth";
+        %tmp.24 = dup %tmp.22;
+        %tmp.25 = aputv %tmp.24 7 %tmp.23;
+        %tmp.26 = "1 Samuel";
+        %tmp.27 = dup %tmp.25;
+        %tmp.28 = aputv %tmp.27 8 %tmp.26;
+        %tmp.29 = "2 Samuel";
+        %tmp.30 = dup %tmp.28;
+        %tmp.31 = aputv %tmp.30 9 %tmp.29;
+        %tmp.32 = "1 Kings";
+        %tmp.33 = dup %tmp.31;
+        %tmp.34 = aputv %tmp.33 10 %tmp.32;
+        %tmp.35 = "2 Kings";
+        %tmp.36 = dup %tmp.34;
+        %tmp.37 = aputv %tmp.36 11 %tmp.35;
+        %tmp.38 = "1 Chronicles";
+        %tmp.39 = dup %tmp.37;
+        %tmp.40 = aputv %tmp.39 12 %tmp.38;
+        %tmp.41 = "2 Chronicles";
+        %tmp.42 = dup %tmp.40;
+        %tmp.43 = aputv %tmp.42 13 %tmp.41;
+        %tmp.44 = "Ezra";
+        %tmp.45 = dup %tmp.43;
+        %tmp.46 = aputv %tmp.45 14 %tmp.44;
+        %tmp.47 = "Nehemiah";
+        %tmp.48 = dup %tmp.46;
+        %tmp.49 = aputv %tmp.48 15 %tmp.47;
+        %tmp.50 = "Esther";
+        %tmp.51 = dup %tmp.49;
+        %tmp.52 = aputv %tmp.51 16 %tmp.50;
+        %tmp.53 = "Job";
+        %tmp.54 = dup %tmp.52;
+        %tmp.55 = aputv %tmp.54 17 %tmp.53;
+        %tmp.56 = "Psalms";
+        %tmp.57 = dup %tmp.55;
+        %tmp.58 = aputv %tmp.57 18 %tmp.56;
+        %tmp.59 = "Proverbs";
+        %tmp.60 = dup %tmp.58;
+        %tmp.61 = aputv %tmp.60 19 %tmp.59;
+        %tmp.62 = "Ecclesiastes";
+        %tmp.63 = dup %tmp.61;
+        %tmp.64 = aputv %tmp.63 20 %tmp.62;
+        %tmp.65 = "Song of Solomon";
+        %tmp.66 = dup %tmp.64;
+        %tmp.67 = aputv %tmp.66 21 %tmp.65;
+        %tmp.68 = "Isaiah";
+        %tmp.69 = dup %tmp.67;
+        %tmp.70 = aputv %tmp.69 22 %tmp.68;
+        %tmp.71 = "Jeremiah";
+        %tmp.72 = dup %tmp.70;
+        %tmp.73 = aputv %tmp.72 23 %tmp.71;
+        %tmp.74 = "Lamentations";
+        %tmp.75 = dup %tmp.73;
+        %tmp.76 = aputv %tmp.75 24 %tmp.74;
+        %tmp.77 = "Ezekiel";
+        %tmp.78 = dup %tmp.76;
+        %tmp.79 = aputv %tmp.78 25 %tmp.77;
+        %tmp.80 = "Daniel";
+        %tmp.81 = dup %tmp.79;
+        %tmp.82 = aputv %tmp.81 26 %tmp.80;
+        %tmp.83 = "Hosea";
+        %tmp.84 = dup %tmp.82;
+        %tmp.85 = aputv %tmp.84 27 %tmp.83;
+        %tmp.86 = "Joel";
+        %tmp.87 = dup %tmp.85;
+        %tmp.88 = aputv %tmp.87 28 %tmp.86;
+        %tmp.89 = "Amos";
+        %tmp.90 = dup %tmp.88;
+        %tmp.91 = aputv %tmp.90 29 %tmp.89;
+        %tmp.92 = "Obadiah";
+        %tmp.93 = dup %tmp.91;
+        %tmp.94 = aputv %tmp.93 30 %tmp.92;
+        %tmp.95 = "Jonah";
+        %tmp.96 = dup %tmp.94;
+        %tmp.97 = aputv %tmp.96 31 %tmp.95;
+        %tmp.98 = "Micah";
+        %tmp.99 = dup %tmp.97;
+        %tmp.100 = aputv %tmp.99 32 %tmp.98;
+        %tmp.101 = "Nahum";
+        %tmp.102 = dup %tmp.100;
+        %tmp.103 = aputv %tmp.102 33 %tmp.101;
+        %tmp.104 = "Habakkuk";
+        %tmp.105 = dup %tmp.103;
+        %tmp.106 = aputv %tmp.105 34 %tmp.104;
+        %tmp.107 = "Zephaniah";
+        %tmp.108 = dup %tmp.106;
+        %tmp.109 = aputv %tmp.108 35 %tmp.107;
+        %tmp.110 = "Haggai";
+        %tmp.111 = dup %tmp.109;
+        %tmp.112 = aputv %tmp.111 36 %tmp.110;
+        %tmp.113 = "Zechariah";
+        %tmp.114 = dup %tmp.112;
+        %tmp.115 = aputv %tmp.114 37 %tmp.113;
+        %tmp.116 = "Malachi";
+        %tmp.117 = dup %tmp.115;
+        %tmp.118 = aputv %tmp.117 38 %tmp.116;
+        %tmp.119 = "Matthew";
+        %tmp.120 = dup %tmp.118;
+        %tmp.121 = aputv %tmp.120 39 %tmp.119;
+        %tmp.122 = "Mark";
+        %tmp.123 = dup %tmp.121;
+        %tmp.124 = aputv %tmp.123 40 %tmp.122;
+        %tmp.125 = "Luke";
+        %tmp.126 = dup %tmp.124;
+        %tmp.127 = aputv %tmp.126 41 %tmp.125;
+        %tmp.128 = "John";
+        %tmp.129 = dup %tmp.127;
+        %tmp.130 = aputv %tmp.129 42 %tmp.128;
+        %tmp.131 = "Acts";
+        %tmp.132 = dup %tmp.130;
+        %tmp.133 = aputv %tmp.132 43 %tmp.131;
+        %tmp.134 = "Romans";
+        %tmp.135 = dup %tmp.133;
+        %tmp.136 = aputv %tmp.135 44 %tmp.134;
+        %tmp.137 = "1 Corinthians";
+        %tmp.138 = dup %tmp.136;
+        %tmp.139 = aputv %tmp.138 45 %tmp.137;
+        %tmp.140 = "2 Corinthians";
+        %tmp.141 = dup %tmp.139;
+        %tmp.142 = aputv %tmp.141 46 %tmp.140;
+        %tmp.143 = "Galatians";
+        %tmp.144 = dup %tmp.142;
+        %tmp.145 = aputv %tmp.144 47 %tmp.143;
+        %tmp.146 = "Ephesians";
+        %tmp.147 = dup %tmp.145;
+        %tmp.148 = aputv %tmp.147 48 %tmp.146;
+        %tmp.149 = "Philippians";
+        %tmp.150 = dup %tmp.148;
+        %tmp.151 = aputv %tmp.150 49 %tmp.149;
+        %tmp.152 = "Colossians";
+        %tmp.153 = dup %tmp.151;
+        %tmp.154 = aputv %tmp.153 50 %tmp.152;
+        %tmp.155 = "1 Thessalonians";
+        %tmp.156 = dup %tmp.154;
+        %tmp.157 = aputv %tmp.156 51 %tmp.155;
+        %tmp.158 = "2 Thessalonians";
+        %tmp.159 = dup %tmp.157;
+        %tmp.160 = aputv %tmp.159 52 %tmp.158;
+        %tmp.161 = "1 Timothy";
+        %tmp.162 = dup %tmp.160;
+        %tmp.163 = aputv %tmp.162 53 %tmp.161;
+        %tmp.164 = "2 Timothy";
+        %tmp.165 = dup %tmp.163;
+        %tmp.166 = aputv %tmp.165 54 %tmp.164;
+        %tmp.167 = "Titus";
+        %tmp.168 = dup %tmp.166;
+        %tmp.169 = aputv %tmp.168 55 %tmp.167;
+        %tmp.170 = "Philemon";
+        %tmp.171 = dup %tmp.169;
+        %tmp.172 = aputv %tmp.171 56 %tmp.170;
+        %tmp.173 = "Hebrews";
+        %tmp.174 = dup %tmp.172;
+        %tmp.175 = aputv %tmp.174 57 %tmp.173;
+        %tmp.176 = "James";
+        %tmp.177 = dup %tmp.175;
+        %tmp.178 = aputv %tmp.177 58 %tmp.176;
+        %tmp.179 = "1 Peter";
+        %tmp.180 = dup %tmp.178;
+        %tmp.181 = aputv %tmp.180 59 %tmp.179;
+        %tmp.182 = "2 Peter";
+        %tmp.183 = dup %tmp.181;
+        %tmp.184 = aputv %tmp.183 60 %tmp.182;
+        %tmp.185 = "1 John";
+        %tmp.186 = dup %tmp.184;
+        %tmp.187 = aputv %tmp.186 61 %tmp.185;
+        %tmp.188 = "2 John";
+        %tmp.189 = dup %tmp.187;
+        %tmp.190 = aputv %tmp.189 62 %tmp.188;
+        %tmp.191 = "3 John";
+        %tmp.192 = dup %tmp.190;
+        %tmp.193 = aputv %tmp.192 63 %tmp.191;
+        %tmp.194 = "Jude";
+        %tmp.195 = dup %tmp.193;
+        %tmp.196 = aputv %tmp.195 64 %tmp.194;
+        %tmp.197 = "Revelation";
+        %tmp.198 = dup %tmp.196;
+        %tmp.199 = aputv %tmp.198 65 %tmp.197;
+        putv self :BOOK_NAMES %tmp.199;
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 25 10 ]
+        %tmp.200 = newa 66;
+        %tmp.201 = "gen";
+        %tmp.202 = dup %tmp.200;
+        %tmp.203 = aputv %tmp.202 0 %tmp.201;
+        %tmp.204 = "exo";
+        %tmp.205 = dup %tmp.203;
+        %tmp.206 = aputv %tmp.205 1 %tmp.204;
+        %tmp.207 = "lev";
+        %tmp.208 = dup %tmp.206;
+        %tmp.209 = aputv %tmp.208 2 %tmp.207;
+        %tmp.210 = "num";
+        %tmp.211 = dup %tmp.209;
+        %tmp.212 = aputv %tmp.211 3 %tmp.210;
+        %tmp.213 = "deu";
+        %tmp.214 = dup %tmp.212;
+        %tmp.215 = aputv %tmp.214 4 %tmp.213;
+        %tmp.216 = "jos";
+        %tmp.217 = dup %tmp.215;
+        %tmp.218 = aputv %tmp.217 5 %tmp.216;
+        %tmp.219 = "jdg";
+        %tmp.220 = dup %tmp.218;
+        %tmp.221 = aputv %tmp.220 6 %tmp.219;
+        %tmp.222 = "rut";
+        %tmp.223 = dup %tmp.221;
+        %tmp.224 = aputv %tmp.223 7 %tmp.222;
+        %tmp.225 = "1sa";
+        %tmp.226 = dup %tmp.224;
+        %tmp.227 = aputv %tmp.226 8 %tmp.225;
+        %tmp.228 = "2sa";
+        %tmp.229 = dup %tmp.227;
+        %tmp.230 = aputv %tmp.229 9 %tmp.228;
+        %tmp.231 = "1ki";
+        %tmp.232 = dup %tmp.230;
+        %tmp.233 = aputv %tmp.232 10 %tmp.231;
+        %tmp.234 = "2ki";
+        %tmp.235 = dup %tmp.233;
+        %tmp.236 = aputv %tmp.235 11 %tmp.234;
+        %tmp.237 = "1ch";
+        %tmp.238 = dup %tmp.236;
+        %tmp.239 = aputv %tmp.238 12 %tmp.237;
+        %tmp.240 = "2ch";
+        %tmp.241 = dup %tmp.239;
+        %tmp.242 = aputv %tmp.241 13 %tmp.240;
+        %tmp.243 = "ezr";
+        %tmp.244 = dup %tmp.242;
+        %tmp.245 = aputv %tmp.244 14 %tmp.243;
+        %tmp.246 = "neh";
+        %tmp.247 = dup %tmp.245;
+        %tmp.248 = aputv %tmp.247 15 %tmp.246;
+        %tmp.249 = "est";
+        %tmp.250 = dup %tmp.248;
+        %tmp.251 = aputv %tmp.250 16 %tmp.249;
+        %tmp.252 = "job";
+        %tmp.253 = dup %tmp.251;
+        %tmp.254 = aputv %tmp.253 17 %tmp.252;
+        %tmp.255 = "psa";
+        %tmp.256 = dup %tmp.254;
+        %tmp.257 = aputv %tmp.256 18 %tmp.255;
+        %tmp.258 = "pro";
+        %tmp.259 = dup %tmp.257;
+        %tmp.260 = aputv %tmp.259 19 %tmp.258;
+        %tmp.261 = "ecc";
+        %tmp.262 = dup %tmp.260;
+        %tmp.263 = aputv %tmp.262 20 %tmp.261;
+        %tmp.264 = "sng";
+        %tmp.265 = dup %tmp.263;
+        %tmp.266 = aputv %tmp.265 21 %tmp.264;
+        %tmp.267 = "isa";
+        %tmp.268 = dup %tmp.266;
+        %tmp.269 = aputv %tmp.268 22 %tmp.267;
+        %tmp.270 = "jer";
+        %tmp.271 = dup %tmp.269;
+        %tmp.272 = aputv %tmp.271 23 %tmp.270;
+        %tmp.273 = "lam";
+        %tmp.274 = dup %tmp.272;
+        %tmp.275 = aputv %tmp.274 24 %tmp.273;
+        %tmp.276 = "ezk";
+        %tmp.277 = dup %tmp.275;
+        %tmp.278 = aputv %tmp.277 25 %tmp.276;
+        %tmp.279 = "dan";
+        %tmp.280 = dup %tmp.278;
+        %tmp.281 = aputv %tmp.280 26 %tmp.279;
+        %tmp.282 = "hos";
+        %tmp.283 = dup %tmp.281;
+        %tmp.284 = aputv %tmp.283 27 %tmp.282;
+        %tmp.285 = "jol";
+        %tmp.286 = dup %tmp.284;
+        %tmp.287 = aputv %tmp.286 28 %tmp.285;
+        %tmp.288 = "amo";
+        %tmp.289 = dup %tmp.287;
+        %tmp.290 = aputv %tmp.289 29 %tmp.288;
+        %tmp.291 = "oba";
+        %tmp.292 = dup %tmp.290;
+        %tmp.293 = aputv %tmp.292 30 %tmp.291;
+        %tmp.294 = "jon";
+        %tmp.295 = dup %tmp.293;
+        %tmp.296 = aputv %tmp.295 31 %tmp.294;
+        %tmp.297 = "mic";
+        %tmp.298 = dup %tmp.296;
+        %tmp.299 = aputv %tmp.298 32 %tmp.297;
+        %tmp.300 = "nam";
+        %tmp.301 = dup %tmp.299;
+        %tmp.302 = aputv %tmp.301 33 %tmp.300;
+        %tmp.303 = "hab";
+        %tmp.304 = dup %tmp.302;
+        %tmp.305 = aputv %tmp.304 34 %tmp.303;
+        %tmp.306 = "zep";
+        %tmp.307 = dup %tmp.305;
+        %tmp.308 = aputv %tmp.307 35 %tmp.306;
+        %tmp.309 = "hag";
+        %tmp.310 = dup %tmp.308;
+        %tmp.311 = aputv %tmp.310 36 %tmp.309;
+        %tmp.312 = "zec";
+        %tmp.313 = dup %tmp.311;
+        %tmp.314 = aputv %tmp.313 37 %tmp.312;
+        %tmp.315 = "mal";
+        %tmp.316 = dup %tmp.314;
+        %tmp.317 = aputv %tmp.316 38 %tmp.315;
+        %tmp.318 = "mat";
+        %tmp.319 = dup %tmp.317;
+        %tmp.320 = aputv %tmp.319 39 %tmp.318;
+        %tmp.321 = "mrk";
+        %tmp.322 = dup %tmp.320;
+        %tmp.323 = aputv %tmp.322 40 %tmp.321;
+        %tmp.324 = "luk";
+        %tmp.325 = dup %tmp.323;
+        %tmp.326 = aputv %tmp.325 41 %tmp.324;
+        %tmp.327 = "jhn";
+        %tmp.328 = dup %tmp.326;
+        %tmp.329 = aputv %tmp.328 42 %tmp.327;
+        %tmp.330 = "act";
+        %tmp.331 = dup %tmp.329;
+        %tmp.332 = aputv %tmp.331 43 %tmp.330;
+        %tmp.333 = "rom";
+        %tmp.334 = dup %tmp.332;
+        %tmp.335 = aputv %tmp.334 44 %tmp.333;
+        %tmp.336 = "1co";
+        %tmp.337 = dup %tmp.335;
+        %tmp.338 = aputv %tmp.337 45 %tmp.336;
+        %tmp.339 = "2co";
+        %tmp.340 = dup %tmp.338;
+        %tmp.341 = aputv %tmp.340 46 %tmp.339;
+        %tmp.342 = "gal";
+        %tmp.343 = dup %tmp.341;
+        %tmp.344 = aputv %tmp.343 47 %tmp.342;
+        %tmp.345 = "eph";
+        %tmp.346 = dup %tmp.344;
+        %tmp.347 = aputv %tmp.346 48 %tmp.345;
+        %tmp.348 = "php";
+        %tmp.349 = dup %tmp.347;
+        %tmp.350 = aputv %tmp.349 49 %tmp.348;
+        %tmp.351 = "col";
+        %tmp.352 = dup %tmp.350;
+        %tmp.353 = aputv %tmp.352 50 %tmp.351;
+        %tmp.354 = "1th";
+        %tmp.355 = dup %tmp.353;
+        %tmp.356 = aputv %tmp.355 51 %tmp.354;
+        %tmp.357 = "2th";
+        %tmp.358 = dup %tmp.356;
+        %tmp.359 = aputv %tmp.358 52 %tmp.357;
+        %tmp.360 = "1ti";
+        %tmp.361 = dup %tmp.359;
+        %tmp.362 = aputv %tmp.361 53 %tmp.360;
+        %tmp.363 = "2ti";
+        %tmp.364 = dup %tmp.362;
+        %tmp.365 = aputv %tmp.364 54 %tmp.363;
+        %tmp.366 = "tit";
+        %tmp.367 = dup %tmp.365;
+        %tmp.368 = aputv %tmp.367 55 %tmp.366;
+        %tmp.369 = "phm";
+        %tmp.370 = dup %tmp.368;
+        %tmp.371 = aputv %tmp.370 56 %tmp.369;
+        %tmp.372 = "heb";
+        %tmp.373 = dup %tmp.371;
+        %tmp.374 = aputv %tmp.373 57 %tmp.372;
+        %tmp.375 = "jas";
+        %tmp.376 = dup %tmp.374;
+        %tmp.377 = aputv %tmp.376 58 %tmp.375;
+        %tmp.378 = "1pe";
+        %tmp.379 = dup %tmp.377;
+        %tmp.380 = aputv %tmp.379 59 %tmp.378;
+        %tmp.381 = "2pe";
+        %tmp.382 = dup %tmp.380;
+        %tmp.383 = aputv %tmp.382 60 %tmp.381;
+        %tmp.384 = "1jn";
+        %tmp.385 = dup %tmp.383;
+        %tmp.386 = aputv %tmp.385 61 %tmp.384;
+        %tmp.387 = "2jn";
+        %tmp.388 = dup %tmp.386;
+        %tmp.389 = aputv %tmp.388 62 %tmp.387;
+        %tmp.390 = "3jn";
+        %tmp.391 = dup %tmp.389;
+        %tmp.392 = aputv %tmp.391 63 %tmp.390;
+        %tmp.393 = "jud";
+        %tmp.394 = dup %tmp.392;
+        %tmp.395 = aputv %tmp.394 64 %tmp.393;
+        %tmp.396 = "rev";
+        %tmp.397 = dup %tmp.395;
+        %tmp.398 = aputv %tmp.397 65 %tmp.396;
+        putv self :OSIS_CODES %tmp.398;
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 43 10 ]
+        %tmp.399 = newa 66;
+        %tmp.400 = 50;
+        %tmp.401 = dup %tmp.399;
+        %tmp.402 = aputv %tmp.401 0 %tmp.400;
+        %tmp.403 = 40;
+        %tmp.404 = dup %tmp.402;
+        %tmp.405 = aputv %tmp.404 1 %tmp.403;
+        %tmp.406 = 27;
+        %tmp.407 = dup %tmp.405;
+        %tmp.408 = aputv %tmp.407 2 %tmp.406;
+        %tmp.409 = 36;
+        %tmp.410 = dup %tmp.408;
+        %tmp.411 = aputv %tmp.410 3 %tmp.409;
+        %tmp.412 = 34;
+        %tmp.413 = dup %tmp.411;
+        %tmp.414 = aputv %tmp.413 4 %tmp.412;
+        %tmp.415 = 24;
+        %tmp.416 = dup %tmp.414;
+        %tmp.417 = aputv %tmp.416 5 %tmp.415;
+        %tmp.418 = 21;
+        %tmp.419 = dup %tmp.417;
+        %tmp.420 = aputv %tmp.419 6 %tmp.418;
+        %tmp.421 = 4;
+        %tmp.422 = dup %tmp.420;
+        %tmp.423 = aputv %tmp.422 7 %tmp.421;
+        %tmp.424 = 31;
+        %tmp.425 = dup %tmp.423;
+        %tmp.426 = aputv %tmp.425 8 %tmp.424;
+        %tmp.427 = 24;
+        %tmp.428 = dup %tmp.426;
+        %tmp.429 = aputv %tmp.428 9 %tmp.427;
+        %tmp.430 = 22;
+        %tmp.431 = dup %tmp.429;
+        %tmp.432 = aputv %tmp.431 10 %tmp.430;
+        %tmp.433 = 25;
+        %tmp.434 = dup %tmp.432;
+        %tmp.435 = aputv %tmp.434 11 %tmp.433;
+        %tmp.436 = 29;
+        %tmp.437 = dup %tmp.435;
+        %tmp.438 = aputv %tmp.437 12 %tmp.436;
+        %tmp.439 = 36;
+        %tmp.440 = dup %tmp.438;
+        %tmp.441 = aputv %tmp.440 13 %tmp.439;
+        %tmp.442 = 10;
+        %tmp.443 = dup %tmp.441;
+        %tmp.444 = aputv %tmp.443 14 %tmp.442;
+        %tmp.445 = 13;
+        %tmp.446 = dup %tmp.444;
+        %tmp.447 = aputv %tmp.446 15 %tmp.445;
+        %tmp.448 = 10;
+        %tmp.449 = dup %tmp.447;
+        %tmp.450 = aputv %tmp.449 16 %tmp.448;
+        %tmp.451 = 42;
+        %tmp.452 = dup %tmp.450;
+        %tmp.453 = aputv %tmp.452 17 %tmp.451;
+        %tmp.454 = 150;
+        %tmp.455 = dup %tmp.453;
+        %tmp.456 = aputv %tmp.455 18 %tmp.454;
+        %tmp.457 = 31;
+        %tmp.458 = dup %tmp.456;
+        %tmp.459 = aputv %tmp.458 19 %tmp.457;
+        %tmp.460 = 12;
+        %tmp.461 = dup %tmp.459;
+        %tmp.462 = aputv %tmp.461 20 %tmp.460;
+        %tmp.463 = 8;
+        %tmp.464 = dup %tmp.462;
+        %tmp.465 = aputv %tmp.464 21 %tmp.463;
+        %tmp.466 = 66;
+        %tmp.467 = dup %tmp.465;
+        %tmp.468 = aputv %tmp.467 22 %tmp.466;
+        %tmp.469 = 52;
+        %tmp.470 = dup %tmp.468;
+        %tmp.471 = aputv %tmp.470 23 %tmp.469;
+        %tmp.472 = 5;
+        %tmp.473 = dup %tmp.471;
+        %tmp.474 = aputv %tmp.473 24 %tmp.472;
+        %tmp.475 = 48;
+        %tmp.476 = dup %tmp.474;
+        %tmp.477 = aputv %tmp.476 25 %tmp.475;
+        %tmp.478 = 12;
+        %tmp.479 = dup %tmp.477;
+        %tmp.480 = aputv %tmp.479 26 %tmp.478;
+        %tmp.481 = 14;
+        %tmp.482 = dup %tmp.480;
+        %tmp.483 = aputv %tmp.482 27 %tmp.481;
+        %tmp.484 = 3;
+        %tmp.485 = dup %tmp.483;
+        %tmp.486 = aputv %tmp.485 28 %tmp.484;
+        %tmp.487 = 9;
+        %tmp.488 = dup %tmp.486;
+        %tmp.489 = aputv %tmp.488 29 %tmp.487;
+        %tmp.490 = 1;
+        %tmp.491 = dup %tmp.489;
+        %tmp.492 = aputv %tmp.491 30 %tmp.490;
+        %tmp.493 = 4;
+        %tmp.494 = dup %tmp.492;
+        %tmp.495 = aputv %tmp.494 31 %tmp.493;
+        %tmp.496 = 7;
+        %tmp.497 = dup %tmp.495;
+        %tmp.498 = aputv %tmp.497 32 %tmp.496;
+        %tmp.499 = 3;
+        %tmp.500 = dup %tmp.498;
+        %tmp.501 = aputv %tmp.500 33 %tmp.499;
+        %tmp.502 = 3;
+        %tmp.503 = dup %tmp.501;
+        %tmp.504 = aputv %tmp.503 34 %tmp.502;
+        %tmp.505 = 3;
+        %tmp.506 = dup %tmp.504;
+        %tmp.507 = aputv %tmp.506 35 %tmp.505;
+        %tmp.508 = 2;
+        %tmp.509 = dup %tmp.507;
+        %tmp.510 = aputv %tmp.509 36 %tmp.508;
+        %tmp.511 = 14;
+        %tmp.512 = dup %tmp.510;
+        %tmp.513 = aputv %tmp.512 37 %tmp.511;
+        %tmp.514 = 4;
+        %tmp.515 = dup %tmp.513;
+        %tmp.516 = aputv %tmp.515 38 %tmp.514;
+        %tmp.517 = 28;
+        %tmp.518 = dup %tmp.516;
+        %tmp.519 = aputv %tmp.518 39 %tmp.517;
+        %tmp.520 = 16;
+        %tmp.521 = dup %tmp.519;
+        %tmp.522 = aputv %tmp.521 40 %tmp.520;
+        %tmp.523 = 24;
+        %tmp.524 = dup %tmp.522;
+        %tmp.525 = aputv %tmp.524 41 %tmp.523;
+        %tmp.526 = 21;
+        %tmp.527 = dup %tmp.525;
+        %tmp.528 = aputv %tmp.527 42 %tmp.526;
+        %tmp.529 = 28;
+        %tmp.530 = dup %tmp.528;
+        %tmp.531 = aputv %tmp.530 43 %tmp.529;
+        %tmp.532 = 16;
+        %tmp.533 = dup %tmp.531;
+        %tmp.534 = aputv %tmp.533 44 %tmp.532;
+        %tmp.535 = 16;
+        %tmp.536 = dup %tmp.534;
+        %tmp.537 = aputv %tmp.536 45 %tmp.535;
+        %tmp.538 = 13;
+        %tmp.539 = dup %tmp.537;
+        %tmp.540 = aputv %tmp.539 46 %tmp.538;
+        %tmp.541 = 6;
+        %tmp.542 = dup %tmp.540;
+        %tmp.543 = aputv %tmp.542 47 %tmp.541;
+        %tmp.544 = 6;
+        %tmp.545 = dup %tmp.543;
+        %tmp.546 = aputv %tmp.545 48 %tmp.544;
+        %tmp.547 = 4;
+        %tmp.548 = dup %tmp.546;
+        %tmp.549 = aputv %tmp.548 49 %tmp.547;
+        %tmp.550 = 4;
+        %tmp.551 = dup %tmp.549;
+        %tmp.552 = aputv %tmp.551 50 %tmp.550;
+        %tmp.553 = 5;
+        %tmp.554 = dup %tmp.552;
+        %tmp.555 = aputv %tmp.554 51 %tmp.553;
+        %tmp.556 = 3;
+        %tmp.557 = dup %tmp.555;
+        %tmp.558 = aputv %tmp.557 52 %tmp.556;
+        %tmp.559 = 6;
+        %tmp.560 = dup %tmp.558;
+        %tmp.561 = aputv %tmp.560 53 %tmp.559;
+        %tmp.562 = 4;
+        %tmp.563 = dup %tmp.561;
+        %tmp.564 = aputv %tmp.563 54 %tmp.562;
+        %tmp.565 = 3;
+        %tmp.566 = dup %tmp.564;
+        %tmp.567 = aputv %tmp.566 55 %tmp.565;
+        %tmp.568 = 1;
+        %tmp.569 = dup %tmp.567;
+        %tmp.570 = aputv %tmp.569 56 %tmp.568;
+        %tmp.571 = 13;
+        %tmp.572 = dup %tmp.570;
+        %tmp.573 = aputv %tmp.572 57 %tmp.571;
+        %tmp.574 = 5;
+        %tmp.575 = dup %tmp.573;
+        %tmp.576 = aputv %tmp.575 58 %tmp.574;
+        %tmp.577 = 5;
+        %tmp.578 = dup %tmp.576;
+        %tmp.579 = aputv %tmp.578 59 %tmp.577;
+        %tmp.580 = 3;
+        %tmp.581 = dup %tmp.579;
+        %tmp.582 = aputv %tmp.581 60 %tmp.580;
+        %tmp.583 = 5;
+        %tmp.584 = dup %tmp.582;
+        %tmp.585 = aputv %tmp.584 61 %tmp.583;
+        %tmp.586 = 1;
+        %tmp.587 = dup %tmp.585;
+        %tmp.588 = aputv %tmp.587 62 %tmp.586;
+        %tmp.589 = 1;
+        %tmp.590 = dup %tmp.588;
+        %tmp.591 = aputv %tmp.590 63 %tmp.589;
+        %tmp.592 = 1;
+        %tmp.593 = dup %tmp.591;
+        %tmp.594 = aputv %tmp.593 64 %tmp.592;
+        %tmp.595 = 22;
+        %tmp.596 = dup %tmp.594;
+        %tmp.597 = aputv %tmp.596 65 %tmp.595;
+        putv self :CHAPTER_COUNTS %tmp.597;
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 61 10 ]
+        %tmp.598 = newa 19;
+        %tmp.599 = "All";
+        %tmp.600 = dup %tmp.598;
+        %tmp.601 = aputv %tmp.600 0 %tmp.599;
+        %tmp.602 = "A";
+        %tmp.603 = dup %tmp.601;
+        %tmp.604 = aputv %tmp.603 1 %tmp.602;
+        %tmp.605 = "C";
+        %tmp.606 = dup %tmp.604;
+        %tmp.607 = aputv %tmp.606 2 %tmp.605;
+        %tmp.608 = "D";
+        %tmp.609 = dup %tmp.607;
+        %tmp.610 = aputv %tmp.609 3 %tmp.608;
+        %tmp.611 = "E";
+        %tmp.612 = dup %tmp.610;
+        %tmp.613 = aputv %tmp.612 4 %tmp.611;
+        %tmp.614 = "G";
+        %tmp.615 = dup %tmp.613;
+        %tmp.616 = aputv %tmp.615 5 %tmp.614;
+        %tmp.617 = "H";
+        %tmp.618 = dup %tmp.616;
+        %tmp.619 = aputv %tmp.618 6 %tmp.617;
+        %tmp.620 = "I";
+        %tmp.621 = dup %tmp.619;
+        %tmp.622 = aputv %tmp.621 7 %tmp.620;
+        %tmp.623 = "J";
+        %tmp.624 = dup %tmp.622;
+        %tmp.625 = aputv %tmp.624 8 %tmp.623;
+        %tmp.626 = "K";
+        %tmp.627 = dup %tmp.625;
+        %tmp.628 = aputv %tmp.627 9 %tmp.626;
+        %tmp.629 = "L";
+        %tmp.630 = dup %tmp.628;
+        %tmp.631 = aputv %tmp.630 10 %tmp.629;
+        %tmp.632 = "M";
+        %tmp.633 = dup %tmp.631;
+        %tmp.634 = aputv %tmp.633 11 %tmp.632;
+        %tmp.635 = "N";
+        %tmp.636 = dup %tmp.634;
+        %tmp.637 = aputv %tmp.636 12 %tmp.635;
+        %tmp.638 = "O";
+        %tmp.639 = dup %tmp.637;
+        %tmp.640 = aputv %tmp.639 13 %tmp.638;
+        %tmp.641 = "P";
+        %tmp.642 = dup %tmp.640;
+        %tmp.643 = aputv %tmp.642 14 %tmp.641;
+        %tmp.644 = "R";
+        %tmp.645 = dup %tmp.643;
+        %tmp.646 = aputv %tmp.645 15 %tmp.644;
+        %tmp.647 = "S";
+        %tmp.648 = dup %tmp.646;
+        %tmp.649 = aputv %tmp.648 16 %tmp.647;
+        %tmp.650 = "T";
+        %tmp.651 = dup %tmp.649;
+        %tmp.652 = aputv %tmp.651 17 %tmp.650;
+        %tmp.653 = "Z";
+        %tmp.654 = dup %tmp.652;
+        %tmp.655 = aputv %tmp.654 18 %tmp.653;
+        putv self :FILTER_OPTIONS %tmp.655;
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 4; @position = 10; @symbol_constdef = [BOOK_COUNT,4,10,20]; ]
+    const BOOK_COUNT = 66;
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 7; @position = 10; @symbol_constdef = [BOOK_NAMES,7,10,20]; ]
+    const BOOK_NAMES;
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 25; @position = 10; @symbol_constdef = [OSIS_CODES,25,10,20]; ]
+    const OSIS_CODES;
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 43; @position = 10; @symbol_constdef = [CHAPTER_COUNTS,43,10,24]; ]
+    const CHAPTER_COUNTS;
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 61; @position = 10; @symbol_constdef = [FILTER_OPTIONS,61,10,24]; ]
+    const FILTER_OPTIONS;
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 65; @position = 10; @symbol_constdef = [FILTER_COUNT,65,10,22]; ]
+    const FILTER_COUNT = 19;
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 67; @symbol_functiondef = [getBookName,67,13,24]; @symbol_param<0> = [index,67,25,30]; @symbol_param<0>_type<0> = [Number,67,34,40]; @symbol_return<0> = [String,67,45,51]; ]
+    function getBookName(index as Number) as String {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_67_52_72_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 68 8 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_68_8_70_8_if_stmt:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_68_12_68_34_begin:
+        %tmp.1 = lgetv %index;
+        symbol [ index %tmp.1 68 12 17 ];
+        %tmp.2 = 0;
+        %tmp.3 = lt %tmp.1 %tmp.2;
+        bt %tmp.3 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_68_8_70_8_if_true;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_68_25_68_34_false:
+        %tmp.4 = lgetv %index;
+        symbol [ index %tmp.4 68 25 30 ];
+        symbol [ BOOK_COUNT %tmp.6 68 34 44 ];
+        %tmp.6 = getv ? :BOOK_COUNT;
+        %tmp.7 = gte %tmp.4 %tmp.6;
+        push %tmp.7;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_68_25_68_34_end:
+        %tmp.8 = phi [%tmp.3 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_68_12_68_34_begin] [%tmp.7 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_68_25_68_34_false] [%tmp.8 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_68_25_68_34_end];
+        bf %tmp.8 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_68_8_70_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_68_8_70_8_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_68_46_70_8_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 69 12 ]
+        %tmp.9 = "";
+        ret %tmp.9;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_68_46_70_8_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_68_8_70_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_68_8_70_8_if_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 71 8 ]
+        symbol [ BOOK_NAMES %tmp.11 71 15 25 ];
+        %tmp.11 = getv ? :BOOK_NAMES;
+        %tmp.12 = lgetv %index;
+        symbol [ index %tmp.12 71 26 31 ];
+        %tmp.13 = agetv %tmp.11 %tmp.12;
+        ret %tmp.13;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_67_52_72_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 74; @symbol_functiondef = [getOsisCode,74,13,24]; @symbol_param<0> = [index,74,25,30]; @symbol_param<0>_type<0> = [Number,74,34,40]; @symbol_return<0> = [String,74,45,51]; ]
+    function getOsisCode(index as Number) as String {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_74_52_79_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 75 8 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_75_8_77_8_if_stmt:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_75_12_75_34_begin:
+        %tmp.1 = lgetv %index;
+        symbol [ index %tmp.1 75 12 17 ];
+        %tmp.2 = 0;
+        %tmp.3 = lt %tmp.1 %tmp.2;
+        bt %tmp.3 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_75_8_77_8_if_true;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_75_25_75_34_false:
+        %tmp.4 = lgetv %index;
+        symbol [ index %tmp.4 75 25 30 ];
+        symbol [ BOOK_COUNT %tmp.6 75 34 44 ];
+        %tmp.6 = getv ? :BOOK_COUNT;
+        %tmp.7 = gte %tmp.4 %tmp.6;
+        push %tmp.7;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_75_25_75_34_end:
+        %tmp.8 = phi [%tmp.3 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_75_12_75_34_begin] [%tmp.7 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_75_25_75_34_false] [%tmp.8 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_75_25_75_34_end];
+        bf %tmp.8 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_75_8_77_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_75_8_77_8_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_75_46_77_8_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 76 12 ]
+        %tmp.9 = "";
+        ret %tmp.9;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_75_46_77_8_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_75_8_77_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_75_8_77_8_if_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 78 8 ]
+        symbol [ OSIS_CODES %tmp.11 78 15 25 ];
+        %tmp.11 = getv ? :OSIS_CODES;
+        %tmp.12 = lgetv %index;
+        symbol [ index %tmp.12 78 26 31 ];
+        %tmp.13 = agetv %tmp.11 %tmp.12;
+        ret %tmp.13;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_74_52_79_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 81; @symbol_functiondef = [getChapterCount,81,13,28]; @symbol_param<0> = [index,81,29,34]; @symbol_param<0>_type<0> = [Number,81,38,44]; @symbol_return<0> = [Number,81,49,55]; ]
+    function getChapterCount(index as Number) as Number {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_81_56_86_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 82 8 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_82_8_84_8_if_stmt:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_82_12_82_34_begin:
+        %tmp.1 = lgetv %index;
+        symbol [ index %tmp.1 82 12 17 ];
+        %tmp.2 = 0;
+        %tmp.3 = lt %tmp.1 %tmp.2;
+        bt %tmp.3 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_82_8_84_8_if_true;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_82_25_82_34_false:
+        %tmp.4 = lgetv %index;
+        symbol [ index %tmp.4 82 25 30 ];
+        symbol [ BOOK_COUNT %tmp.6 82 34 44 ];
+        %tmp.6 = getv ? :BOOK_COUNT;
+        %tmp.7 = gte %tmp.4 %tmp.6;
+        push %tmp.7;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_82_25_82_34_end:
+        %tmp.8 = phi [%tmp.3 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_82_12_82_34_begin] [%tmp.7 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_82_25_82_34_false] [%tmp.8 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_82_25_82_34_end];
+        bf %tmp.8 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_82_8_84_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_82_8_84_8_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_82_46_84_8_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 83 12 ]
+        %tmp.9 = 0;
+        ret %tmp.9;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_82_46_84_8_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_82_8_84_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_82_8_84_8_if_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 85 8 ]
+        symbol [ CHAPTER_COUNTS %tmp.11 85 15 29 ];
+        %tmp.11 = getv ? :CHAPTER_COUNTS;
+        %tmp.12 = lgetv %index;
+        symbol [ index %tmp.12 85 30 35 ];
+        %tmp.13 = agetv %tmp.11 %tmp.12;
+        ret %tmp.13;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_81_56_86_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 88; @symbol_functiondef = [getVerseCount,88,13,26]; @symbol_param<0> = [bookIndex,88,27,36]; @symbol_param<0>_type<0> = [Number,88,40,46]; @symbol_param<1> = [chapter,88,48,55]; @symbol_param<1>_type<0> = [Number,88,59,65]; @symbol_return<0> = [Number,88,70,76]; ]
+    function getVerseCount(bookIndex as Number, chapter as Number) as Number {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_88_77_124_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 89 8 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_8_91_8_if_stmt:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_12_89_66_begin:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_12_89_42_begin:
+        %tmp.1 = lgetv %bookIndex;
+        symbol [ bookIndex %tmp.1 89 12 21 ];
+        %tmp.2 = 0;
+        %tmp.3 = lt %tmp.1 %tmp.2;
+        bt %tmp.3 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_8_91_8_if_true;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_29_89_42_false:
+        %tmp.4 = lgetv %bookIndex;
+        symbol [ bookIndex %tmp.4 89 29 38 ];
+        symbol [ BOOK_COUNT %tmp.6 89 42 52 ];
+        %tmp.6 = getv ? :BOOK_COUNT;
+        %tmp.7 = gte %tmp.4 %tmp.6;
+        push %tmp.7;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_29_89_42_end:
+        %tmp.8 = phi [%tmp.3 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_12_89_42_begin] [%tmp.7 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_29_89_42_false] [%tmp.8 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_29_89_42_end];
+        bt %tmp.8 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_8_91_8_if_true;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_56_89_66_false:
+        %tmp.9 = lgetv %chapter;
+        symbol [ chapter %tmp.9 89 56 63 ];
+        %tmp.10 = 1;
+        %tmp.11 = lt %tmp.9 %tmp.10;
+        push %tmp.11;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_56_89_66_end:
+        %tmp.12 = phi [%tmp.8 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_12_89_66_begin] [%tmp.11 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_56_89_66_false] [%tmp.12 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_56_89_66_end];
+        bf %tmp.12 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_8_91_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_8_91_8_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_69_91_8_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 90 12 ]
+        %tmp.13 = 0;
+        ret %tmp.13;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_69_91_8_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_8_91_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_89_8_91_8_if_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 92 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_88_77_124_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_88_77_124_4_stop" ]
+        %maxCh.1 = local;
+        symbol [ maxCh %maxCh.1 92 12 17 ];
+        %tmp.14 = self;
+        symbol [ getChapterCount %tmp.15 92 20 35 ];
+        %tmp.15 = getv function %tmp.14 :getChapterCount;
+        %tmp.16 = lgetv %bookIndex;
+        symbol [ bookIndex %tmp.16 92 36 45 ];
+        %tmp.17 = invoke %tmp.14 %tmp.15(%tmp.16);
+        lputv %maxCh.1 %tmp.17;
+        symbol [ maxCh %maxCh.1 92 12 17 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 93 8 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_93_8_95_8_if_stmt:
+        %tmp.18 = lgetv %chapter;
+        symbol [ chapter %tmp.18 93 12 19 ];
+        %tmp.19 = lgetv %maxCh.1;
+        symbol [ maxCh %tmp.19 93 22 27 ];
+        %tmp.20 = gt %tmp.18 %tmp.19;
+        bf %tmp.20 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_93_8_95_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_93_8_95_8_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_93_29_95_8_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 94 12 ]
+        %tmp.21 = 0;
+        ret %tmp.21;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_93_29_95_8_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_93_8_95_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_93_8_95_8_if_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 97 8 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_97_8_103_8_if_stmt:
+        %tmp.22 = lgetv %bookIndex;
+        symbol [ bookIndex %tmp.22 97 12 21 ];
+        %tmp.23 = 0;
+        %tmp.24 = eq %tmp.22 %tmp.23;
+        bf %tmp.24 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_97_8_103_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_97_8_103_8_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_97_28_103_8_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 98 12 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_97_28_103_8_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_97_28_103_8_stop" ]
+        %genesisVerses.2 = local;
+        symbol [ genesisVerses %genesisVerses.2 98 16 29 ];
+        %tmp.25 = newa 10 Array<Number>;
+        symbol [ Array %tmp.25 98 76 81 ];
+        symbol [ Number %tmp.25 98 82 88 ];
+        %tmp.26 = 31;
+        %tmp.27 = dup %tmp.25;
+        %tmp.28 = aputv %tmp.27 0 %tmp.26;
+        %tmp.29 = 25;
+        %tmp.30 = dup %tmp.28;
+        %tmp.31 = aputv %tmp.30 1 %tmp.29;
+        %tmp.32 = 24;
+        %tmp.33 = dup %tmp.31;
+        %tmp.34 = aputv %tmp.33 2 %tmp.32;
+        %tmp.35 = 26;
+        %tmp.36 = dup %tmp.34;
+        %tmp.37 = aputv %tmp.36 3 %tmp.35;
+        %tmp.38 = 32;
+        %tmp.39 = dup %tmp.37;
+        %tmp.40 = aputv %tmp.39 4 %tmp.38;
+        %tmp.41 = 22;
+        %tmp.42 = dup %tmp.40;
+        %tmp.43 = aputv %tmp.42 5 %tmp.41;
+        %tmp.44 = 24;
+        %tmp.45 = dup %tmp.43;
+        %tmp.46 = aputv %tmp.45 6 %tmp.44;
+        %tmp.47 = 22;
+        %tmp.48 = dup %tmp.46;
+        %tmp.49 = aputv %tmp.48 7 %tmp.47;
+        %tmp.50 = 29;
+        %tmp.51 = dup %tmp.49;
+        %tmp.52 = aputv %tmp.51 8 %tmp.50;
+        %tmp.53 = 32;
+        %tmp.54 = dup %tmp.52;
+        %tmp.55 = aputv %tmp.54 9 %tmp.53;
+        lputv %genesisVerses.2 %tmp.55;
+        symbol [ genesisVerses %genesisVerses.2 98 16 29 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 99 12 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_99_12_101_12_if_stmt:
+        %tmp.56 = lgetv %chapter;
+        symbol [ chapter %tmp.56 99 16 23 ];
+        %tmp.57 = lgetv %genesisVerses.2;
+        symbol [ genesisVerses %tmp.57 99 27 40 ];
+        symbol [ size %tmp.58 99 41 45 ];
+        %tmp.58 = getv function %tmp.57 :size;
+        %tmp.59 = invoke %tmp.57 %tmp.58();
+        %tmp.60 = lte %tmp.56 %tmp.59;
+        bf %tmp.60 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_99_12_101_12_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_99_12_101_12_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_99_49_101_12_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 100 16 ]
+        %tmp.61 = lgetv %genesisVerses.2;
+        symbol [ genesisVerses %tmp.61 100 23 36 ];
+        %tmp.62 = lgetv %chapter;
+        symbol [ chapter %tmp.62 100 37 44 ];
+        %tmp.63 = 1;
+        %tmp.64 = sub %tmp.62 %tmp.63;
+        %tmp.65 = agetv %tmp.61 %tmp.64;
+        ret %tmp.65;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_99_49_101_12_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_99_12_101_12_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_99_12_101_12_if_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 102 12 ]
+        %tmp.66 = 0;
+        ret %tmp.66;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_97_28_103_8_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_97_8_103_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_97_8_103_8_if_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 105 8 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_105_8_114_8_if_stmt:
+        %tmp.67 = lgetv %bookIndex;
+        symbol [ bookIndex %tmp.67 105 12 21 ];
+        %tmp.68 = 18;
+        %tmp.69 = eq %tmp.67 %tmp.68;
+        bf %tmp.69 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_105_8_114_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_105_8_114_8_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_105_29_114_8_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 107 12 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_107_12_109_12_if_stmt:
+        %tmp.70 = lgetv %chapter;
+        symbol [ chapter %tmp.70 107 16 23 ];
+        %tmp.71 = 119;
+        %tmp.72 = eq %tmp.70 %tmp.71;
+        bf %tmp.72 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_107_12_109_12_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_107_12_109_12_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_107_32_109_12_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 108 16 ]
+        %tmp.73 = 176;
+        ret %tmp.73;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_107_32_109_12_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_107_12_109_12_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_107_12_109_12_if_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 110 12 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_110_12_112_12_if_stmt:
+        %tmp.74 = lgetv %chapter;
+        symbol [ chapter %tmp.74 110 16 23 ];
+        %tmp.75 = 23;
+        %tmp.76 = eq %tmp.74 %tmp.75;
+        bf %tmp.76 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_110_12_112_12_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_110_12_112_12_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_110_31_112_12_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 111 16 ]
+        %tmp.77 = 6;
+        ret %tmp.77;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_110_31_112_12_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_110_12_112_12_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_110_12_112_12_if_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 113 12 ]
+        %tmp.78 = 0;
+        ret %tmp.78;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_105_29_114_8_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_105_8_114_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_105_8_114_8_if_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 116 8 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_116_8_122_8_if_stmt:
+        %tmp.79 = lgetv %bookIndex;
+        symbol [ bookIndex %tmp.79 116 12 21 ];
+        %tmp.80 = 42;
+        %tmp.81 = eq %tmp.79 %tmp.80;
+        bf %tmp.81 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_116_8_122_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_116_8_122_8_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_116_29_122_8_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 117 12 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_116_29_122_8_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_116_29_122_8_stop" ]
+        %johnVerses.3 = local;
+        symbol [ johnVerses %johnVerses.3 117 16 26 ];
+        %tmp.82 = newa 21 Array<Number>;
+        symbol [ Array %tmp.82 117 117 122 ];
+        symbol [ Number %tmp.82 117 123 129 ];
+        %tmp.83 = 51;
+        %tmp.84 = dup %tmp.82;
+        %tmp.85 = aputv %tmp.84 0 %tmp.83;
+        %tmp.86 = 25;
+        %tmp.87 = dup %tmp.85;
+        %tmp.88 = aputv %tmp.87 1 %tmp.86;
+        %tmp.89 = 36;
+        %tmp.90 = dup %tmp.88;
+        %tmp.91 = aputv %tmp.90 2 %tmp.89;
+        %tmp.92 = 54;
+        %tmp.93 = dup %tmp.91;
+        %tmp.94 = aputv %tmp.93 3 %tmp.92;
+        %tmp.95 = 47;
+        %tmp.96 = dup %tmp.94;
+        %tmp.97 = aputv %tmp.96 4 %tmp.95;
+        %tmp.98 = 71;
+        %tmp.99 = dup %tmp.97;
+        %tmp.100 = aputv %tmp.99 5 %tmp.98;
+        %tmp.101 = 53;
+        %tmp.102 = dup %tmp.100;
+        %tmp.103 = aputv %tmp.102 6 %tmp.101;
+        %tmp.104 = 59;
+        %tmp.105 = dup %tmp.103;
+        %tmp.106 = aputv %tmp.105 7 %tmp.104;
+        %tmp.107 = 41;
+        %tmp.108 = dup %tmp.106;
+        %tmp.109 = aputv %tmp.108 8 %tmp.107;
+        %tmp.110 = 42;
+        %tmp.111 = dup %tmp.109;
+        %tmp.112 = aputv %tmp.111 9 %tmp.110;
+        %tmp.113 = 57;
+        %tmp.114 = dup %tmp.112;
+        %tmp.115 = aputv %tmp.114 10 %tmp.113;
+        %tmp.116 = 50;
+        %tmp.117 = dup %tmp.115;
+        %tmp.118 = aputv %tmp.117 11 %tmp.116;
+        %tmp.119 = 38;
+        %tmp.120 = dup %tmp.118;
+        %tmp.121 = aputv %tmp.120 12 %tmp.119;
+        %tmp.122 = 31;
+        %tmp.123 = dup %tmp.121;
+        %tmp.124 = aputv %tmp.123 13 %tmp.122;
+        %tmp.125 = 27;
+        %tmp.126 = dup %tmp.124;
+        %tmp.127 = aputv %tmp.126 14 %tmp.125;
+        %tmp.128 = 33;
+        %tmp.129 = dup %tmp.127;
+        %tmp.130 = aputv %tmp.129 15 %tmp.128;
+        %tmp.131 = 26;
+        %tmp.132 = dup %tmp.130;
+        %tmp.133 = aputv %tmp.132 16 %tmp.131;
+        %tmp.134 = 40;
+        %tmp.135 = dup %tmp.133;
+        %tmp.136 = aputv %tmp.135 17 %tmp.134;
+        %tmp.137 = 42;
+        %tmp.138 = dup %tmp.136;
+        %tmp.139 = aputv %tmp.138 18 %tmp.137;
+        %tmp.140 = 31;
+        %tmp.141 = dup %tmp.139;
+        %tmp.142 = aputv %tmp.141 19 %tmp.140;
+        %tmp.143 = 25;
+        %tmp.144 = dup %tmp.142;
+        %tmp.145 = aputv %tmp.144 20 %tmp.143;
+        lputv %johnVerses.3 %tmp.145;
+        symbol [ johnVerses %johnVerses.3 117 16 26 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 118 12 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_118_12_120_12_if_stmt:
+        %tmp.146 = lgetv %chapter;
+        symbol [ chapter %tmp.146 118 16 23 ];
+        %tmp.147 = lgetv %johnVerses.3;
+        symbol [ johnVerses %tmp.147 118 27 37 ];
+        symbol [ size %tmp.148 118 38 42 ];
+        %tmp.148 = getv function %tmp.147 :size;
+        %tmp.149 = invoke %tmp.147 %tmp.148();
+        %tmp.150 = lte %tmp.146 %tmp.149;
+        bf %tmp.150 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_118_12_120_12_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_118_12_120_12_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_118_46_120_12_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 119 16 ]
+        %tmp.151 = lgetv %johnVerses.3;
+        symbol [ johnVerses %tmp.151 119 23 33 ];
+        %tmp.152 = lgetv %chapter;
+        symbol [ chapter %tmp.152 119 34 41 ];
+        %tmp.153 = 1;
+        %tmp.154 = sub %tmp.152 %tmp.153;
+        %tmp.155 = agetv %tmp.151 %tmp.154;
+        ret %tmp.155;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_118_46_120_12_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_118_12_120_12_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_118_12_120_12_if_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 121 12 ]
+        %tmp.156 = 0;
+        ret %tmp.156;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_116_29_122_8_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_116_8_122_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_116_8_122_8_if_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 123 8 ]
+        %tmp.157 = 0;
+        ret %tmp.157;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_88_77_124_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 126; @symbol_functiondef = [getFilterOption,126,13,28]; @symbol_param<0> = [index,126,29,34]; @symbol_param<0>_type<0> = [Number,126,38,44]; @symbol_return<0> = [String,126,49,55]; ]
+    function getFilterOption(index as Number) as String {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_126_56_131_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 127 8 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_127_8_129_8_if_stmt:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_127_12_127_34_begin:
+        %tmp.1 = lgetv %index;
+        symbol [ index %tmp.1 127 12 17 ];
+        %tmp.2 = 0;
+        %tmp.3 = lt %tmp.1 %tmp.2;
+        bt %tmp.3 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_127_8_129_8_if_true;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_127_25_127_34_false:
+        %tmp.4 = lgetv %index;
+        symbol [ index %tmp.4 127 25 30 ];
+        symbol [ FILTER_COUNT %tmp.6 127 34 46 ];
+        %tmp.6 = getv ? :FILTER_COUNT;
+        %tmp.7 = gte %tmp.4 %tmp.6;
+        push %tmp.7;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_127_25_127_34_end:
+        %tmp.8 = phi [%tmp.3 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_127_12_127_34_begin] [%tmp.7 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_127_25_127_34_false] [%tmp.8 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_127_25_127_34_end];
+        bf %tmp.8 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_127_8_129_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_127_8_129_8_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_127_48_129_8_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 128 12 ]
+        %tmp.9 = "";
+        ret %tmp.9;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_127_48_129_8_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_127_8_129_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_127_8_129_8_if_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 130 8 ]
+        symbol [ FILTER_OPTIONS %tmp.11 130 15 29 ];
+        %tmp.11 = getv ? :FILTER_OPTIONS;
+        %tmp.12 = lgetv %index;
+        symbol [ index %tmp.12 130 30 35 ];
+        %tmp.13 = agetv %tmp.11 %tmp.12;
+        ret %tmp.13;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_126_56_131_4_stop:
+    }
+    [ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 133; @symbol_functiondef = [getFilteredBooks,133,13,29]; @symbol_param<0> = [filter,133,30,36]; @symbol_param<0>_type<0> = [String,133,40,46]; @symbol_return<0> = [Array,133,51,56]; @symbol_return<1> = [Number,133,57,63]; ]
+    function getFilteredBooks(filter as String) as Array<Number> {
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_133_65_150_4_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 134 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_133_65_150_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_133_65_150_4_stop" ]
+        %result.1 = local;
+        symbol [ result %result.1 134 12 18 ];
+        %tmp.1 = newa 0 Array<Number>;
+        symbol [ Array %tmp.1 134 27 32 ];
+        symbol [ Number %tmp.1 134 33 39 ];
+        lputv %result.1 %tmp.1;
+        symbol [ result %result.1 134 12 18 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 135 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_133_65_150_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_133_65_150_4_stop" ]
+        %allFilter.2 = local;
+        symbol [ allFilter %allFilter.2 135 12 21 ];
+        %tmp.2 = "";
+        lputv %allFilter.2 %tmp.2;
+        symbol [ allFilter %allFilter.2 135 12 21 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 136 8 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_8_141_8_if_stmt:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_12_136_69_begin:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_12_136_46_begin:
+        %tmp.3 = lgetv %filter;
+        symbol [ filter %tmp.3 136 12 18 ];
+        symbol [ length %tmp.4 136 19 25 ];
+        %tmp.4 = getv function %tmp.3 :length;
+        %tmp.5 = invoke %tmp.3 %tmp.4();
+        %tmp.6 = 0;
+        %tmp.7 = eq %tmp.5 %tmp.6;
+        bt %tmp.7 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_8_141_8_if_true;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_36_136_46_false:
+        %tmp.8 = lgetv %filter;
+        symbol [ filter %tmp.8 136 36 42 ];
+        %tmp.9 = lgetv %allFilter.2;
+        symbol [ allFilter %tmp.9 136 46 55 ];
+        %tmp.10 = eq %tmp.8 %tmp.9;
+        push %tmp.10;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_36_136_46_end:
+        %tmp.11 = phi [%tmp.7 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_12_136_46_begin] [%tmp.10 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_36_136_46_false] [%tmp.11 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_36_136_46_end];
+        bt %tmp.11 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_8_141_8_if_true;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_59_136_69_false:
+        %tmp.12 = lgetv %filter;
+        symbol [ filter %tmp.12 136 59 65 ];
+        %tmp.13 = "All";
+        %tmp.14 = eq %tmp.12 %tmp.13;
+        push %tmp.14;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_59_136_69_end:
+        %tmp.15 = phi [%tmp.11 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_12_136_69_begin] [%tmp.14 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_59_136_69_false] [%tmp.15 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_59_136_69_end];
+        bf %tmp.15 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_8_141_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_8_141_8_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_76_141_8_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 137 12 ]
+        for @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_137_12_139_12_for_test @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_137_12_139_12_for_incr @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_137_12_139_12_for_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_137_12_139_12_for_init:
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_137_12_139_12_for_begin" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_137_12_139_12_for_end" ]
+        %i.3 = local;
+        symbol [ i %i.3 137 21 22 ];
+        %tmp.16 = 0;
+        lputv %i.3 %tmp.16;
+        symbol [ i %i.3 137 21 22 ];
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_137_12_139_12_for_test:
+        %tmp.17 = lgetv %i.3;
+        symbol [ i %tmp.17 137 28 29 ];
+        symbol [ BOOK_COUNT %tmp.19 137 32 42 ];
+        %tmp.19 = getv ? :BOOK_COUNT;
+        %tmp.20 = lt %tmp.17 %tmp.19;
+        bf %tmp.20 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_137_12_139_12_for_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_137_12_139_12_for_begin:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_137_49_139_12_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 138 16 ]
+        %tmp.21 = lgetv %result.1;
+        symbol [ result %tmp.21 138 16 22 ];
+        symbol [ add %tmp.22 138 23 26 ];
+        %tmp.22 = getv function %tmp.21 :add;
+        %tmp.23 = lgetv %i.3;
+        symbol [ i %tmp.23 138 27 28 ];
+        invoke %tmp.21 %tmp.22(%tmp.23);
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_137_49_139_12_stop:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_137_12_139_12_for_incr:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 137 ]
+        %tmp.26 = lgetv %i.3;
+        symbol [ i %tmp.26 137 44 45 ];
+        %tmp.27 = add %tmp.26 1;
+        lputv %i.3 %tmp.27;
+        symbol [ i %i.3 137 44 45 ];
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_137_12_139_12_for_test;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_137_12_139_12_for_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 140 12 ]
+        %tmp.28 = lgetv %result.1;
+        symbol [ result %tmp.28 140 19 25 ];
+        ret %tmp.28;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_76_141_8_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_8_141_8_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_136_8_141_8_if_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 142 8 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_133_65_150_4_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_133_65_150_4_stop" ]
+        %initial.4 = local;
+        symbol [ initial %initial.4 142 12 19 ];
+        %tmp.29 = lgetv %filter;
+        symbol [ filter %tmp.29 142 22 28 ];
+        symbol [ substring %tmp.30 142 29 38 ];
+        %tmp.30 = getv function %tmp.29 :substring;
+        %tmp.31 = 0;
+        %tmp.32 = 1;
+        %tmp.33 = invoke %tmp.29 %tmp.30(%tmp.31, %tmp.32);
+        lputv %initial.4 %tmp.33;
+        symbol [ initial %initial.4 142 12 19 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 143 8 ]
+        for @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_8_148_8_for_test @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_8_148_8_for_incr @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_8_148_8_for_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_8_148_8_for_init:
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_8_148_8_for_begin" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_8_148_8_for_end" ]
+        %i.5 = local;
+        symbol [ i %i.5 143 17 18 ];
+        %tmp.34 = 0;
+        lputv %i.5 %tmp.34;
+        symbol [ i %i.5 143 17 18 ];
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_8_148_8_for_test:
+        %tmp.35 = lgetv %i.5;
+        symbol [ i %tmp.35 143 24 25 ];
+        symbol [ BOOK_COUNT %tmp.37 143 28 38 ];
+        %tmp.37 = getv ? :BOOK_COUNT;
+        %tmp.38 = lt %tmp.35 %tmp.37;
+        bf %tmp.38 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_8_148_8_for_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_8_148_8_for_begin:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_45_148_8_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 144 12 ]
+        [ "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_45_148_8_start" "_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_45_148_8_stop" ]
+        %name.6 = local;
+        symbol [ name %name.6 144 16 20 ];
+        %tmp.39 = self;
+        symbol [ getBookName %tmp.40 144 23 34 ];
+        %tmp.40 = getv function %tmp.39 :getBookName;
+        %tmp.41 = lgetv %i.5;
+        symbol [ i %tmp.41 144 35 36 ];
+        %tmp.42 = invoke %tmp.39 %tmp.40(%tmp.41);
+        lputv %name.6 %tmp.42;
+        symbol [ name %name.6 144 16 20 ];
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 145 12 ]
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_145_12_147_12_if_stmt:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_145_16_145_61_begin:
+        %tmp.43 = lgetv %name.6;
+        symbol [ name %tmp.43 145 16 20 ];
+        symbol [ length %tmp.44 145 21 27 ];
+        %tmp.44 = getv function %tmp.43 :length;
+        %tmp.45 = invoke %tmp.43 %tmp.44();
+        %tmp.46 = 0;
+        %tmp.47 = gt %tmp.45 %tmp.46;
+        bf %tmp.47 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_145_12_147_12_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_145_37_145_61_true:
+        %tmp.48 = lgetv %name.6;
+        symbol [ name %tmp.48 145 37 41 ];
+        symbol [ substring %tmp.49 145 42 51 ];
+        %tmp.49 = getv function %tmp.48 :substring;
+        %tmp.50 = 0;
+        %tmp.51 = 1;
+        %tmp.52 = invoke %tmp.48 %tmp.49(%tmp.50, %tmp.51);
+        %tmp.53 = lgetv %initial.4;
+        symbol [ initial %tmp.53 145 61 68 ];
+        %tmp.54 = eq %tmp.52 %tmp.53;
+        push %tmp.54;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_145_37_145_61_end:
+        %tmp.55 = phi [%tmp.47 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_145_16_145_61_begin] [%tmp.54 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_145_37_145_61_true] [%tmp.55 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_145_37_145_61_end];
+        bf %tmp.55 @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_145_12_147_12_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_145_12_147_12_if_true:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_145_70_147_12_start:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 146 16 ]
+        %tmp.56 = lgetv %result.1;
+        symbol [ result %tmp.56 146 16 22 ];
+        symbol [ add %tmp.57 146 23 26 ];
+        %tmp.57 = getv function %tmp.56 :add;
+        %tmp.58 = lgetv %i.5;
+        symbol [ i %tmp.58 146 27 28 ];
+        invoke %tmp.56 %tmp.57(%tmp.58);
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_145_70_147_12_stop:
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_145_12_147_12_if_end;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_145_12_147_12_if_end:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_45_148_8_stop:
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_8_148_8_for_incr:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 143 ]
+        %tmp.61 = lgetv %i.5;
+        symbol [ i %tmp.61 143 40 41 ];
+        %tmp.62 = add %tmp.61 1;
+        lputv %i.5 %tmp.62;
+        symbol [ i %i.5 143 40 41 ];
+        goto @_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_8_148_8_for_test;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_143_8_148_8_for_end:
+[ "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc" 149 8 ]
+        %tmp.63 = lgetv %result.1;
+        symbol [ result %tmp.63 149 15 21 ];
+        ret %tmp.63;
+_home_dpshade_Developer_kindled_flipper_garmin_bible_source_BibleBooks_mc_133_65_150_4_stop:
+    }
+}
+[ @file = "/home/dpshade/Developer/kindled-flipper/garmin_bible/source/BibleBooks.mc"; @line = 1; ]
+<init> {
+}
