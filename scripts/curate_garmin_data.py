@@ -168,6 +168,22 @@ def write_resource_file(data, out_dir, osis, chapter):
     return filepath
 
 
+def _safe_xml_id(filename):
+    """Return a valid Monkey C identifier from a JSON filename.
+
+    Monkey C identifiers must start with a letter.  If the OSIS prefix
+    begins with a digit (e.g. 1co, 2co) the digit is moved to the end
+    so the identifier starts with a letter (co1, co2).
+    """
+    base = filename.replace(".json", "").replace("-", "_")
+    if base[0].isdigit():
+        parts = base.split("_", 1)
+        if len(parts) == 2:
+            return parts[0][1:] + parts[0][0] + "_" + parts[1]
+        return base[1:] + base[0]
+    return base
+
+
 def generate_data_xml(out_dir, written_files):
     """Generate the resources/data/data.xml declaration file."""
     xml_path = os.path.join(out_dir, "data.xml")
@@ -178,8 +194,7 @@ def generate_data_xml(out_dir, written_files):
     ]
     for filepath in sorted(written_files):
         filename = os.path.basename(filepath)
-        # ID must be a valid Monkey C identifier: starts with letter, no hyphens
-        resource_id = filename.replace(".json", "").replace("-", "_")
+        resource_id = _safe_xml_id(filename)
         lines.append(f'    <jsonData id="{resource_id}" filename="{filename}"/>')
     lines.append("</resources>")
 
@@ -215,7 +230,7 @@ def generate_bible_resources_mc(source_dir, coverage, written_files):
         osis_lower = osis.lower()
         entries = []
         for ch in range(start_ch, end_ch + 1):
-            resource_id = f"{osis_lower}_{ch}"
+            resource_id = _safe_xml_id(f"{osis_lower}_{ch}.json")
             entries.append((ch, resource_id))
         book_resources[book_index] = entries
 
@@ -351,6 +366,7 @@ def main():
 
     # Generate Monkey C lookup module
     source_dir = os.path.join(os.path.dirname(os.path.dirname(out_dir)), "source")
+    os.makedirs(source_dir, exist_ok=True)
     mc_path = generate_bible_resources_mc(source_dir, COVERAGE, written_files)
 
     # Summary

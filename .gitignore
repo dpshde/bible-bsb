@@ -7,3 +7,11 @@ bsb_*_sd/
 *.fap
 *.fapmeta
 .DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Generated Garmin resources
+garmin_bible/resources/source/
+

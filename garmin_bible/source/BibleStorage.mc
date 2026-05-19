@@ -37,7 +37,7 @@ class BibleStorage {
             }
 
             if (count >= MAX_ENTRIES) {
-                var newDict = {};
+                var newDict = {} as Dictionary;
                 newDict.put("count", MAX_ENTRIES - 1);
                 for (var i = 1; i < count; i++) {
                     var oldKey = "entry_" + i;
@@ -48,27 +48,27 @@ class BibleStorage {
                     }
                 }
                 newDict.put("entry_" + (MAX_ENTRIES - 1), entry);
-                Application.Storage.setValue(COLLECTION_KEY, newDict);
+                Application.Storage.setValue(COLLECTION_KEY, newDict as Application.Storage.ValueType);
             } else {
                 storedDict.put("count", count + 1);
                 storedDict.put("entry_" + count, entry);
-                Application.Storage.setValue(COLLECTION_KEY, storedDict);
+                Application.Storage.setValue(COLLECTION_KEY, storedDict as Application.Storage.ValueType);
             }
             return true;
         }
 
         // No existing collection — create new
-        var newDict = {};
+        var newDict = {} as Dictionary;
         newDict.put("count", 1);
         newDict.put("entry_0", entry);
-        Application.Storage.setValue(COLLECTION_KEY, newDict);
+        Application.Storage.setValue(COLLECTION_KEY, newDict as Application.Storage.ValueType);
         return true;
     }
 
     // Load all collection entries as an Array of Dictionaries
     static function loadAll() as Array<Dictionary> {
         var raw = Application.Storage.getValue(COLLECTION_KEY);
-        var result = [];
+        var result = [] as Array<Dictionary>;
         if (raw != null && raw instanceof Dictionary) {
             var storedDict = raw as Dictionary;
             var countVal = storedDict.get("count");
@@ -79,8 +79,8 @@ class BibleStorage {
             for (var i = 0; i < count; i++) {
                 var key = "entry_" + i;
                 var e = storedDict.get(key);
-                if (e != null) {
-                    result.add(e);
+                if (e != null && e instanceof Dictionary) {
+                    result.add(e as Dictionary);
                 }
             }
         }
@@ -116,7 +116,7 @@ class BibleStorage {
             return false;
         }
 
-        var newDict = {};
+        var newDict = {} as Dictionary;
         var newCount = count - 1;
         newDict.put("count", newCount);
         var j = 0;
@@ -131,7 +131,7 @@ class BibleStorage {
                 j = j + 1;
             }
         }
-        Application.Storage.setValue(COLLECTION_KEY, newDict);
+        Application.Storage.setValue(COLLECTION_KEY, newDict as Application.Storage.ValueType);
         return true;
     }
 }
