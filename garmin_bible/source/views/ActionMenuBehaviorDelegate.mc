@@ -36,9 +36,14 @@ class ActionMenuBehaviorDelegate extends Ui.BehaviorDelegate {
             savePassageAndShowToast();
             closeMenuAndReturn();
         } else if (menuView.selectedItem == 1) {
-            // Share — push ShareView (placeholder until ShareView implemented)
-            // For now, pop menu and return to reader
+            // Share — push ShareView with route.bible URL
             closeMenuAndReturn();
+            var app = Application.getApp() as BibleApp;
+            var state = app.state;
+            var shareUrl = BibleShare.buildUrl(state);
+            var shareView = new ShareView(shareUrl);
+            var shareDelegate = new ShareBehaviorDelegate(shareView);
+            Ui.pushView(shareView, shareDelegate, Ui.SLIDE_UP);
         } else if (menuView.selectedItem == 2) {
             // Back — close menu, return to reader
             closeMenuAndReturn();
