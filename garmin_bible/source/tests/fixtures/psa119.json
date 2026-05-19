@@ -1,0 +1,29 @@
+{
+  "translation": {"id":"BSB","name":"Berean Standard Bible"},
+  "book": {"id":"PSA","name":"Psalms","osisId":"Ps"},
+  "numberOfVerses": 176,
+  "chapter": {
+    "number": 119,
+    "content": [
+      {"type":"heading","content":["Aleph"]},
+      {"type":"verse","number":1,"content":[
+        {"text":"Blessed are those whose way is blameless,","poem":1},
+        {"text":"who walk in the law of the LORD.","poem":2}
+      ]},
+      {"type":"verse","number":2,"content":[
+        {"text":"Blessed are those who keep His testimonies","poem":1},
+        {"text":"and seek Him with all their heart.","poem":2}
+      ]},
+      {"type":"verse","number":3,"content":[
+        {"text":"They do no iniquity;","poem":1},
+        {"text":"they walk in His ways.","poem":2}
+      ]},
+      {"type":"verse","number":176,"content":[
+        {"text":"I have gone astray like a lost sheep;","poem":1},
+        {"text":"seek Your servant,","poem":2},
+        {"text":"for I do not forget Your commandments.","poem":3}
+      ]}
+    ],
+    "footnotes": []
+  }
+}
