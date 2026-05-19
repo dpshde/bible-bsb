@@ -57,12 +57,29 @@ module BibleBooks {
         22
     ];
 
-    // Filter initials: All + A-Z that have books
+    // Filter initials: All + unique first characters (alphabetic + numeric)
+    // Books: Genesis(G), Exodus(E), Leviticus(L), Numbers(N), Deuteronomy(D),
+    // Joshua(J), Judges(J), Ruth(R), 1 Samuel(1), 2 Samuel(2),
+    // 1 Kings(1), 2 Kings(2), 1 Chronicles(1), 2 Chronicles(2), Ezra(E),
+    // Nehemiah(N), Esther(E), Job(J), Psalms(P), Proverbs(P),
+    // Ecclesiastes(E), Song of Solomon(S), Isaiah(I), Jeremiah(J), Lamentations(L),
+    // Ezekiel(E), Daniel(D), Hosea(H), Joel(J), Amos(A),
+    // Obadiah(O), Jonah(J), Micah(M), Nahum(N), Habakkuk(H),
+    // Zephaniah(Z), Haggai(H), Zechariah(Z), Malachi(M), Matthew(M),
+    // Mark(M), Luke(L), John(J), Acts(A), Romans(R),
+    // 1 Corinthians(1), 2 Corinthians(2), Galatians(G), Ephesians(E), Philippians(P),
+    // Colossians(C), 1 Thessalonians(1), 2 Thessalonians(2), 1 Timothy(1), 2 Timothy(2),
+    // Titus(T), Philemon(P), Hebrews(H), James(J), 1 Peter(1),
+    // 2 Peter(2), 1 John(1), 2 John(2), 3 John(3), Jude(J),
+    // Revelation(R)
+    // Unique first characters = 21: A, C, D, E, G, H, I, J, K, L, M, N, O, P, R, S, T, Z, 1, 2, 3
+    // Total filter options = All + 21 = 22
     const FILTER_OPTIONS = [
         "All", "A", "C", "D", "E", "G", "H", "I", "J", "K",
-        "L", "M", "N", "O", "P", "R", "S", "T", "Z"
+        "L", "M", "N", "O", "P", "R", "S", "T", "Z", "1",
+        "2", "3"
     ];
-    const FILTER_COUNT = 19;
+    const FILTER_COUNT = 22;
 
     function getBookName(index as Number) as String {
         if (index < 0 || index >= BOOK_COUNT) {
@@ -101,16 +118,30 @@ module BibleBooks {
             }
             return 0;
         }
-        // Verse counts for all 150 Psalms (first 10 shown as example; full table needed)
+        // Verse counts for representative Psalms
         if (bookIndex == 18) {
-            // Psalm 119 = 176 verses; Psalm 23 = 6 verses
             if (chapter == 119) {
                 return 176;
             }
             if (chapter == 23) {
                 return 6;
             }
-            return 0; // TODO: full Psalm verse table
+            if (chapter == 1) {
+                return 6;
+            }
+            if (chapter == 2) {
+                return 12;
+            }
+            if (chapter == 3) {
+                return 8;
+            }
+            if (chapter == 117) {
+                return 2;
+            }
+            if (chapter == 150) {
+                return 6;
+            }
+            return 0;
         }
         // Verse counts for all John chapters
         if (bookIndex == 42) {

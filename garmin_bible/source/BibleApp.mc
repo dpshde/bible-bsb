@@ -18,7 +18,7 @@ class BibleApp extends Application.AppBase {
 
     function getInitialView() {
         var view = new BookListView();
-        var delegate = new BookListBehaviorDelegate(view);
+        var delegate = new BookListBehaviorDelegate();
         return [view, delegate];
     }
 }

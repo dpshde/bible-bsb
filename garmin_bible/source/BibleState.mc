@@ -1,18 +1,29 @@
 import Toybox.Lang;
 
 class BibleState {
+    // Passage state
     var bookIndex as Number;
     var chapter as Number;
     var startVerse as Number;
     var endVerse as Number;
-    var filterLetter as String or Null;
+
+    // Book list state
+    var selectedBookIndex as Number;
+    var bookScroll as Number;
+    var filterIndex as Number;
+
+    // Navigation origin tracking
+    var cameFromCollection as Boolean;
 
     function initialize() {
         bookIndex = 0;
         chapter = 1;
         startVerse = 1;
         endVerse = 1;
-        filterLetter = null;
+        selectedBookIndex = 0;
+        bookScroll = 0;
+        filterIndex = 0;
+        cameFromCollection = false;
     }
 
     function setPassage(b as Number, c as Number, s as Number, e as Number) as Void {
@@ -41,5 +52,9 @@ class BibleState {
         } else {
             return osis + "." + chapter + "." + startVerse + "-" + osis + "." + chapter + "." + endVerse;
         }
+    }
+
+    function getFilteredBookIndices() as Array<Number> {
+        return BibleBooks.getFilteredBooks(BibleBooks.getFilterOption(filterIndex));
     }
 }
