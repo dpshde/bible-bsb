@@ -5,10 +5,17 @@ using Toybox.System;
 
 class ReaderBehaviorDelegate extends Ui.BehaviorDelegate {
     var view as Ui.View;
+    var selectPressTime as Number;
+    var isLongPress as Boolean;
+
+    // Long press threshold in milliseconds
+    private const LONG_PRESS_MS = 500;
 
     function initialize(v as Ui.View) {
         BehaviorDelegate.initialize();
         view = v;
+        selectPressTime = 0;
+        isLongPress = false;
     }
 
     // Up button: scroll up by one line
@@ -53,13 +60,77 @@ class ReaderBehaviorDelegate extends Ui.BehaviorDelegate {
         return true;
     }
 
-    // Enter: open ActionMenu (placeholder — future feature)
+    // Enter pressed: start tracking for long press detection
     function onSelect() as Boolean {
-        // ActionMenu is a future feature. Consume the event.
+        selectPressTime = System.getTimer();
+        isLongPress = false;
         return true;
     }
 
-    // Back button: return to previous view
+    // Enter released: decide short vs long press
+    function onSelectUp() as Boolean {
+        var elapsed = System.getTimer() - selectPressTime;
+        if (elapsed >= LONG_PRESS_MS) {
+            // Long press: quick save
+            isLongPress = true;
+            handleQuickSave();
+        } else {
+            // Short press: open ActionMenu
+            isLongPress = false;
+            openActionMenu();
+        }
+        return true;
+    }
+
+    private function openActionMenu() as Void {
+        var menuView = new ActionMenuView(view);
+        var menuDelegate = new ActionMenuBehaviorDelegate(menuView);
+        Ui.pushView(menuView, menuDelegate, Ui.SLIDE_UP);
+    }
+
+    private function handleQuickSave() as Void {
+        var app = Application.getApp() as BibleApp;
+        var state = app.state;
+
+        // Build a collection entry
+        var entry = buildCollectionEntry(state);
+        if (entry == null) {
+            return;
+        }
+
+        // Delegate to BibleStorage module (untyped to avoid strict typecheck issues)
+        BibleStorage.saveEntry(entry);
+
+        showSavedToast(state);
+    }
+
+    private function showSavedToast(state as BibleState) as Void {
+        state.readerToastMessage = WatchUi.loadResource(Rez.Strings.Saved) as String;
+        state.readerToastEndTime = System.getTimer() + 1500;
+        Ui.requestUpdate();
+    }
+
+    private function buildCollectionEntry(state as BibleState) as Dictionary? {
+        if (state == null) {
+            return null;
+        }
+        var ref = state.getDisplayRef();
+        var scriptureRef = state.getScriptureRef();
+        var now = System.getTimer();
+        var ts = now.toString();
+        var entry = {};
+        entry.put("scripture_ref", scriptureRef);
+        entry.put("display_ref", ref);
+        entry.put("translation", "BSB");
+        entry.put("book_index", state.bookIndex);
+        entry.put("chapter", state.chapter);
+        entry.put("start_verse", state.startVerse);
+        entry.put("end_verse", state.endVerse);
+        entry.put("captured_at", ts);
+        return entry;
+    }
+
+    // Back button: return to previous view (VerseSelect or Collection)
     function onBack() as Boolean {
         var app = Application.getApp() as BibleApp;
         var state = app.state;
@@ -67,6 +138,8 @@ class ReaderBehaviorDelegate extends Ui.BehaviorDelegate {
         // Clear reader lines on back to free memory
         state.readerLines = [] as Array<Dictionary>;
         state.readerScroll = 0;
+        state.readerToastMessage = "";
+        state.readerToastEndTime = 0;
 
         Ui.popView(Ui.SLIDE_RIGHT);
         return true;

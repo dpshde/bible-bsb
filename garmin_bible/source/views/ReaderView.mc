@@ -75,6 +75,32 @@ class ReaderView extends Ui.View {
             headerText,
             pageIndicator
         );
+
+        // Draw toast if active
+        drawToastIfActive(dc, state, safeLayout);
+    }
+
+    private function drawToastIfActive(
+        dc as Graphics.Dc,
+        state as BibleState,
+        layout as Dictionary
+    ) as Void {
+        if (!state.isToastActive()) {
+            return;
+        }
+        var width = dc.getWidth();
+        var height = dc.getHeight();
+        var bgColor = layout.get("bgColor") as Number;
+        var textColor = layout.get("textColor") as Number;
+        var fontSize = layout.get("fontSize") as Number;
+        var msg = state.readerToastMessage;
+
+        // Toast box in center-bottom
+        var toastY = height - 24;
+        dc.setColor(textColor, textColor);
+        dc.fillRectangle(8, toastY, width - 16, 16);
+        dc.setColor(bgColor, textColor);
+        BibleRenderer.drawMessageText(dc, fontSize, width / 2, toastY + 8, msg);
     }
 
     function onShow() as Void {

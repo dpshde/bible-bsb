@@ -26,6 +26,10 @@ class BibleState {
     var readerIsLoading as Boolean;
     var readerError as String;
 
+    // Toast overlay state (set by ActionMenu, rendered by ReaderView)
+    var readerToastMessage as String;
+    var readerToastEndTime as Number;
+
     function initialize() {
         bookIndex = 0;
         chapter = 1;
@@ -41,6 +45,8 @@ class BibleState {
         readerLinesPerPage = 1;
         readerIsLoading = false;
         readerError = "";
+        readerToastMessage = "";
+        readerToastEndTime = 0;
     }
 
     function setPassage(b as Number, c as Number, s as Number, e as Number) as Void {
@@ -77,5 +83,19 @@ class BibleState {
 
     function getMaxVerseForCurrentChapter() as Number {
         return BibleBooks.getVerseCount(bookIndex, chapter);
+    }
+
+    // Check if a toast is currently visible
+    function isToastActive() as Boolean {
+        if (readerToastMessage == null || (readerToastMessage as String).length() == 0) {
+            return false;
+        }
+        return System.getTimer() < readerToastEndTime;
+    }
+
+    // Clear toast state
+    function clearToast() as Void {
+        readerToastMessage = "";
+        readerToastEndTime = 0;
     }
 }
