@@ -72,10 +72,9 @@ class BookListBehaviorDelegate extends Ui.BehaviorDelegate {
 
     // Left button: go to Collection view
     function onPreviousMode() as Boolean {
-        // For now, just consume the event. CollectionView is a future feature.
-        // The feature description says "Left=go to Collection" — we'll wire it
-        // when CollectionView is implemented. For now, return true to indicate
-        // the event was consumed (prevents system default behavior).
+        var collectionView = new CollectionView();
+        var collectionDelegate = new CollectionBehaviorDelegate(collectionView);
+        Ui.pushView(collectionView, collectionDelegate, Ui.SLIDE_LEFT);
         return true;
     }
 

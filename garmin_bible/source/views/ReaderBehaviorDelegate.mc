@@ -118,6 +118,10 @@ class ReaderBehaviorDelegate extends Ui.BehaviorDelegate {
         state.readerToastMessage = "";
         state.readerToastEndTime = 0;
 
+        if (state.cameFromCollection) {
+            state.cameFromCollection = false;
+        }
+
         Ui.popView(Ui.SLIDE_RIGHT);
         return true;
     }
