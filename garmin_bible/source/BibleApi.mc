@@ -1,3 +1,4 @@
+using Toybox.Application;
 using Toybox.Communications;
 import Toybox.Lang;
 
@@ -39,6 +40,80 @@ module BibleApi {
         } else {
             return "Failed to load chapter";
         }
+    }
+
+    // Offline resource fallback ----------------------------------------------
+
+    function isOfflineAvailable(bookIndex as Number, chapter as Number) as Boolean {
+        return BibleResources.hasResource(bookIndex, chapter);
+    }
+
+    function loadFromResource(bookIndex as Number, chapter as Number) as Array<Dictionary> {
+        var resourceId = BibleResources.getResourceId(bookIndex, chapter);
+        if (resourceId == null) {
+            return [] as Array<Dictionary>;
+        }
+        var loaded = Application.loadResource(resourceId);
+        if (loaded == null) {
+            return [] as Array<Dictionary>;
+        }
+        // Connect IQ loads jsonData as a Monkey C Dictionary/Array structure.
+        // The compact resource only stores {"chapter":{"content":[...]}}.
+        // We need to convert it back to a JSON-like string for the scanner,
+        // or adapt the scanner to accept the Dictionary directly.
+        // For simplicity, convert the loaded structure to a JSON string.
+        var jsonStr = resourceToJsonString(loaded);
+        if (jsonStr == null || jsonStr.length() == 0) {
+            return [] as Array<Dictionary>;
+        }
+        return BibleJsonScanner.parseVerses(jsonStr);
+    }
+
+    // Convert a loaded jsonData resource (Dictionary/Array) to a JSON string.
+    // This is needed because BibleJsonScanner works on raw JSON strings.
+    function resourceToJsonString(value as Object?) as String {
+        if (value == null) {
+            return "";
+        }
+        if (value instanceof String) {
+            return value as String;
+        }
+        if (value instanceof Number) {
+            return (value as Number).toString();
+        }
+        if (value instanceof Boolean) {
+            return (value as Boolean) ? "true" : "false";
+        }
+        if (value instanceof Dictionary) {
+            var dict = value as Dictionary;
+            var result = "{";
+            var first = true;
+            var keys = dict.keys();
+            for (var i = 0; i < keys.size(); i++) {
+                var k = keys[i];
+                var v = dict.get(k);
+                if (!first) {
+                    result = result + ",";
+                }
+                first = false;
+                result = result + "\"" + (k as String) + "\":" + resourceToJsonString(v);
+            }
+            result = result + "}";
+            return result;
+        }
+        if (value instanceof Array) {
+            var arr = value as Array;
+            var result = "[";
+            for (var i = 0; i < arr.size(); i++) {
+                if (i > 0) {
+                    result = result + ",";
+                }
+                result = result + resourceToJsonString(arr[i] as Object?);
+            }
+            result = result + "]";
+            return result;
+        }
+        return "";
     }
 }
 
