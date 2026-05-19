@@ -12,6 +12,10 @@ class BibleState {
     var bookScroll as Number;
     var filterIndex as Number;
 
+    // Verse select state
+    // verseSelectMode: 0 = All verses, 1 = Start verse, 2 = End verse
+    var verseSelectMode as Number;
+
     // Navigation origin tracking
     var cameFromCollection as Boolean;
 
@@ -23,6 +27,7 @@ class BibleState {
         selectedBookIndex = 0;
         bookScroll = 0;
         filterIndex = 0;
+        verseSelectMode = 0;
         cameFromCollection = false;
     }
 
@@ -56,5 +61,9 @@ class BibleState {
 
     function getFilteredBookIndices() as Array<Number> {
         return BibleBooks.getFilteredBooks(BibleBooks.getFilterOption(filterIndex));
+    }
+
+    function getMaxVerseForCurrentChapter() as Number {
+        return BibleBooks.getVerseCount(bookIndex, chapter);
     }
 }

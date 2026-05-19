@@ -102,6 +102,27 @@ module BibleBooks {
         return CHAPTER_COUNTS[index];
     }
 
+    // Verse counts for Genesis chapters 1-10
+    const GENESIS_MAX_VERSES = [
+        31, 25, 24, 26, 32, 22, 24, 22, 29, 32
+    ] as Array<Number>;
+
+    // Verse counts for all 150 Psalms chapters
+    const PSALMS_MAX_VERSES = [
+        6,  12, 8,  8,  12, 10, 17, 9,  20,  18, 7,  8,  6,  7,  5,  11, 15, 50, 14, 9,  13, 31,
+        6,  10, 22, 12, 14, 9,  11, 12, 24,  11, 22, 22, 28, 12, 40, 22, 13, 17, 13, 11, 5,  26,
+        17, 11, 9,  14, 20, 23, 19, 9,  6,   7,  23, 13, 11, 11, 17, 12, 8,  12, 11, 10, 13, 20,
+        7,  35, 36, 5,  24, 20, 28, 23, 10,  12, 20, 72, 13, 19, 16, 8,  18, 12, 13, 17, 7,  18,
+        52, 17, 16, 15, 5,  23, 11, 13, 12,  9,  9,  5,  8,  28, 22, 35, 45, 48, 43, 13, 31, 7,
+        10, 10, 9,  8,  18, 19, 2,  29, 176, 7,  8,  9,  4,  8,  5,  6,  5,  6,  8,  8,  3,  18,
+        3,  3,  21, 26, 9,  8,  24, 13, 10,  7,  12, 15, 21, 10, 20, 14, 9,  6
+    ] as Array<Number>;
+
+    // Verse counts for all 21 John chapters
+    const JOHN_MAX_VERSES = [
+        51, 25, 36, 54, 47, 71, 53, 59, 41, 42, 57, 50, 38, 31, 27, 33, 26, 40, 42, 31, 25
+    ] as Array<Number>;
+
     function getVerseCount(bookIndex as Number, chapter as Number) as Number {
         if (bookIndex < 0 || bookIndex >= BOOK_COUNT || chapter < 1) {
             return 0;
@@ -110,48 +131,29 @@ module BibleBooks {
         if (chapter > maxCh) {
             return 0;
         }
-        // Verse counts for Genesis 1-10
+        // Genesis
         if (bookIndex == 0) {
-            var genesisVerses = [31, 25, 24, 26, 32, 22, 24, 22, 29, 32] as Array<Number>;
-            if (chapter <= genesisVerses.size()) {
-                return genesisVerses[chapter - 1];
+            if (chapter <= GENESIS_MAX_VERSES.size()) {
+                return GENESIS_MAX_VERSES[chapter - 1];
             }
-            return 0;
+            return 30;
         }
-        // Verse counts for representative Psalms
+        // Psalms
         if (bookIndex == 18) {
-            if (chapter == 119) {
-                return 176;
+            if (chapter <= PSALMS_MAX_VERSES.size()) {
+                return PSALMS_MAX_VERSES[chapter - 1];
             }
-            if (chapter == 23) {
-                return 6;
-            }
-            if (chapter == 1) {
-                return 6;
-            }
-            if (chapter == 2) {
-                return 12;
-            }
-            if (chapter == 3) {
-                return 8;
-            }
-            if (chapter == 117) {
-                return 2;
-            }
-            if (chapter == 150) {
-                return 6;
-            }
-            return 0;
+            return 10;
         }
-        // Verse counts for all John chapters
+        // John
         if (bookIndex == 42) {
-            var johnVerses = [51, 25, 36, 54, 47, 71, 53, 59, 41, 42, 57, 50, 38, 31, 27, 33, 26, 40, 42, 31, 25] as Array<Number>;
-            if (chapter <= johnVerses.size()) {
-                return johnVerses[chapter - 1];
+            if (chapter <= JOHN_MAX_VERSES.size()) {
+                return JOHN_MAX_VERSES[chapter - 1];
             }
-            return 0;
+            return 20;
         }
-        return 0;
+        // Default fallback for all other books
+        return 40;
     }
 
     function getFilterOption(index as Number) as String {
