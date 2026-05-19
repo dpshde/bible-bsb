@@ -1,137 +1,125 @@
 using Toybox.Application;
 import Toybox.Lang;
 using Toybox.System;
+using Toybox.Time;
 
 class BibleStorage {
     static const COLLECTION_KEY = "collection";
     static const MAX_ENTRIES = 50;
+    static const TRANSLATION = "BSB";
 
-    // Save a passage entry. Returns true if saved, false if duplicate.
+    // Build a collection entry from current passage state.
+    // Entry fields: scripture_ref, display_ref, translation, book_index,
+    // chapter, start_verse, end_verse, captured_at.
+    static function buildEntry(state as BibleState) as Dictionary {
+        var entry = {} as Dictionary;
+        entry.put("scripture_ref", state.getScriptureRef());
+        entry.put("display_ref", state.getDisplayRef());
+        entry.put("translation", TRANSLATION);
+        entry.put("book_index", state.bookIndex);
+        entry.put("chapter", state.chapter);
+        entry.put("start_verse", state.startVerse);
+        entry.put("end_verse", state.endVerse);
+        entry.put("captured_at", getIsoTimestamp());
+        return entry;
+    }
+
+    // Save an entry to Storage. Returns true if saved, false if duplicate.
     static function saveEntry(entry as Dictionary) as Boolean {
-        var raw = Application.Storage.getValue(COLLECTION_KEY);
-        var count = 0;
-        var isDuplicate = false;
+        var collection = loadAll();
         var ref = entry.get("scripture_ref") as String;
+        if (ref == null) {
+            ref = "";
+        }
 
-        if (raw != null && raw instanceof Dictionary) {
-            var storedDict = raw as Dictionary;
-            var countVal = storedDict.get("count");
-            if (countVal != null) {
-                count = countVal as Number;
-            }
-            for (var i = 0; i < count; i++) {
-                var key = "entry_" + i;
-                var e = storedDict.get(key);
-                if (e != null && e instanceof Dictionary) {
-                    var ed = e as Dictionary;
-                    var existingRef = ed.get("scripture_ref") as String;
-                    if (existingRef != null && existingRef == ref) {
-                        isDuplicate = true;
-                        break;
-                    }
-                }
-            }
-
-            if (isDuplicate) {
+        // Check for duplicate by scripture_ref
+        for (var i = 0; i < collection.size(); i++) {
+            var existing = collection[i] as Dictionary;
+            var existingRef = existing.get("scripture_ref") as String;
+            if (existingRef != null && existingRef.equals(ref)) {
                 return false;
             }
-
-            if (count >= MAX_ENTRIES) {
-                var newDict = {} as Dictionary;
-                newDict.put("count", MAX_ENTRIES - 1);
-                for (var i = 1; i < count; i++) {
-                    var oldKey = "entry_" + i;
-                    var newKey = "entry_" + (i - 1);
-                    var val = storedDict.get(oldKey);
-                    if (val != null) {
-                        newDict.put(newKey, val);
-                    }
-                }
-                newDict.put("entry_" + (MAX_ENTRIES - 1), entry);
-                Application.Storage.setValue(COLLECTION_KEY, newDict as Application.Storage.ValueType);
-            } else {
-                storedDict.put("count", count + 1);
-                storedDict.put("entry_" + count, entry);
-                Application.Storage.setValue(COLLECTION_KEY, storedDict as Application.Storage.ValueType);
-            }
-            return true;
         }
 
-        // No existing collection — create new
-        var newDict = {} as Dictionary;
-        newDict.put("count", 1);
-        newDict.put("entry_0", entry);
-        Application.Storage.setValue(COLLECTION_KEY, newDict as Application.Storage.ValueType);
+        // FIFO: if at max, remove oldest entry (index 0)
+        if (collection.size() >= MAX_ENTRIES) {
+            collection.remove(collection[0]);
+        }
+
+        collection.add(entry);
+        Application.Storage.setValue(COLLECTION_KEY, collection as Application.Storage.ValueType);
         return true;
     }
 
-    // Load all collection entries as an Array of Dictionaries
+    // Load all collection entries as Array<Dictionary>.
+    // Oldest entry is at index 0; newest at index size-1.
     static function loadAll() as Array<Dictionary> {
         var raw = Application.Storage.getValue(COLLECTION_KEY);
-        var result = [] as Array<Dictionary>;
-        if (raw != null && raw instanceof Dictionary) {
-            var storedDict = raw as Dictionary;
-            var countVal = storedDict.get("count");
-            var count = 0;
-            if (countVal != null) {
-                count = countVal as Number;
-            }
-            for (var i = 0; i < count; i++) {
-                var key = "entry_" + i;
-                var e = storedDict.get(key);
-                if (e != null && e instanceof Dictionary) {
-                    result.add(e as Dictionary);
+        if (raw != null && raw instanceof Array) {
+            var arr = raw as Array;
+            var result = [] as Array<Dictionary>;
+            for (var i = 0; i < arr.size(); i++) {
+                var item = arr[i];
+                if (item != null && item instanceof Dictionary) {
+                    result.add(item as Dictionary);
                 }
             }
+            return result;
         }
-        return result;
+        return [] as Array<Dictionary>;
     }
 
-    // Get the count of saved entries
+    // Load a single entry by storage index.
+    // Returns null if index is out of bounds.
+    static function loadEntry(index as Number) as Dictionary? {
+        var collection = loadAll();
+        if (index < 0 || index >= collection.size()) {
+            return null;
+        }
+        return collection[index];
+    }
+
+    // Get the count of saved entries.
     static function getCount() as Number {
-        var raw = Application.Storage.getValue(COLLECTION_KEY);
-        if (raw != null && raw instanceof Dictionary) {
-            var storedDict = raw as Dictionary;
-            var countVal = storedDict.get("count");
-            if (countVal != null) {
-                return countVal as Number;
-            }
-        }
-        return 0;
+        return loadAll().size();
     }
 
-    // Delete an entry by index
+    // Delete an entry by storage index.
+    // Returns true if deleted, false if index was out of bounds.
     static function deleteEntry(index as Number) as Boolean {
-        var raw = Application.Storage.getValue(COLLECTION_KEY);
-        if (raw == null || !(raw instanceof Dictionary)) {
+        var collection = loadAll();
+        if (index < 0 || index >= collection.size()) {
             return false;
         }
-        var storedDict = raw as Dictionary;
-        var countVal = storedDict.get("count");
-        var count = 0;
-        if (countVal != null) {
-            count = countVal as Number;
-        }
-        if (index < 0 || index >= count) {
-            return false;
-        }
-
-        var newDict = {} as Dictionary;
-        var newCount = count - 1;
-        newDict.put("count", newCount);
-        var j = 0;
-        for (var i = 0; i < count; i++) {
-            if (i != index) {
-                var oldKey = "entry_" + i;
-                var newKey = "entry_" + j;
-                var val = storedDict.get(oldKey);
-                if (val != null) {
-                    newDict.put(newKey, val);
-                }
-                j = j + 1;
-            }
-        }
-        Application.Storage.setValue(COLLECTION_KEY, newDict as Application.Storage.ValueType);
+        collection.remove(collection[index]);
+        Application.Storage.setValue(COLLECTION_KEY, collection as Application.Storage.ValueType);
         return true;
+    }
+
+    // Clear all collection entries.
+    static function clearAll() as Void {
+        Application.Storage.setValue(COLLECTION_KEY, [] as Application.Storage.ValueType);
+    }
+
+    // Format current UTC time as ISO8601 timestamp: YYYY-MM-DDTHH:MM:SSZ
+    private static function getIsoTimestamp() as String {
+        var moment = Time.now();
+        var info = Time.Gregorian.info(moment, Time.FORMAT_SHORT);
+        var year = info.year as Number;
+        var month = info.month as Number;
+        var day = info.day as Number;
+        var hour = info.hour as Number;
+        var min = info.min as Number;
+        var sec = info.sec as Number;
+        return year.toString() + "-" + pad2(month) + "-" + pad2(day)
+            + "T" + pad2(hour) + ":" + pad2(min) + ":" + pad2(sec) + "Z";
+    }
+
+    // Zero-pad a number to two digits.
+    private static function pad2(n as Number) as String {
+        if (n < 10) {
+            return "0" + n;
+        }
+        return n.toString();
     }
 }

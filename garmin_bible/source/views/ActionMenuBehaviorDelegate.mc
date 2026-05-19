@@ -60,13 +60,10 @@ class ActionMenuBehaviorDelegate extends Ui.BehaviorDelegate {
         var app = Application.getApp() as BibleApp;
         var state = app.state;
 
-        // Build a collection entry
-        var entry = buildCollectionEntry();
-        if (entry == null) {
-            return;
-        }
+        // Build a collection entry via BibleStorage
+        var entry = BibleStorage.buildEntry(state);
 
-        // Delegate to BibleStorage module (untyped to avoid strict typecheck issues)
+        // Delegate to BibleStorage module
         BibleStorage.saveEntry(entry);
 
         showSavedToast(state);
@@ -75,27 +72,5 @@ class ActionMenuBehaviorDelegate extends Ui.BehaviorDelegate {
     private function showSavedToast(state as BibleState) as Void {
         state.readerToastMessage = WatchUi.loadResource(Rez.Strings.Saved) as String;
         state.readerToastEndTime = System.getTimer() + 1500;
-    }
-
-    private function buildCollectionEntry() as Dictionary? {
-        var app = Application.getApp() as BibleApp;
-        var state = app.state;
-        if (state == null) {
-            return null;
-        }
-        var ref = state.getDisplayRef();
-        var scriptureRef = state.getScriptureRef();
-        var now = System.getTimer();
-        var ts = now.toString();
-        var entry = {};
-        entry.put("scripture_ref", scriptureRef);
-        entry.put("display_ref", ref);
-        entry.put("translation", "BSB");
-        entry.put("book_index", state.bookIndex);
-        entry.put("chapter", state.chapter);
-        entry.put("start_verse", state.startVerse);
-        entry.put("end_verse", state.endVerse);
-        entry.put("captured_at", ts);
-        return entry;
     }
 }
