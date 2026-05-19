@@ -83,6 +83,14 @@ class BookListBehaviorDelegate extends Ui.BehaviorDelegate {
         return onPreviousMode();
     }
 
+    // Tap handler for touch devices: treat as select
+    function onTap(tapEvent as Ui.ClickEvent) as Boolean {
+        if (!BibleLayout.hasTouchScreen()) {
+            return false;
+        }
+        return onSelect();
+    }
+
     // --- Private helpers ---
 
     private function scrollUp() as Void {

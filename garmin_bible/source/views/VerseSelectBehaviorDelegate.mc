@@ -119,6 +119,14 @@ class VerseSelectBehaviorDelegate extends Ui.BehaviorDelegate {
         return true;
     }
 
+    // Tap handler for touch devices: treat as select
+    function onTap(tapEvent as Ui.ClickEvent) as Boolean {
+        if (!BibleLayout.hasTouchScreen()) {
+            return false;
+        }
+        return onSelect();
+    }
+
     // Back button: return to ChapterList
     function onBack() as Boolean {
         Ui.popView(Ui.SLIDE_RIGHT);

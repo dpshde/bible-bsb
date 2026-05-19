@@ -87,6 +87,14 @@ class BookFilterBehaviorDelegate extends Ui.BehaviorDelegate {
         return true;
     }
 
+    // Tap handler for touch devices: treat as select/confirm
+    function onTap(tapEvent as Ui.ClickEvent) as Boolean {
+        if (!BibleLayout.hasTouchScreen()) {
+            return false;
+        }
+        return onSelect();
+    }
+
     // Apply the selected filter, update BookList state, and pop back
     private function applyFilterAndPop() as Void {
         var app = Application.getApp() as BibleApp;

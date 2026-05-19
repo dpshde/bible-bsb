@@ -17,7 +17,7 @@ class ReaderView extends Ui.View {
 
         // Compute layout on first draw
         if (layout == null) {
-            layout = BibleRenderer.computeLayout(dc);
+            layout = BibleLayout.computeLayout(dc);
         }
 
         var safeLayout = layout as Dictionary;
@@ -67,14 +67,7 @@ class ReaderView extends Ui.View {
 
         var pageIndicator = BibleRenderer.buildPageIndicator(currentPage, totalPages);
 
-        BibleRenderer.renderPage(
-            dc,
-            state.readerLines,
-            state.readerScroll,
-            safeLayout,
-            headerText,
-            pageIndicator
-        );
+        renderReaderPage(dc, state, safeLayout, headerText, pageIndicator);
 
         // Draw toast if active
         drawToastIfActive(dc, state, safeLayout);
@@ -217,6 +210,23 @@ class ReaderView extends Ui.View {
         state.readerError = "";
 
         Ui.requestUpdate();
+    }
+
+    private function renderReaderPage(
+        dc as Graphics.Dc,
+        state as BibleState,
+        layout as Dictionary,
+        headerText as String,
+        pageIndicator as String
+    ) as Void {
+        BibleRenderer.renderPage(
+            dc,
+            state.readerLines,
+            state.readerScroll,
+            layout,
+            headerText,
+            pageIndicator
+        );
     }
 
     private function getApp() as BibleApp {

@@ -4,7 +4,7 @@ using Toybox.System;
 
 module BibleRenderer {
 
-    // Layout constants
+    // Layout constants (retained for backward compatibility with existing tests)
     const HEADER_HEIGHT = 14;
     const DIVIDER_HEIGHT = 1;
     const FOOTER_HEIGHT = 8;
@@ -27,147 +27,30 @@ module BibleRenderer {
 
     // Convert font size enum to Graphics font constant
     function fontFromEnum(size as Number) as Object {
-        if (size == FONT_MEDIUM) {
-            return Graphics.FONT_MEDIUM;
-        } else if (size == FONT_LARGE) {
-            return Graphics.FONT_LARGE;
-        } else if (size == FONT_TINY) {
-            return Graphics.FONT_TINY;
-        } else {
-            return Graphics.FONT_SMALL;
-        }
+        return BibleLayout.fontFromEnum(size);
     }
 
     // Get char width for font size enum
     function getCharWidthForFontSize(size as Number) as Number {
-        if (size == FONT_MEDIUM) {
-            return CHAR_WIDTH_MEDIUM;
-        } else if (size == FONT_LARGE) {
-            return CHAR_WIDTH_LARGE;
-        } else if (size == FONT_TINY) {
-            return CHAR_WIDTH_TINY;
-        } else {
-            return CHAR_WIDTH_SMALL;
-        }
+        return BibleLayout.getCharWidthForFontSize(size);
     }
 
     // Font selection based on screen width -> returns enum
     function selectFontSize(screenWidth as Number) as Number {
-        if (screenWidth <= 180) {
-            return FONT_SMALL;
-        } else if (screenWidth <= 260) {
-            return FONT_MEDIUM;
-        } else {
-            return FONT_LARGE;
-        }
+        return BibleLayout.selectFontSize(screenWidth);
     }
 
     // Hardcoded font heights for layout computation
     function getFontHeightForSize(size as Number) as Number {
-        if (size == FONT_TINY) {
-            return 10;
-        } else if (size == FONT_MEDIUM) {
-            return 16;
-        } else if (size == FONT_LARGE) {
-            return 22;
-        } else {
-            return 12;
-        }
+        return BibleLayout.getFontHeightForSize(size);
     }
 
-    // Compute layout from DC and DeviceSettings
+    // Compute layout from DC and DeviceSettings — delegates to BibleLayout
     function computeLayout(dc as Graphics.Dc) as Dictionary {
-        var layout = {} as Dictionary;
-        var screenWidth = dc.getWidth();
-        var screenHeight = dc.getHeight();
-        layout.put("screenWidth", screenWidth);
-        layout.put("screenHeight", screenHeight);
-
-        var fontSize = selectFontSize(screenWidth);
-        layout.put("fontSize", fontSize);
-
-        var fontHeight = getFontHeightForSize(fontSize);
-        var lineHeight = fontHeight + LINE_SPACING;
-        layout.put("lineHeight", lineHeight);
-
-        // Safe area margins based on screen shape
-        var deviceSettings = System.getDeviceSettings();
-        var marginX = MARGIN_X;
-        var marginTop = MARGIN_Y;
-        var marginBottom = MARGIN_Y;
-
-        var screenShape = deviceSettings.screenShape;
-        if (screenShape == System.SCREEN_SHAPE_SEMI_OCTAGON) {
-            marginX = 18;
-            marginTop = 18;
-            marginBottom = 18;
-        } else if (screenShape == System.SCREEN_SHAPE_ROUND) {
-            marginX = 10;
-            marginTop = 10;
-            marginBottom = 10;
-        } else {
-            marginX = 4;
-            marginTop = 4;
-            marginBottom = 4;
-        }
-
-        layout.put("marginX", marginX);
-        layout.put("marginTop", marginTop);
-        layout.put("marginBottom", marginBottom);
-
-        var contentTop = HEADER_HEIGHT + DIVIDER_HEIGHT + CONTENT_PADDING;
-        if (contentTop < marginTop + HEADER_HEIGHT) {
-            contentTop = marginTop + HEADER_HEIGHT;
-        }
-        layout.put("contentTop", contentTop);
-
-        var contentBottom = screenHeight - marginBottom - FOOTER_HEIGHT;
-        layout.put("contentBottom", contentBottom);
-
-        var contentWidth = screenWidth - (marginX * 2);
-        layout.put("contentWidth", contentWidth);
-
-        var contentHeight = contentBottom - contentTop;
-        layout.put("contentHeight", contentHeight);
-
-        var linesPerPage = contentHeight / lineHeight;
-        if (linesPerPage < 1) {
-            linesPerPage = 1;
-        }
-        layout.put("linesPerPage", linesPerPage);
-
-        // Color scheme
-        var isMonochrome = false;
-        if (deviceSettings has :screenIsMonochrome) {
-            isMonochrome = deviceSettings.screenIsMonochrome;
-        }
-        if (!isMonochrome && (deviceSettings has :bitsPerPixel)) {
-            if (deviceSettings.bitsPerPixel == 1) {
-                isMonochrome = true;
-            }
-        }
-        var monoFlag = isMonochrome as Boolean;
-        layout.put("isMonochrome", monoFlag);
-
-        if (monoFlag) {
-            layout.put("textColor", Graphics.COLOR_BLACK);
-            layout.put("bgColor", Graphics.COLOR_WHITE);
-            layout.put("headerColor", Graphics.COLOR_BLACK);
-            layout.put("accentColor", Graphics.COLOR_BLACK);
-        } else {
-            layout.put("textColor", Graphics.COLOR_WHITE);
-            layout.put("bgColor", Graphics.COLOR_BLACK);
-            layout.put("headerColor", Graphics.COLOR_WHITE);
-            layout.put("accentColor", Graphics.COLOR_YELLOW);
-        }
-
-        // Char width for wrapping
-        layout.put("charWidth", getCharWidthForFontSize(fontSize));
-
-        return layout;
+        return BibleLayout.computeLayout(dc);
     }
 
-    // Create a mock layout dictionary for unit testing
+    // Create a mock layout dictionary for unit testing — delegates to BibleLayout
     function mockLayout(
         screenWidth as Number,
         screenHeight as Number,
@@ -175,66 +58,13 @@ module BibleRenderer {
         lineHeight as Number,
         isMonochrome as Boolean
     ) as Dictionary {
-        var layout = {} as Dictionary;
-        layout.put("screenWidth", screenWidth);
-        layout.put("screenHeight", screenHeight);
-        layout.put("fontSize", fontSize);
-        layout.put("lineHeight", lineHeight);
-
-        var marginX = MARGIN_X;
-        var marginTop = MARGIN_Y;
-        var marginBottom = MARGIN_Y;
+        var screenShape = System.SCREEN_SHAPE_RECTANGLE;
         if (screenWidth <= 180) {
-            marginX = 18;
-            marginTop = 18;
-            marginBottom = 18;
+            screenShape = System.SCREEN_SHAPE_SEMI_OCTAGON;
         } else if (screenHeight <= 260) {
-            marginX = 10;
-            marginTop = 10;
-            marginBottom = 10;
-        } else {
-            marginX = 4;
-            marginTop = 4;
-            marginBottom = 4;
+            screenShape = System.SCREEN_SHAPE_ROUND;
         }
-        layout.put("marginX", marginX);
-        layout.put("marginTop", marginTop);
-        layout.put("marginBottom", marginBottom);
-
-        var contentTop = HEADER_HEIGHT + DIVIDER_HEIGHT + CONTENT_PADDING;
-        layout.put("contentTop", contentTop);
-
-        var contentBottom = screenHeight - marginBottom - FOOTER_HEIGHT;
-        layout.put("contentBottom", contentBottom);
-
-        var contentWidth = screenWidth - (marginX * 2);
-        layout.put("contentWidth", contentWidth);
-
-        var contentHeight = contentBottom - contentTop;
-        layout.put("contentHeight", contentHeight);
-
-        var linesPerPage = contentHeight / lineHeight;
-        if (linesPerPage < 1) {
-            linesPerPage = 1;
-        }
-        layout.put("linesPerPage", linesPerPage);
-
-        layout.put("isMonochrome", isMonochrome);
-        if (isMonochrome) {
-            layout.put("textColor", Graphics.COLOR_BLACK);
-            layout.put("bgColor", Graphics.COLOR_WHITE);
-            layout.put("headerColor", Graphics.COLOR_BLACK);
-            layout.put("accentColor", Graphics.COLOR_BLACK);
-        } else {
-            layout.put("textColor", Graphics.COLOR_WHITE);
-            layout.put("bgColor", Graphics.COLOR_BLACK);
-            layout.put("headerColor", Graphics.COLOR_WHITE);
-            layout.put("accentColor", Graphics.COLOR_YELLOW);
-        }
-
-        layout.put("charWidth", getCharWidthForFontSize(fontSize));
-
-        return layout;
+        return BibleLayout.mockLayout(screenWidth, screenHeight, fontSize, lineHeight, isMonochrome, screenShape);
     }
 
     // Split text on whitespace into words

@@ -122,6 +122,29 @@ class CollectionBehaviorDelegate extends Ui.BehaviorDelegate {
         }
     }
 
+    // Tap handler for touch devices: load passage (short tap equivalent)
+    function onTap(tapEvent as Ui.ClickEvent) as Boolean {
+        if (!BibleLayout.hasTouchScreen()) {
+            return false;
+        }
+        handleLoadPassage();
+        return true;
+    }
+
+    // Swipe handler for touch devices: scroll collection
+    function onSwipe(swipeEvent as Ui.SwipeEvent) as Boolean {
+        if (!BibleLayout.hasTouchScreen()) {
+            return false;
+        }
+        var direction = swipeEvent.getDirection();
+        if (direction == Ui.SWIPE_UP) {
+            return onNextPage();
+        } else if (direction == Ui.SWIPE_DOWN) {
+            return onPreviousPage();
+        }
+        return false;
+    }
+
     // Back button: return to BookList
     function onBack() as Boolean {
         Ui.popView(Ui.SLIDE_RIGHT);

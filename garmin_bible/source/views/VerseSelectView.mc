@@ -3,77 +3,81 @@ import Toybox.Lang;
 using Toybox.WatchUi as Ui;
 
 class VerseSelectView extends Ui.View {
-    // Layout constants
-    private const HEADER_HEIGHT = 14;
     private const LINE_HEIGHT = 14;
-    private const MARGIN_X = 4;
-    private const ROW_1_Y = HEADER_HEIGHT + 10;
-    private const ROW_2_Y = ROW_1_Y + LINE_HEIGHT;
-    private const ROW_3_Y = ROW_2_Y + LINE_HEIGHT;
-    private const HINT_Y = 58;
+    private const ROW_SPACING = 10;
+
+    var layout as Dictionary?;
 
     function initialize() {
         View.initialize();
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
+        layout = BibleLayout.computeLayout(dc);
+        var safeLayout = layout as Dictionary;
+
         var width = dc.getWidth();
-        var height = dc.getHeight();
+        var marginX = safeLayout.get("marginX") as Number;
+        var textColor = safeLayout.get("textColor") as Number;
+        var bgColor = safeLayout.get("bgColor") as Number;
+        var selectBg = safeLayout.get("selectBg") as Number;
+        var selectText = safeLayout.get("selectText") as Number;
+        var fontSize = safeLayout.get("fontSize") as Number;
 
         // Clear background
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
+        dc.setColor(textColor, bgColor);
         dc.clear();
 
         // Get app state
         var app = getApp();
         var state = app.state;
         var bookName = BibleBooks.getBookName(state.bookIndex);
+
+        // Draw header via BibleLayout
+        BibleLayout.drawHeader(dc, safeLayout, bookName + " " + state.chapter);
+
         var maxVerse = BibleBooks.getVerseCount(state.bookIndex, state.chapter);
         if (maxVerse <= 0) {
             maxVerse = 40;
         }
 
-        // Draw header: "Book Chapter"
-        var headerText = bookName + " " + state.chapter;
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-        dc.drawText(
-            width / 2,
-            HEADER_HEIGHT / 2 - 1,
-            Graphics.FONT_SMALL,
-            headerText,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-        );
-
-        // Draw divider line
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-        dc.drawLine(0, HEADER_HEIGHT, width, HEADER_HEIGHT);
+        var row1Y = BibleLayout.HEADER_HEIGHT + ROW_SPACING;
+        var row2Y = row1Y + LINE_HEIGHT;
+        var row3Y = row2Y + LINE_HEIGHT;
+        var hintY = row3Y + LINE_HEIGHT + 4;
+        var screenHeight = dc.getHeight();
+        if (hintY > screenHeight - 8) {
+            hintY = screenHeight - 8;
+        }
 
         // Row 1: "All verses"
         var allSelected = (state.verseSelectMode == 0);
-        drawRow(dc, width, ROW_1_Y, "All verses", allSelected);
+        drawRow(dc, safeLayout, row1Y, "All verses", allSelected);
 
         // Row 2: "Start: N"
         var startSelected = (state.verseSelectMode == 1);
-        var startLabel = "Start: " + state.startVerse;
-        drawRow(dc, width, ROW_2_Y, startLabel, startSelected);
+        drawRow(dc, safeLayout, row2Y, "Start: " + state.startVerse, startSelected);
 
         // Row 3: "End: N"
         var endSelected = (state.verseSelectMode == 2);
-        var endLabel = "End: " + state.endVerse;
-        drawRow(dc, width, ROW_3_Y, endLabel, endSelected);
+        drawRow(dc, safeLayout, row3Y, "End: " + state.endVerse, endSelected);
 
         // Bottom hint
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
+        dc.setColor(textColor, bgColor);
         var hint;
         if (state.verseSelectMode == 0) {
             hint = "OK=read, Back=back";
         } else {
             hint = "L/R=vs OK=read";
         }
+        var hintFont = Graphics.FONT_TINY;
+        if (fontSize == BibleLayout.FONT_TINY) {
+            hintFont = Graphics.FONT_TINY;
+        }
         dc.drawText(
             width / 2,
-            HINT_Y,
-            Graphics.FONT_TINY,
+            hintY,
+            hintFont,
             hint,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
@@ -81,24 +85,41 @@ class VerseSelectView extends Ui.View {
 
     private function drawRow(
         dc as Graphics.Dc,
-        width as Number,
+        layout as Dictionary,
         y as Number,
         text as String,
         isSelected as Boolean
     ) as Void {
+        var width = layout.get("screenWidth") as Number;
+        var marginX = layout.get("marginX") as Number;
+        var textColor = layout.get("textColor") as Number;
+        var bgColor = layout.get("bgColor") as Number;
+        var selectBg = layout.get("selectBg") as Number;
+        var selectText = layout.get("selectText") as Number;
+        var fontSize = layout.get("fontSize") as Number;
+
         if (isSelected) {
-            // Highlighted row: black background, white text
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            dc.setColor(selectBg, selectText);
             dc.fillRectangle(0, y - 10, width, LINE_HEIGHT);
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            dc.setColor(selectText, selectBg);
         } else {
-            dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
+            dc.setColor(textColor, bgColor);
         }
 
+        var font;
+        if (fontSize == BibleLayout.FONT_LARGE) {
+            font = Graphics.FONT_LARGE;
+        } else if (fontSize == BibleLayout.FONT_MEDIUM) {
+            font = Graphics.FONT_MEDIUM;
+        } else if (fontSize == BibleLayout.FONT_TINY) {
+            font = Graphics.FONT_TINY;
+        } else {
+            font = Graphics.FONT_SMALL;
+        }
         dc.drawText(
-            MARGIN_X,
+            marginX,
             y,
-            Graphics.FONT_SMALL,
+            font,
             text,
             Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER
         );

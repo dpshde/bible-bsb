@@ -3,51 +3,47 @@ import Toybox.Lang;
 using Toybox.WatchUi as Ui;
 
 class BookListView extends Ui.View {
-    // Layout constants
-    private const HEADER_HEIGHT = 14;
     private const LINE_HEIGHT = 14;
-    private const MARGIN_X = 4;
-    private const SCROLL_BAR_X = 172; // right edge on 176-wide screen
     private const SCROLL_BAR_WIDTH = 3;
+
+    var layout as Dictionary?;
 
     function initialize() {
         View.initialize();
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
+        layout = BibleLayout.computeLayout(dc);
+        var safeLayout = layout as Dictionary;
+
         var width = dc.getWidth();
         var height = dc.getHeight();
+        var marginX = safeLayout.get("marginX") as Number;
+        var textColor = safeLayout.get("textColor") as Number;
+        var bgColor = safeLayout.get("bgColor") as Number;
+        var selectBg = safeLayout.get("selectBg") as Number;
+        var selectText = safeLayout.get("selectText") as Number;
+        var fontSize = safeLayout.get("fontSize") as Number;
 
         // Clear background
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
+        dc.setColor(textColor, bgColor);
         dc.clear();
 
         // Draw header
-        drawHeader(dc, width);
-
-        // Draw divider line
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-        dc.drawLine(0, HEADER_HEIGHT, width, HEADER_HEIGHT);
+        BibleLayout.drawHeader(dc, safeLayout, buildHeaderText());
 
         // Get filtered books
         var app = getApp();
         var state = app.state;
-        var filterOpt = BibleBooks.getFilterOption(state.filterIndex);
         var filteredBooks = state.getFilteredBookIndices();
 
         if (filteredBooks.size() == 0) {
-            dc.drawText(
-                width / 2,
-                height / 2,
-                Graphics.FONT_SMALL,
-                "No books",
-                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-            );
+            BibleLayout.drawMessage(dc, safeLayout, "No books");
             return;
         }
 
         // Calculate visible range
-        var contentHeight = height - HEADER_HEIGHT - 2;
+        var contentHeight = height - BibleLayout.HEADER_HEIGHT - 2;
         var maxVisible = contentHeight / LINE_HEIGHT;
         if (maxVisible < 1) {
             maxVisible = 1;
@@ -70,23 +66,32 @@ class BookListView extends Ui.View {
             }
 
             var bookIndex = filteredBooks[bookListIdx] as Number;
-            var y = HEADER_HEIGHT + 2 + (i * LINE_HEIGHT);
+            var y = BibleLayout.HEADER_HEIGHT + 2 + (i * LINE_HEIGHT);
             var isSelected = (bookIndex == state.selectedBookIndex);
 
             if (isSelected) {
-                // Highlighted row: black background, white text
-                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+                dc.setColor(selectBg, selectText);
                 dc.fillRectangle(0, y, width, LINE_HEIGHT);
-                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+                dc.setColor(selectText, selectBg);
             } else {
-                dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
+                dc.setColor(textColor, bgColor);
             }
 
             var bookName = BibleBooks.getBookName(bookIndex);
+            var font;
+            if (fontSize == BibleLayout.FONT_LARGE) {
+                font = Graphics.FONT_LARGE;
+            } else if (fontSize == BibleLayout.FONT_MEDIUM) {
+                font = Graphics.FONT_MEDIUM;
+            } else if (fontSize == BibleLayout.FONT_TINY) {
+                font = Graphics.FONT_TINY;
+            } else {
+                font = Graphics.FONT_SMALL;
+            }
             dc.drawText(
-                MARGIN_X,
+                marginX,
                 y + (LINE_HEIGHT / 2) - 1,
-                Graphics.FONT_SMALL,
+                font,
                 bookName,
                 Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER
             );
@@ -94,40 +99,40 @@ class BookListView extends Ui.View {
 
         // Draw scroll indicator if needed
         if (totalBooks > maxVisible) {
-            drawScrollIndicator(dc, scroll, totalBooks, maxVisible, height);
+            drawScrollIndicator(dc, safeLayout, scroll, totalBooks, maxVisible, height);
         }
     }
 
-    private function drawHeader(dc as Graphics.Dc, width as Number) as Void {
+    private function buildHeaderText() as String {
         var app = getApp();
         var state = app.state;
         var filterOpt = BibleBooks.getFilterOption(state.filterIndex);
 
-        var headerText;
         if (filterOpt == null || filterOpt.length() == 0 || filterOpt.equals("All")) {
-            headerText = "< All >";
+            return "< All >";
         } else {
-            headerText = "< " + filterOpt + " >";
+            return "< " + filterOpt + " >";
         }
-
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-        dc.drawText(
-            width / 2,
-            HEADER_HEIGHT / 2 - 1,
-            Graphics.FONT_SMALL,
-            headerText,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-        );
     }
 
     private function drawScrollIndicator(
         dc as Graphics.Dc,
+        layout as Dictionary,
         scroll as Number,
         total as Number,
         maxVisible as Number,
         height as Number
     ) as Void {
-        var trackTop = HEADER_HEIGHT + 2;
+        var textColor = layout.get("textColor") as Number;
+        var bgColor = layout.get("bgColor") as Number;
+        var width = layout.get("screenWidth") as Number;
+        var marginX = layout.get("marginX") as Number;
+        var scrollBarX = width - marginX - SCROLL_BAR_WIDTH;
+        if (scrollBarX < 0) {
+            scrollBarX = 0;
+        }
+
+        var trackTop = BibleLayout.HEADER_HEIGHT + 2;
         var trackBottom = height - 2;
         var trackHeight = trackBottom - trackTop;
 
@@ -148,8 +153,8 @@ class BookListView extends Ui.View {
             thumbY = trackTop + (scroll * (trackHeight - thumbHeight) / scrollableRange);
         }
 
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-        dc.fillRectangle(SCROLL_BAR_X, thumbY, SCROLL_BAR_WIDTH, thumbHeight);
+        dc.setColor(textColor, bgColor);
+        dc.fillRectangle(scrollBarX, thumbY, SCROLL_BAR_WIDTH, thumbHeight);
     }
 
     private function getApp() as BibleApp {

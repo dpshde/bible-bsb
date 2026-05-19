@@ -5,10 +5,9 @@ using Toybox.System;
 using Toybox.Application;
 
 class CollectionView extends Ui.View {
-    private const HEADER_HEIGHT = 14;
     private const LINE_HEIGHT = 14;
-    private const MARGIN_X = 4;
 
+    var layout as Dictionary?;
     var collection as Array<Dictionary> = [] as Array<Dictionary>;
     var selectedIndex as Number = 0;
     var toastMessage as String = "";
@@ -42,23 +41,29 @@ class CollectionView extends Ui.View {
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
+        layout = BibleLayout.computeLayout(dc);
+        var safeLayout = layout as Dictionary;
+
         var width = dc.getWidth();
         var height = dc.getHeight();
+        var marginX = safeLayout.get("marginX") as Number;
+        var textColor = safeLayout.get("textColor") as Number;
+        var bgColor = safeLayout.get("bgColor") as Number;
+        var selectBg = safeLayout.get("selectBg") as Number;
+        var selectText = safeLayout.get("selectText") as Number;
+        var fontSize = safeLayout.get("fontSize") as Number;
 
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
+        dc.setColor(textColor, bgColor);
         dc.clear();
 
-        drawHeader(dc, width);
-
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-        dc.drawLine(0, HEADER_HEIGHT, width, HEADER_HEIGHT);
+        BibleLayout.drawHeader(dc, safeLayout, "Collection");
 
         if (collection == null || collection.size() == 0) {
-            drawEmptyState(dc, width, height);
+            drawEmptyState(dc, safeLayout, width, height);
             return;
         }
 
-        var contentHeight = height - HEADER_HEIGHT - 2;
+        var contentHeight = height - BibleLayout.HEADER_HEIGHT - 2;
         var maxVisible = contentHeight / LINE_HEIGHT;
         if (maxVisible < 1) {
             maxVisible = 1;
@@ -67,21 +72,33 @@ class CollectionView extends Ui.View {
         var total = collection.size();
         var scroll = computeScroll(selectedIndex, total, maxVisible);
 
+        // Font for rows
+        var rowFont;
+        if (fontSize == BibleLayout.FONT_LARGE) {
+            rowFont = Graphics.FONT_LARGE;
+        } else if (fontSize == BibleLayout.FONT_MEDIUM) {
+            rowFont = Graphics.FONT_MEDIUM;
+        } else if (fontSize == BibleLayout.FONT_TINY) {
+            rowFont = Graphics.FONT_TINY;
+        } else {
+            rowFont = Graphics.FONT_SMALL;
+        }
+
         for (var i = 0; i < maxVisible; i = i + 1) {
             var listIdx = scroll + i;
             if (listIdx >= total) {
                 break;
             }
 
-            var y = HEADER_HEIGHT + 2 + (i * LINE_HEIGHT);
+            var y = BibleLayout.HEADER_HEIGHT + 2 + (i * LINE_HEIGHT);
             var isSelected = (listIdx == selectedIndex);
 
             if (isSelected) {
-                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+                dc.setColor(selectBg, selectText);
                 dc.fillRectangle(0, y, width, LINE_HEIGHT);
-                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+                dc.setColor(selectText, selectBg);
             } else {
-                dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
+                dc.setColor(textColor, bgColor);
             }
 
             var entry = collection[listIdx] as Dictionary;
@@ -91,39 +108,41 @@ class CollectionView extends Ui.View {
             }
 
             dc.drawText(
-                MARGIN_X,
+                marginX,
                 y + (LINE_HEIGHT / 2) - 1,
-                Graphics.FONT_SMALL,
+                rowFont,
                 label,
                 Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER
             );
         }
 
         if (total > maxVisible) {
-            drawScrollIndicator(dc, scroll, total, maxVisible, height);
+            drawScrollIndicator(dc, safeLayout, scroll, total, maxVisible, height);
         }
 
-        drawToastIfActive(dc, width, height);
+        drawToastIfActive(dc, safeLayout, width, height);
     }
 
-    private function drawHeader(dc as Graphics.Dc, width as Number) as Void {
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-        dc.drawText(
-            width / 2,
-            HEADER_HEIGHT / 2 - 1,
-            Graphics.FONT_SMALL,
-            "Collection",
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-        );
-    }
-
-    private function drawEmptyState(dc as Graphics.Dc, width as Number, height as Number) as Void {
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
+    private function drawEmptyState(dc as Graphics.Dc, layout as Dictionary, width as Number, height as Number) as Void {
+        var textColor = layout.get("textColor") as Number;
+        var bgColor = layout.get("bgColor") as Number;
+        dc.setColor(textColor, bgColor);
         var msg = WatchUi.loadResource(Rez.Strings.NoSavedPassages) as String;
+        var fontSize = layout.get("fontSize") as Number;
+        var font;
+        if (fontSize == BibleLayout.FONT_LARGE) {
+            font = Graphics.FONT_LARGE;
+        } else if (fontSize == BibleLayout.FONT_MEDIUM) {
+            font = Graphics.FONT_MEDIUM;
+        } else if (fontSize == BibleLayout.FONT_TINY) {
+            font = Graphics.FONT_TINY;
+        } else {
+            font = Graphics.FONT_SMALL;
+        }
         dc.drawText(
             width / 2,
             height / 2,
-            Graphics.FONT_SMALL,
+            font,
             msg,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
@@ -145,12 +164,22 @@ class CollectionView extends Ui.View {
 
     private function drawScrollIndicator(
         dc as Graphics.Dc,
+        layout as Dictionary,
         scroll as Number,
         total as Number,
         maxVisible as Number,
         height as Number
     ) as Void {
-        var trackTop = HEADER_HEIGHT + 2;
+        var textColor = layout.get("textColor") as Number;
+        var bgColor = layout.get("bgColor") as Number;
+        var width = layout.get("screenWidth") as Number;
+        var marginX = layout.get("marginX") as Number;
+        var scrollBarX = width - marginX - 3;
+        if (scrollBarX < 0) {
+            scrollBarX = 0;
+        }
+
+        var trackTop = BibleLayout.HEADER_HEIGHT + 2;
         var trackBottom = height - 2;
         var trackHeight = trackBottom - trackTop;
 
@@ -171,11 +200,11 @@ class CollectionView extends Ui.View {
             thumbY = trackTop + (scroll * (trackHeight - thumbHeight) / scrollableRange);
         }
 
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-        dc.fillRectangle(172, thumbY, 3, thumbHeight);
+        dc.setColor(textColor, bgColor);
+        dc.fillRectangle(scrollBarX, thumbY, 3, thumbHeight);
     }
 
-    private function drawToastIfActive(dc as Graphics.Dc, width as Number, height as Number) as Void {
+    private function drawToastIfActive(dc as Graphics.Dc, layout as Dictionary, width as Number, height as Number) as Void {
         if (toastMessage == null || toastMessage.length() == 0) {
             return;
         }
@@ -183,9 +212,13 @@ class CollectionView extends Ui.View {
             return;
         }
         var toastY = height - 24;
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
+        var textColor = layout.get("textColor") as Number;
+        var bgColor = layout.get("bgColor") as Number;
+        var selectBg = layout.get("selectBg") as Number;
+        var selectText = layout.get("selectText") as Number;
+        dc.setColor(selectBg, selectBg);
         dc.fillRectangle(8, toastY, width - 16, 16);
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        dc.setColor(selectText, selectBg);
         dc.drawText(
             width / 2,
             toastY + 8,

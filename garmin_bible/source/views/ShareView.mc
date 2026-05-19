@@ -63,7 +63,7 @@ class ShareView extends Ui.View {
             );
         }
 
-        var layout = BibleRenderer.computeLayout(dc);
+        var layout = BibleLayout.computeLayout(dc);
         var bgColor = layout.get("bgColor") as Number;
         var textColor = layout.get("textColor") as Number;
         var fontSize = layout.get("fontSize") as Number;
@@ -73,11 +73,7 @@ class ShareView extends Ui.View {
         dc.clear();
 
         if (isLoading) {
-            // Show loading indicator
-            BibleRenderer.drawMessageText(
-                dc, fontSize, width / 2, height / 2 - 10,
-                WatchUi.loadResource(Rez.Strings.Loading) as String
-            );
+            BibleLayout.drawMessage(dc, layout, WatchUi.loadResource(Rez.Strings.Loading) as String);
             return;
         }
 
@@ -96,29 +92,28 @@ class ShareView extends Ui.View {
             var urlY = y + bitmapH + 4;
             if (urlY + 10 < height) {
                 dc.setColor(textColor, bgColor);
-                // Truncate URL if too wide
                 var displayUrl = truncateUrl(url, width - 8, fontSize);
-                BibleRenderer.drawContentText(dc, fontSize, 4, urlY, displayUrl);
+                var font;
+                if (fontSize == BibleLayout.FONT_LARGE) {
+                    font = Graphics.FONT_LARGE;
+                } else if (fontSize == BibleLayout.FONT_MEDIUM) {
+                    font = Graphics.FONT_MEDIUM;
+                } else if (fontSize == BibleLayout.FONT_TINY) {
+                    font = Graphics.FONT_TINY;
+                } else {
+                    font = Graphics.FONT_SMALL;
+                }
+                dc.drawText(4, urlY, font, displayUrl, Graphics.TEXT_JUSTIFY_LEFT);
             }
         } else {
             // Fallback: no QR bitmap — show URL text with hint
             var hint = WatchUi.loadResource(Rez.Strings.ScanWithPhone) as String;
-
-            // Draw hint centered in upper half
-            BibleRenderer.drawMessageText(
-                dc, fontSize, width / 2, height / 2 - 20, hint
-            );
-
-            // Draw URL text centered below hint
-            var displayUrl = truncateUrl(url, width - 8, fontSize);
-            BibleRenderer.drawMessageText(
-                dc, fontSize, width / 2, height / 2 + 6, displayUrl
-            );
+            BibleLayout.drawMessage(dc, layout, hint + "\n" + url);
         }
     }
 
     private function truncateUrl(original as String, maxWidthPx as Number, fontSize as Number) as String {
-        var charWidth = BibleRenderer.getCharWidthForFontSize(fontSize);
+        var charWidth = BibleLayout.getCharWidthForFontSize(fontSize);
         var maxChars = maxWidthPx / charWidth;
         if (maxChars < 1) {
             maxChars = 1;

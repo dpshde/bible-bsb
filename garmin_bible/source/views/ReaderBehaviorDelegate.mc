@@ -107,6 +107,33 @@ class ReaderBehaviorDelegate extends Ui.BehaviorDelegate {
         Ui.requestUpdate();
     }
 
+    // Tap handler for touch devices: open action menu (short tap equivalent)
+    function onTap(tapEvent as Ui.ClickEvent) as Boolean {
+        if (!BibleLayout.hasTouchScreen()) {
+            return false;
+        }
+        openActionMenu();
+        return true;
+    }
+
+    // Swipe up handler for touch devices: scroll up
+    function onSwipe(swipeEvent as Ui.SwipeEvent) as Boolean {
+        if (!BibleLayout.hasTouchScreen()) {
+            return false;
+        }
+        var direction = swipeEvent.getDirection();
+        if (direction == Ui.SWIPE_UP) {
+            return onNextPage();
+        } else if (direction == Ui.SWIPE_DOWN) {
+            return onPreviousPage();
+        } else if (direction == Ui.SWIPE_LEFT) {
+            return onNextMode();
+        } else if (direction == Ui.SWIPE_RIGHT) {
+            return onPreviousMode();
+        }
+        return false;
+    }
+
     // Back button: return to previous view (VerseSelect or Collection)
     function onBack() as Boolean {
         var app = Application.getApp() as BibleApp;

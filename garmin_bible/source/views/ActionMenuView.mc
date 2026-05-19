@@ -27,7 +27,7 @@ class ActionMenuView extends Ui.View {
         var state = app.state;
 
         // Compute layout
-        var layout = BibleRenderer.computeLayout(dc);
+        var layout = BibleLayout.computeLayout(dc);
 
         // First, draw the parent reader view content dimmed behind us
         drawParentBehind(dc, state, layout);
