@@ -45,24 +45,6 @@ void bible_word_wrap(
     uint16_t* out_count,
     uint16_t max_lines);
 
-/**
- * Wrap an array of verses into display lines.
- *
- * Convenience wrapper that calls bible_word_wrap for each verse.
- *
- * @param verses     array of BibleVerse
- * @param count      number of verses
- * @param out_lines  output array (caller-allocated)
- * @param out_count  [in/out] current line count; incremented
- * @param max_lines  capacity of out_lines array
- */
-void bible_wrap_verses(
-    const BibleVerse* verses,
-    uint16_t count,
-    BibleLine* out_lines,
-    uint16_t* out_count,
-    uint16_t max_lines);
-
 /* ============================================================================
  * Scroll indicator
  * ============================================================================ */

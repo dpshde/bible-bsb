@@ -432,6 +432,18 @@ static void build_display_ref(const BiblePassage* passage, char* out, size_t out
     }
 }
 
+/* Reload display lines for the current passage metadata.
+ * Used after heap-defrag operations during save. */
+static bool bible_reload_passage_lines(BibleAppState* state) {
+    state->line_count = 0;
+    return bible_load_chapter(
+        state->passage.book_index,
+        state->passage.chapter,
+        state->passage.start_verse,
+        state->passage.end_verse,
+        state);
+}
+
 void bible_save_passage(BibleAppState* state) {
     furi_check(state);
 
@@ -459,14 +471,7 @@ void bible_save_passage(BibleAppState* state) {
     for(uint8_t i = 0; i < state->collection_count; i++) {
         if(strcmp(state->collection[i].scripture_ref, new_ref) == 0) {
             /* Duplicate found — reload lines and show toast */
-            state->line_count = 0;
-            bible_lines_ensure(state, BIBLE_MAX_LINES);
-            bible_wrap_verses(
-                state->passage.verses,
-                state->passage.verse_count,
-                state->lines,
-                &state->line_count,
-                state->lines_capacity);
+            bible_reload_passage_lines(state);
             state->scroll_offset = saved_scroll;
             bible_toast_set(&state->toast, "Already saved");
             return;
@@ -475,14 +480,7 @@ void bible_save_passage(BibleAppState* state) {
 
     /* 6. Check capacity */
     if(state->collection_count >= BIBLE_MAX_COLLECTION) {
-        state->line_count = 0;
-        bible_lines_ensure(state, BIBLE_MAX_LINES);
-        bible_wrap_verses(
-            state->passage.verses,
-            state->passage.verse_count,
-            state->lines,
-            &state->line_count,
-            state->lines_capacity);
+        bible_reload_passage_lines(state);
         state->scroll_offset = saved_scroll;
         bible_toast_set(&state->toast, "Collection full");
         return;
@@ -494,14 +492,7 @@ void bible_save_passage(BibleAppState* state) {
 
     /* 8. Ensure collection capacity and append new entry */
     if(!bible_collection_ensure(state, state->collection_count + 1)) {
-        state->line_count = 0;
-        bible_lines_ensure(state, BIBLE_MAX_LINES);
-        bible_wrap_verses(
-            state->passage.verses,
-            state->passage.verse_count,
-            state->lines,
-            &state->line_count,
-            state->lines_capacity);
+        bible_reload_passage_lines(state);
         state->scroll_offset = saved_scroll;
         bible_toast_set(&state->toast, "Save failed");
         return;
@@ -524,14 +515,7 @@ void bible_save_passage(BibleAppState* state) {
     bool saved = bible_storage_save_collection(state);
 
     /* 10. Reload lines (restore reader display) */
-    state->line_count = 0;
-    bible_lines_ensure(state, BIBLE_MAX_LINES);
-    bible_wrap_verses(
-        state->passage.verses,
-        state->passage.verse_count,
-        state->lines,
-        &state->line_count,
-        state->lines_capacity);
+    bible_reload_passage_lines(state);
     state->scroll_offset = saved_scroll;
 
     /* 11. Toast */
@@ -558,9 +542,9 @@ bool bible_storage_load_verses_for_entry(BibleAppState* state, uint8_t entry_ind
     uint16_t saved_scroll = state->scroll_offset;
     state->line_count = 0;
 
-    /* 2. Load the chapter from SD */
+    /* 2. Load the chapter from SD (directly into lines, no verse array) */
     bool loaded = bible_load_chapter(
-        e->book_index, e->chapter, e->start_verse, e->end_verse, &state->passage);
+        e->book_index, e->chapter, e->start_verse, e->end_verse, state);
 
     if(!loaded) {
         /* Restore previous display state if possible */
@@ -568,17 +552,7 @@ bool bible_storage_load_verses_for_entry(BibleAppState* state, uint8_t entry_ind
         return false;
     }
 
-    /* 3. Wrap verses into lines */
-    state->line_count = 0;
-    bible_lines_ensure(state, BIBLE_MAX_LINES);
-    bible_wrap_verses(
-        state->passage.verses,
-        state->passage.verse_count,
-        state->lines,
-        &state->line_count,
-        state->lines_capacity);
-
-    /* 4. Set navigation state */
+    /* 3. Set navigation state */
     state->selected_book = e->book_index;
     state->selected_chapter = e->chapter;
     state->selected_start_verse = e->start_verse;
@@ -592,6 +566,32 @@ bool bible_storage_load_verses_for_entry(BibleAppState* state, uint8_t entry_ind
 /* ============================================================================
  * build_kindled_json — build NFC export JSON into caller-provided buffer
  * ============================================================================ */
+
+static bool json_buf_append(char* buf, size_t buf_len, size_t* pos, const char* s);
+static bool json_buf_append_escaped(char* buf, size_t buf_len, size_t* pos, const char* s);
+
+typedef struct {
+    char* buf;
+    size_t len;
+    size_t* pos;
+    bool first_verse;
+} EmitCtx;
+
+static bool emit_verse_cb(uint16_t verse_num, const char* text, void* ctx) {
+    EmitCtx* ectx = (EmitCtx*)ctx;
+    char tmp[64];
+
+    if(!ectx->first_verse) {
+        if(!json_buf_append(ectx->buf, ectx->len, ectx->pos, ",")) return false;
+    }
+    ectx->first_verse = false;
+
+    snprintf(tmp, sizeof(tmp), "{\"number\":%u,\"text\":\"", (unsigned int)verse_num);
+    if(!json_buf_append(ectx->buf, ectx->len, ectx->pos, tmp)) return false;
+    if(!json_buf_append_escaped(ectx->buf, ectx->len, ectx->pos, text)) return false;
+    if(!json_buf_append(ectx->buf, ectx->len, ectx->pos, "\"}")) return false;
+    return true;
+}
 
 static bool json_buf_append(char* buf, size_t buf_len, size_t* pos, const char* s) {
     size_t s_len = strlen(s);
@@ -666,9 +666,8 @@ bool bible_storage_build_kindled_json(BibleAppState* state, char* out_buf, size_
            "\"data\":{\"blocks\":["))
         return false;
 
-    /* Save original passage so we can use state->passage as scratch area.
-     * We only save/restore passage; lines are not touched by this function
-     * (caller is on Collection screen, not Reader). */
+    /* Save original passage metadata so we can restore it after using the scanner.
+     * Lines are not touched by this function (caller is on Collection screen). */
     BiblePassage saved_passage = state->passage;
 
     for(uint8_t i = 0; i < state->collection_count; i++) {
@@ -679,13 +678,6 @@ bool bible_storage_build_kindled_json(BibleAppState* state, char* out_buf, size_
         }
 
         const BibleCollectionEntry* e = &state->collection[i];
-
-        /* Free any previous scratch verses before loading next entry */
-        bible_passage_free_verses(&state->passage);
-
-        /* Load verses for this entry to include text */
-        bool loaded = bible_load_chapter(
-            e->book_index, e->chapter, e->start_verse, e->end_verse, &state->passage);
 
         char block_buf[256];
         snprintf(
@@ -721,29 +713,21 @@ bool bible_storage_build_kindled_json(BibleAppState* state, char* out_buf, size_
             goto build_fail;
         }
 
-        if(loaded) {
-            for(uint16_t v = 0; v < state->passage.verse_count; v++) {
-                if(v > 0) {
-                    if(!json_buf_append(out_buf, out_len, &pos, ",")) {
-                        goto build_fail;
-                    }
-                }
-                snprintf(
-                    block_buf,
-                    sizeof(block_buf),
-                    "{\"number\":%u,\"text\":\"",
-                    (unsigned int)state->passage.verses[v].number);
-                if(!json_buf_append(out_buf, out_len, &pos, block_buf)) {
-                    goto build_fail;
-                }
-                if(!json_buf_append_escaped(
-                       out_buf, out_len, &pos, state->passage.verses[v].text)) {
-                    goto build_fail;
-                }
-                if(!json_buf_append(out_buf, out_len, &pos, "\"}")) {
-                    goto build_fail;
-                }
-            }
+        /* Stream verses from SD via callback — no RAM verse array */
+        typedef struct {
+            char* buf;
+            size_t len;
+            size_t* pos;
+            bool first_verse;
+        } EmitCtx;
+
+        BibleVerseCallback emit_verse = &emit_verse_cb;
+        EmitCtx cb_ctx = {out_buf, out_len, &pos, true};
+        bool scanned = bible_load_chapter_verse_scan(
+            e->book_index, e->chapter, e->start_verse, e->end_verse, emit_verse, &cb_ctx);
+
+        if(!scanned) {
+            /* No verses scanned — write empty array (already opened [) */
         }
 
         if(!json_buf_append(out_buf, out_len, &pos, "],\"source\":\"manual\",\"captured_at\":\"")) {
@@ -771,14 +755,12 @@ bool bible_storage_build_kindled_json(BibleAppState* state, char* out_buf, size_
         goto build_fail;
     }
 
-    /* Restore original passage state */
-    bible_passage_free_verses(&state->passage);
+    /* Restore original passage metadata */
     state->passage = saved_passage;
     return true;
 
 build_fail:
-    /* Restore original passage state on failure too */
-    bible_passage_free_verses(&state->passage);
+    /* Restore original passage metadata on failure too */
     state->passage = saved_passage;
     return false;
 }

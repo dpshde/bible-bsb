@@ -188,24 +188,10 @@ bool bible_bsb_view_verse_select_input(InputEvent* event, void* ctx) {
         uint16_t start_verse = (state->verse_select_mode == 0) ? 0 : state->selected_start_verse;
         uint16_t end_verse = (state->verse_select_mode == 0) ? 0 : state->selected_end_verse;
 
-        BiblePassage* passage = &state->passage;
-        bible_passage_free_verses(passage);
-        memset(passage, 0, sizeof(BiblePassage));
-
         bool loaded = bible_load_chapter(
-            state->selected_book, state->selected_chapter, start_verse, end_verse, passage);
+            state->selected_book, state->selected_chapter, start_verse, end_verse, state);
 
-        if(loaded && passage->verse_count > 0) {
-            /* Wrap verses into display lines */
-            state->line_count = 0;
-            bible_lines_ensure(state, BIBLE_MAX_LINES);
-            bible_wrap_verses(
-                passage->verses,
-                passage->verse_count,
-                state->lines,
-                &state->line_count,
-                state->lines_capacity);
-
+        if(loaded && state->passage.verse_count > 0) {
             state->scroll_offset = 0;
             state->reader_came_from_collection = false;
             scene_manager_next_scene(app->scene_manager, BibleSceneReader);

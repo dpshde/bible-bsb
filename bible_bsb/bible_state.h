@@ -64,15 +64,7 @@ typedef struct {
 } BibleLine;
 
 /* ============================================================================
- * Verse (loaded from JSON)
- * ============================================================================ */
-typedef struct {
-    uint16_t number;
-    char text[512];
-} BibleVerse;
-
-/* ============================================================================
- * Passage (currently loaded chapter data)
+ * Passage (currently loaded chapter metadata — verses live on SD, not RAM)
  * ============================================================================ */
 typedef struct {
     uint8_t book_index; /* 0-65 */
@@ -80,7 +72,6 @@ typedef struct {
     uint16_t start_verse;
     uint16_t end_verse;
     uint16_t verse_count;
-    BibleVerse* verses; /* dynamically allocated, NULL if no verses loaded */
 } BiblePassage;
 
 /* ============================================================================
@@ -142,15 +133,6 @@ typedef struct BibleAppState {
 /* ============================================================================
  * Dynamic memory helpers
  * ============================================================================ */
-
-/** Free verses inside a passage (does not free the passage struct itself). */
-static inline void bible_passage_free_verses(BiblePassage* passage) {
-    if(passage && passage->verses) {
-        free(passage->verses);
-        passage->verses = NULL;
-        passage->verse_count = 0;
-    }
-}
 
 /** Ensure lines array has at least `capacity` slots. Grows incrementally (max ~1KB per realloc). */
 static inline bool bible_lines_ensure(BibleAppState* state, uint16_t capacity) {
@@ -249,7 +231,6 @@ static inline void bible_app_state_init(BibleAppState* state) {
 /** Free all dynamically allocated memory in the state. Call before free(state). */
 static inline void bible_app_state_deinit(BibleAppState* state) {
     furi_check(state);
-    bible_passage_free_verses(&state->passage);
     bible_lines_free(state);
     bible_collection_free(state);
 }

@@ -151,31 +151,6 @@ void bible_word_wrap(
 }
 
 /* ============================================================================
- * Wrap an array of verses
- * ============================================================================ */
-
-void bible_wrap_verses(
-    const BibleVerse* verses,
-    uint16_t count,
-    BibleLine* out_lines,
-    uint16_t* out_count,
-    uint16_t max_lines) {
-    furi_check(verses);
-    furi_check(out_lines);
-    furi_check(out_count);
-
-    for(uint16_t i = 0; i < count; i++) {
-        bible_word_wrap(
-            verses[i].text,
-            verses[i].number,
-            BIBLE_MAX_CHARS_PER_LINE,
-            out_lines,
-            out_count,
-            max_lines);
-    }
-}
-
-/* ============================================================================
  * Scroll indicator — 2px-wide thumb at x=126
  * ============================================================================ */
 

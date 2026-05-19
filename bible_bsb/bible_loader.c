@@ -1,12 +1,13 @@
 #include "bible_loader.h"
 #include "bible_books.h"
+#include "bible_renderer.h"
 
 #include <furi.h>
 #include <storage/storage.h>
 #include <string.h>
 
 /* ============================================================================
- * Chapter loader — read JSON from SD in 1KB chunks, extract verses
+ * Chapter loader — single-pass incremental parsing, NO verse array in RAM
  * ============================================================================ */
 
 #define BSB_PATH_PREFIX "/ext/apps_data/kindled_spark/bsb/"
@@ -60,35 +61,113 @@ static void bible_sanitize_text(char* text, size_t max_len) {
     }
 }
 
-/* Minimal JSON parser: scan for "n": and "t":" pairs.
- * json_len is the byte length of the JSON buffer (not counting null terminator).
- *
- * If out_verses is NULL, this function only counts matching verses (pass 1).
- * If out_verses is non-NULL, it fills up to max_verses entries (pass 2).
+/* ============================================================================
+ * Shared helpers: build path and read file into a heap buffer
+ * ============================================================================ */
+
+static bool bible_build_path(uint8_t book_index, uint16_t chapter, char* path, size_t path_len) {
+    const char* osis = OSIS_BOOK_CODES[book_index];
+    if(osis == NULL || chapter == 0) {
+        return false;
+    }
+
+    snprintf(path, path_len, BSB_PATH_PREFIX "%s/%u.json", osis, (unsigned int)chapter);
+
+    /* Convert OSIS code to lowercase in-place */
+    for(size_t i = strlen(BSB_PATH_PREFIX); path[i] != '/' && path[i] != '\0'; i++) {
+        if(path[i] >= 'A' && path[i] <= 'Z') {
+            path[i] = path[i] - 'A' + 'a';
+        }
+    }
+    return true;
+}
+
+/* Read chapter JSON from SD into a dynamically-grown buffer.
+ * Returns true on success; caller must free(*out_buf).
+ * Returns false on error; *out_buf is freed automatically.
  */
-static uint16_t bible_parse_verses(
+static bool bible_read_chapter_file(const char* path, uint8_t** out_buf, size_t* out_len) {
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+    File* file = storage_file_alloc(storage);
+    bool ok = storage_file_open(file, path, FSAM_READ, FSOM_OPEN_EXISTING);
+
+    if(!ok) {
+        storage_file_close(file);
+        storage_file_free(file);
+        furi_record_close(RECORD_STORAGE);
+        return false;
+    }
+
+    uint8_t* buf = NULL;
+    size_t total = 0;
+    size_t capacity = 0;
+
+    /* Use a static chunk buffer to keep stack usage low */
+    static uint8_t chunk[BIBLE_READ_CHUNK];
+
+    while(total < BIBLE_MAX_FILE_SIZE) {
+        size_t n = storage_file_read(file, chunk, sizeof(chunk));
+        if(n == 0) break;
+
+        if(total + n > BIBLE_MAX_FILE_SIZE) {
+            n = BIBLE_MAX_FILE_SIZE - total;
+        }
+
+        if(total + n > capacity) {
+            size_t new_cap = capacity + BIBLE_READ_CHUNK;
+            if(new_cap > BIBLE_MAX_FILE_SIZE) {
+                new_cap = BIBLE_MAX_FILE_SIZE;
+            }
+            uint8_t* new_buf = realloc(buf, new_cap + 1);
+            if(!new_buf) break;
+            buf = new_buf;
+            capacity = new_cap;
+        }
+
+        memcpy(buf + total, chunk, n);
+        total += n;
+    }
+
+    storage_file_close(file);
+    storage_file_free(file);
+    furi_record_close(RECORD_STORAGE);
+
+    if(total == 0 || buf == NULL) {
+        free(buf);
+        return false;
+    }
+
+    buf[total] = '\0';
+    *out_buf = buf;
+    *out_len = total;
+    return true;
+}
+
+/* ============================================================================
+ * Incremental JSON verse scanner: calls a callback for each matching verse.
+ * Only ONE verse's text is in memory at a time.
+ * ============================================================================ */
+
+static bool bible_scan_verses_from_json(
     const char* json,
     size_t json_len,
     uint16_t start_verse,
     uint16_t end_verse,
-    BibleVerse* out_verses,
-    uint16_t max_verses) {
+    BibleVerseCallback callback,
+    void* ctx) {
     const char* p = json;
     uint16_t count = 0;
 
-    while(*p != '\0' && (out_verses == NULL || count < max_verses)) {
-        /* Bounds-check before looking for "n": (need 4 bytes ahead) */
+    while(*p != '\0') {
+        /* Look for "n": */
         size_t offset = (size_t)(p - json);
         if(offset + 4 > json_len) break;
 
-        /* Look for "n": */
         if(*p == '"' && *(p + 1) == 'n' && *(p + 2) == '"' && *(p + 3) == ':') {
             p += 4;
-            /* Skip whitespace */
             while(*p == ' ' || *p == '\t')
                 p++;
 
-            /* Parse verse number */
             uint16_t verse_num = 0;
             while(*p >= '0' && *p <= '9') {
                 verse_num = verse_num * 10 + (*p - '0');
@@ -104,7 +183,7 @@ static uint16_t bible_parse_verses(
                    *(p + 4) == '"') {
                     p += 5;
 
-                    /* Extract text until closing quote */
+                    /* Extract text into a stack buffer — ONE verse at a time */
                     char text_buf[512];
                     size_t text_len = 0;
                     bool escaped = false;
@@ -132,15 +211,14 @@ static uint16_t bible_parse_verses(
                     }
                     text_buf[text_len] = '\0';
 
-                    /* Apply filter and sanitization */
-                    if(start_verse == 0 || (verse_num >= start_verse && verse_num <= end_verse)) {
-                        if(out_verses != NULL) {
-                            out_verses[count].number = verse_num;
-                            bible_sanitize_text(text_buf, 511);
-                            strlcpy(
-                                out_verses[count].text, text_buf, sizeof(out_verses[count].text));
-                        }
+                    /* Apply verse range filter */
+                    if(start_verse == 0 ||
+                       (verse_num >= start_verse && verse_num <= end_verse)) {
+                        bible_sanitize_text(text_buf, 511);
                         count++;
+                        if(!callback(verse_num, text_buf, ctx)) {
+                            return true; /* caller requested early stop */
+                        }
                     }
                     break;
                 }
@@ -151,119 +229,125 @@ static uint16_t bible_parse_verses(
         }
     }
 
-    return count;
+    return count > 0;
 }
+
+/* ============================================================================
+ * Context structure for bible_load_chapter callback
+ * ============================================================================ */
+
+typedef struct {
+    BibleAppState* state;
+    uint16_t lines_before; /* snapshot of line_count before loading */
+} WrapContext;
+
+static bool bible_wrap_callback(uint16_t verse_num, const char* text, void* ctx) {
+    WrapContext* wctx = (WrapContext*)ctx;
+    BibleAppState* state = wctx->state;
+
+    /* Ensure lines array has enough capacity */
+    if(state->line_count >= state->lines_capacity) {
+        if(!bible_lines_ensure(state, state->line_count + 15)) {
+            return false; /* OOM — stop scanning */
+        }
+    }
+
+    /* Wrap this verse into lines, writing directly into state->lines */
+    bible_word_wrap(
+        text,
+        verse_num,
+        BIBLE_MAX_CHARS_PER_LINE,
+        state->lines,
+        &state->line_count,
+        state->lines_capacity);
+
+    return true;
+}
+
+/* ============================================================================
+ * bible_load_chapter — single pass, no verse array in RAM
+ * ============================================================================ */
 
 bool bible_load_chapter(
     uint8_t book_index,
     uint16_t chapter,
     uint16_t start_verse,
     uint16_t end_verse,
-    BiblePassage* out_passage) {
-    furi_check(out_passage);
+    BibleAppState* state) {
+    furi_check(state);
 
-    const char* osis = OSIS_BOOK_CODES[book_index];
-    if(osis == NULL || chapter == 0) {
-        return false;
-    }
-
-    /* Build path: /ext/apps_data/kindled_spark/bsb/{osis_lower}/{chapter}.json */
     char path[128];
-    snprintf(path, sizeof(path), BSB_PATH_PREFIX "%s/%u.json", osis, (unsigned int)chapter);
-
-    /* Convert OSIS code to lowercase in-place */
-    for(size_t i = strlen(BSB_PATH_PREFIX); path[i] != '/' && path[i] != '\0'; i++) {
-        if(path[i] >= 'A' && path[i] <= 'Z') {
-            path[i] = path[i] - 'A' + 'a';
-        }
-    }
-
-    Storage* storage = furi_record_open(RECORD_STORAGE);
-    File* file = storage_file_alloc(storage);
-    bool ok = storage_file_open(file, path, FSAM_READ, FSOM_OPEN_EXISTING);
-
-    if(!ok) {
-        storage_file_close(file);
-        storage_file_free(file);
-        furi_record_close(RECORD_STORAGE);
+    if(!bible_build_path(book_index, chapter, path, sizeof(path))) {
         return false;
     }
 
-    /* Read file in 1KB chunks into dynamically grown buffer (max 20KB) */
-    uint8_t chunk[BIBLE_READ_CHUNK];
+    /* Read JSON file into a temporary buffer */
     uint8_t* buf = NULL;
     size_t total = 0;
-    size_t capacity = 0;
-
-    while(total < BIBLE_MAX_FILE_SIZE) {
-        size_t n = storage_file_read(file, chunk, sizeof(chunk));
-        if(n == 0) break;
-
-        /* Clamp so total never exceeds max file size */
-        if(total + n > BIBLE_MAX_FILE_SIZE) {
-            n = BIBLE_MAX_FILE_SIZE - total;
-        }
-
-        if(total + n > capacity) {
-            size_t new_cap = capacity + BIBLE_READ_CHUNK;
-            if(new_cap > BIBLE_MAX_FILE_SIZE) {
-                new_cap = BIBLE_MAX_FILE_SIZE;
-            }
-            /* +1 ensures room for null terminator without extra realloc */
-            uint8_t* new_buf = realloc(buf, new_cap + 1);
-            if(!new_buf) break;
-            buf = new_buf;
-            capacity = new_cap;
-        }
-
-        memcpy(buf + total, chunk, n);
-        total += n;
-    }
-
-    storage_file_close(file);
-    storage_file_free(file);
-    furi_record_close(RECORD_STORAGE);
-
-    if(total == 0 || buf == NULL) {
-        free(buf);
+    if(!bible_read_chapter_file(path, &buf, &total)) {
         return false;
     }
 
-    /* Null-terminate — capacity always has +1 headroom from realloc above */
-    buf[total] = '\0';
+    /* Clear previous lines and passage */
+    state->line_count = 0;
+    memset(&state->passage, 0, sizeof(BiblePassage));
 
-    /* Two-pass parse: first count matching verses, then allocate, then fill. */
-    uint16_t verse_count = bible_parse_verses(
-        (const char*)buf, total, start_verse, end_verse, NULL, BIBLE_MAX_VERSES);
+    WrapContext ctx = {.state = state, .lines_before = 0};
 
-    if(verse_count == 0) {
-        free(buf);
-        return false;
-    }
-
-    /* Free any previously allocated verses */
-    if(out_passage->verses) {
-        free(out_passage->verses);
-        out_passage->verses = NULL;
-    }
-
-    /* Allocate exactly the number of verses we need */
-    out_passage->verses = malloc(verse_count * sizeof(BibleVerse));
-    if(!out_passage->verses) {
-        free(buf);
-        return false;
-    }
-
-    /* Second pass: fill the allocated array */
-    bible_parse_verses(
-        (const char*)buf, total, start_verse, end_verse, out_passage->verses, verse_count);
+    /* Scan verses and wrap each one into lines immediately */
+    bool ok = bible_scan_verses_from_json(
+        (const char*)buf, total, start_verse, end_verse, bible_wrap_callback, &ctx);
 
     free(buf);
 
-    out_passage->book_index = book_index;
-    out_passage->chapter = chapter;
-    out_passage->start_verse = start_verse;
-    out_passage->end_verse = end_verse;
-    out_passage->verse_count = verse_count;
+    if(!ok || state->line_count == 0) {
+        state->line_count = 0;
+        return false;
+    }
+
+    /* Populate passage metadata */
+    state->passage.book_index = book_index;
+    state->passage.chapter = chapter;
+    state->passage.start_verse = start_verse;
+    state->passage.end_verse = end_verse;
+
+    /* Derive verse_count from the highest verse_number seen in lines */
+    uint16_t max_verse = 0;
+    for(uint16_t i = 0; i < state->line_count; i++) {
+        if(state->lines[i].verse_number > max_verse) {
+            max_verse = state->lines[i].verse_number;
+        }
+    }
+    state->passage.verse_count = max_verse;
+
     return true;
+}
+
+/* ============================================================================
+ * bible_load_chapter_verse_scan — stream verses via callback (no RAM storage)
+ * ============================================================================ */
+
+bool bible_load_chapter_verse_scan(
+    uint8_t book_index,
+    uint16_t chapter,
+    uint16_t start_verse,
+    uint16_t end_verse,
+    BibleVerseCallback callback,
+    void* ctx) {
+    char path[128];
+    if(!bible_build_path(book_index, chapter, path, sizeof(path))) {
+        return false;
+    }
+
+    uint8_t* buf = NULL;
+    size_t total = 0;
+    if(!bible_read_chapter_file(path, &buf, &total)) {
+        return false;
+    }
+
+    bool ok = bible_scan_verses_from_json(
+        (const char*)buf, total, start_verse, end_verse, callback, ctx);
+
+    free(buf);
+    return ok;
 }
