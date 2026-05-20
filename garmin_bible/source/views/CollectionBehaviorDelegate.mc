@@ -56,8 +56,15 @@ class CollectionBehaviorDelegate extends Ui.BehaviorDelegate {
     }
 
     // Enter released: decide short vs long press
+    // Wrap-around guard: if System.getTimer() wrapped (current < pressTime),
+    // elapsed appears negative in signed arithmetic; treat as long press.
+    // This is an acceptable edge case (wrap occurs every ~49.7 days).
     function onSelectUp() as Boolean {
-        var elapsed = System.getTimer() - selectPressTime;
+        var currentTime = System.getTimer();
+        var elapsed = currentTime - selectPressTime;
+        if (currentTime < selectPressTime) {
+            elapsed = LONG_PRESS_MS;
+        }
         if (elapsed >= LONG_PRESS_MS) {
             isLongPress = true;
             handleDelete();

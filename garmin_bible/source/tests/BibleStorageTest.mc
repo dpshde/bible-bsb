@@ -125,7 +125,7 @@ class BibleStorageTest {
         clearStorage();
         var entry = makeTestEntry("gen.1.1", "Genesis 1:1");
         var saved = BibleStorage.saveEntry(entry);
-        if (!saved) {
+        if (saved != BibleStorage.SAVE_STATUS_SAVED) {
             return false;
         }
         var loaded = BibleStorage.loadAll();
@@ -175,7 +175,9 @@ class BibleStorageTest {
         var entry = makeTestEntry("jhn.3.16", "John 3:16");
         var saved1 = BibleStorage.saveEntry(entry);
         var saved2 = BibleStorage.saveEntry(entry);
-        return saved1 && !saved2 && BibleStorage.getCount() == 1;
+        return saved1 == BibleStorage.SAVE_STATUS_SAVED
+            && saved2 == BibleStorage.SAVE_STATUS_DUPLICATE
+            && BibleStorage.getCount() == 1;
     }
 
     function testDuplicateByRefOnly(logger as Test.Logger) as Boolean {
@@ -184,7 +186,7 @@ class BibleStorageTest {
         var entry2 = makeTestEntry("jhn.3.16", "John 3:16-18"); // same ref, different display
         BibleStorage.saveEntry(entry1);
         var saved2 = BibleStorage.saveEntry(entry2);
-        return !saved2 && BibleStorage.getCount() == 1;
+        return saved2 == BibleStorage.SAVE_STATUS_DUPLICATE && BibleStorage.getCount() == 1;
     }
 
     // -----------------------------------------------------------------------
@@ -387,6 +389,44 @@ class BibleStorageTest {
     }
 
     // -----------------------------------------------------------------------
+    // Save status enum tests (Fix 3)
+    // -----------------------------------------------------------------------
+
+    function testSaveStatusSavedValue(logger as Test.Logger) as Boolean {
+        return BibleStorage.SAVE_STATUS_SAVED == 1;
+    }
+
+    function testSaveStatusDuplicateValue(logger as Test.Logger) as Boolean {
+        return BibleStorage.SAVE_STATUS_DUPLICATE == 2;
+    }
+
+    function testSaveStatusFailedValue(logger as Test.Logger) as Boolean {
+        return BibleStorage.SAVE_STATUS_FAILED == 3;
+    }
+
+    function testSaveReturnsSavedForNewEntry(logger as Test.Logger) as Boolean {
+        clearStorage();
+        var entry = makeTestEntry("gen.1.1", "Genesis 1:1");
+        var status = BibleStorage.saveEntry(entry);
+        return status == BibleStorage.SAVE_STATUS_SAVED && BibleStorage.getCount() == 1;
+    }
+
+    function testSaveReturnsDuplicateForExistingRef(logger as Test.Logger) as Boolean {
+        clearStorage();
+        var entry = makeTestEntry("jhn.3.16", "John 3:16");
+        BibleStorage.saveEntry(entry);
+        var status = BibleStorage.saveEntry(entry);
+        return status == BibleStorage.SAVE_STATUS_DUPLICATE && BibleStorage.getCount() == 1;
+    }
+
+    function testSaveReturnsFailedForEmptyDict(logger as Test.Logger) as Boolean {
+        clearStorage();
+        var empty = {} as Dictionary;
+        var status = BibleStorage.saveEntry(empty);
+        return status == BibleStorage.SAVE_STATUS_FAILED && BibleStorage.getCount() == 0;
+    }
+
+    // -----------------------------------------------------------------------
     // Edge cases
     // -----------------------------------------------------------------------
 
@@ -396,7 +436,7 @@ class BibleStorageTest {
         entry.put("scripture_ref", null);
         // Null ref should be rejected, not saved
         var saved = BibleStorage.saveEntry(entry);
-        return !saved && BibleStorage.getCount() == 0;
+        return saved == BibleStorage.SAVE_STATUS_FAILED && BibleStorage.getCount() == 0;
     }
 
     function testSaveWithEmptyRefRejected(logger as Test.Logger) as Boolean {
@@ -405,7 +445,7 @@ class BibleStorageTest {
         entry.put("scripture_ref", "");
         // Empty ref should be rejected
         var saved = BibleStorage.saveEntry(entry);
-        return !saved && BibleStorage.getCount() == 0;
+        return saved == BibleStorage.SAVE_STATUS_FAILED && BibleStorage.getCount() == 0;
     }
 
     function testLoadAllIgnoresNonDictionaryItems(logger as Test.Logger) as Boolean {

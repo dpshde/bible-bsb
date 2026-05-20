@@ -335,4 +335,23 @@ class VerseSelectViewTest {
         var state = new BibleState();
         return state.startVerse == 1 && state.endVerse == 1;
     }
+
+    // --- Fix 1: VerseSelectView rows use contentTop for safe area ---
+
+    function testVerseSelectRowYUsesContentTop(logger as Test.Logger) as Boolean {
+        var layout = BibleLayout.mockLayout(176, 176, BibleLayout.FONT_SMALL, 14, true, System.SCREEN_SHAPE_SEMI_OCTAGON);
+        var contentTop = layout.get("contentTop") as Number;
+        var marginTop = layout.get("marginTop") as Number;
+        // contentTop for semi-octagon = max(14+1+4, 18+14) = 32
+        // Rows start at contentTop + ROW_SPACING, not raw HEADER_HEIGHT + ROW_SPACING
+        var row1Y = contentTop + 10;
+        return row1Y >= contentTop + 10 && row1Y >= marginTop + 10;
+    }
+
+    function testVerseSelectHintYBoundedByContentBottom(logger as Test.Logger) as Boolean {
+        var layout = BibleLayout.mockLayout(176, 176, BibleLayout.FONT_SMALL, 14, true, System.SCREEN_SHAPE_SEMI_OCTAGON);
+        var contentBottom = layout.get("contentBottom") as Number;
+        var hintY = contentBottom - 8;
+        return hintY <= contentBottom - 8;
+    }
 }

@@ -186,15 +186,13 @@ class CollectionView extends Ui.View {
         var bgColor = layout.get("bgColor") as Number;
         var width = layout.get("screenWidth") as Number;
         var marginX = layout.get("marginX") as Number;
-        var marginTop = layout.get("marginTop") as Number;
-        var marginBottom = layout.get("marginBottom") as Number;
         var scrollBarX = width - marginX - 3;
         if (scrollBarX < 0) {
             scrollBarX = 0;
         }
 
-        var trackTop = marginTop + BibleLayout.HEADER_HEIGHT;
-        var trackBottom = height - marginBottom;
+        var trackTop = layout.get("contentTop") as Number;
+        var trackBottom = layout.get("contentBottom") as Number;
         var trackHeight = trackBottom - trackTop;
 
         if (trackHeight <= 0) {

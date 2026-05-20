@@ -8,11 +8,15 @@ class ReaderView extends Ui.View {
     var layout as Dictionary?;
     var pendingVerses as Array<Dictionary>?;
     var isAlive as Boolean;
+    var cachedScreenWidth as Number;
+    var cachedScreenHeight as Number;
 
     function initialize() {
         View.initialize();
         pendingVerses = null;
         isAlive = true;
+        cachedScreenWidth = 0;
+        cachedScreenHeight = 0;
     }
 
     function onHide() as Void {
@@ -22,10 +26,14 @@ class ReaderView extends Ui.View {
     function onUpdate(dc as Graphics.Dc) as Void {
         var app = getApp();
         var state = app.state;
+        var currentW = dc.getWidth();
+        var currentH = dc.getHeight();
 
-        // Compute layout on first draw
-        if (layout == null) {
+        // Recompute layout on first draw or when screen geometry changes
+        if (layout == null || currentW != cachedScreenWidth || currentH != cachedScreenHeight) {
             layout = BibleLayout.computeLayout(dc);
+            cachedScreenWidth = currentW;
+            cachedScreenHeight = currentH;
         }
         var safeLayout = layout as Dictionary;
 

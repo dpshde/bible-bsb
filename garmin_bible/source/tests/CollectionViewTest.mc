@@ -343,21 +343,22 @@ class CollectionViewTest {
     // Fix 2: Scroll indicator safe margins
     // -----------------------------------------------------------------------
 
-    function testScrollIndicatorCollectionUsesMarginTop(logger as Test.Logger) as Boolean {
+    // --- Fix 6: Collection scroll indicator uses contentTop / contentBottom ---
+
+    function testScrollIndicatorCollectionUsesContentTop(logger as Test.Logger) as Boolean {
         var layout = BibleLayout.mockLayout(176, 176, BibleLayout.FONT_SMALL, 14, true, System.SCREEN_SHAPE_SEMI_OCTAGON);
-        var marginTop = layout.get("marginTop") as Number;
-        var trackTop = marginTop + BibleLayout.HEADER_HEIGHT;
-        // Must not be below marginTop
-        return trackTop >= marginTop + BibleLayout.HEADER_HEIGHT;
+        var contentTop = layout.get("contentTop") as Number;
+        // drawScrollIndicator now uses contentTop directly, not marginTop + HEADER_HEIGHT
+        var trackTop = contentTop;
+        return trackTop == contentTop;
     }
 
-    function testScrollIndicatorCollectionUsesMarginBottom(logger as Test.Logger) as Boolean {
+    function testScrollIndicatorCollectionUsesContentBottom(logger as Test.Logger) as Boolean {
         var layout = BibleLayout.mockLayout(176, 176, BibleLayout.FONT_SMALL, 14, true, System.SCREEN_SHAPE_SEMI_OCTAGON);
-        var screenHeight = layout.get("screenHeight") as Number;
-        var marginBottom = layout.get("marginBottom") as Number;
-        var trackBottom = screenHeight - marginBottom;
-        // Must not extend past safe margin
-        return trackBottom <= screenHeight - marginBottom;
+        var contentBottom = layout.get("contentBottom") as Number;
+        // drawScrollIndicator now uses contentBottom directly, not screenHeight - marginBottom
+        var trackBottom = contentBottom;
+        return trackBottom == contentBottom;
     }
 
     // -----------------------------------------------------------------------

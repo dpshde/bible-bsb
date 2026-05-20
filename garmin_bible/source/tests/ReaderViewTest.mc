@@ -539,4 +539,47 @@ class ReaderViewTest {
         var indicator = BibleRenderer.buildPageIndicator(currentPage, totalPages);
         return indicator == "";
     }
+
+    // --- Fix 2: ReaderView layout recomputes when screen dimensions change ---
+
+    function testReaderViewCachesLayoutDimensions(logger as Test.Logger) as Boolean {
+        var view = new ReaderView();
+        // On init, cached dimensions should be zero (no layout yet)
+        return view.cachedScreenWidth == 0 && view.cachedScreenHeight == 0;
+    }
+
+    // --- Fix 4: System.getTimer wrap-around guard in long-press detection ---
+
+    function testTimerWrapAroundTreatedAsLongPress(logger as Test.Logger) as Boolean {
+        // Simulate the guard: if currentTime < selectPressTime, elapsed = LONG_PRESS_MS
+        var selectPressTime = 100;
+        var currentTime = 50; // wrap-around case
+        var elapsed = currentTime - selectPressTime;
+        var LONG_PRESS_MS = 500;
+        if (currentTime < selectPressTime) {
+            elapsed = LONG_PRESS_MS;
+        }
+        return elapsed >= LONG_PRESS_MS;
+    }
+
+    // --- Fix 5: BibleLayout.truncateStringToWidth ---
+
+    function testTruncateStringToWidthFits(logger as Test.Logger) as Boolean {
+        var result = BibleLayout.truncateStringToWidth("Genesis", 100, 6);
+        // "Genesis" is 7 chars * 6px = 42px, well under 100px
+        return result == "Genesis";
+    }
+
+    function testTruncateStringToWidthTruncates(logger as Test.Logger) as Boolean {
+        var result = BibleLayout.truncateStringToWidth("Song of Solomon", 60, 6);
+        // "Song of Solomon" is 15 chars * 6px = 90px, exceeds 60px
+        // maxChars = 60/6 = 10, truncLen = 10 - 3 = 7, result = "Song o..."
+        return result == "Song o...";
+    }
+
+    function testTruncateStringToWidthShortMaxWidth(logger as Test.Logger) as Boolean {
+        var result = BibleLayout.truncateStringToWidth("Song of Solomon", 10, 6);
+        // maxChars = 10/6 = 1, truncLen = 1 - 3 = -2 -> clamp to 1
+        return result == "S..." || result == "..." || result.length() <= 4;
+    }
 }

@@ -81,11 +81,14 @@ class ActionMenuBehaviorDelegate extends Ui.BehaviorDelegate {
         }
 
         // Delegate to BibleStorage module
-        var saved = BibleStorage.saveEntry(entry);
-        if (saved) {
+        var status = BibleStorage.saveEntry(entry);
+        if (status == BibleStorage.SAVE_STATUS_SAVED) {
             showToastMessage(state, WatchUi.loadResource(Rez.Strings.Saved) as String);
-        } else {
+        } else if (status == BibleStorage.SAVE_STATUS_DUPLICATE) {
             showToastMessage(state, "Already saved");
+        } else {
+            // SAVE_STATUS_FAILED — storage full or other error
+            showToastMessage(state, BibleError.MSG_COLLECTION_FULL);
         }
     }
 

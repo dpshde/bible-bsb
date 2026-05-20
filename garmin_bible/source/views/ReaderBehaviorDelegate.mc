@@ -68,8 +68,15 @@ class ReaderBehaviorDelegate extends Ui.BehaviorDelegate {
     }
 
     // Enter released: decide short vs long press
+    // Wrap-around guard: if System.getTimer() wrapped (current < pressTime),
+    // elapsed appears negative in signed arithmetic; treat as long press.
+    // This is an acceptable edge case (wrap occurs every ~49.7 days).
     function onSelectUp() as Boolean {
-        var elapsed = System.getTimer() - selectPressTime;
+        var currentTime = System.getTimer();
+        var elapsed = currentTime - selectPressTime;
+        if (currentTime < selectPressTime) {
+            elapsed = LONG_PRESS_MS;
+        }
         if (elapsed >= LONG_PRESS_MS) {
             // Long press: quick save
             isLongPress = true;
@@ -110,11 +117,15 @@ class ReaderBehaviorDelegate extends Ui.BehaviorDelegate {
         var entry = BibleStorage.buildEntry(state);
 
         // Delegate to BibleStorage module
-        var saved = BibleStorage.saveEntry(entry);
-        if (saved) {
+        var status = BibleStorage.saveEntry(entry);
+        if (status == BibleStorage.SAVE_STATUS_SAVED) {
             showSavedToast(state);
-        } else {
+        } else if (status == BibleStorage.SAVE_STATUS_DUPLICATE) {
             BibleError.showToast(state, "Already saved", 1500);
+            Ui.requestUpdate();
+        } else {
+            // SAVE_STATUS_FAILED — storage full or other error
+            BibleError.showToast(state, BibleError.MSG_COLLECTION_FULL, 1500);
             Ui.requestUpdate();
         }
     }

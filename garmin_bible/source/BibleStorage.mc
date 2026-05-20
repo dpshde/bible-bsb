@@ -8,6 +8,11 @@ class BibleStorage {
     static const MAX_ENTRIES = 50;
     static const TRANSLATION = "BSB";
 
+    // Save entry status enum
+    static const SAVE_STATUS_SAVED = 1;
+    static const SAVE_STATUS_DUPLICATE = 2;
+    static const SAVE_STATUS_FAILED = 3;
+
     // Build a collection entry from current passage state.
     // Entry fields: scripture_ref, display_ref, translation, book_index,
     // chapter, start_verse, end_verse, captured_at.
@@ -24,16 +29,19 @@ class BibleStorage {
         return entry;
     }
 
-    // Save an entry to Storage. Returns true if saved, false if duplicate or invalid.
-    static function saveEntry(entry as Dictionary) as Boolean {
+    // Save an entry to Storage.
+    // Returns SAVE_STATUS_SAVED (1) if newly saved,
+    //         SAVE_STATUS_DUPLICATE (2) if already present,
+    //         SAVE_STATUS_FAILED (3) if write failed or invalid.
+    static function saveEntry(entry as Dictionary) as Number {
         if (entry == null) {
-            return false;
+            return SAVE_STATUS_FAILED;
         }
 
         // Reject null or empty scripture_ref outright — do not create duplicate-empty entries
         var ref = entry.get("scripture_ref") as String;
         if (ref == null || ref.length() == 0) {
-            return false;
+            return SAVE_STATUS_FAILED;
         }
 
         // Validate entry has minimum required fields
@@ -43,7 +51,7 @@ class BibleStorage {
             // Re-check ref after sanitization (safeCollectionEntry may fill a default)
             ref = entry.get("scripture_ref") as String;
             if (ref == null || ref.length() == 0) {
-                return false;
+                return SAVE_STATUS_FAILED;
             }
         }
 
@@ -57,7 +65,7 @@ class BibleStorage {
             }
             var existingRef = existing.get("scripture_ref") as String;
             if (existingRef != null && existingRef == ref) {
-                return false;
+                return SAVE_STATUS_DUPLICATE;
             }
         }
 
@@ -70,7 +78,11 @@ class BibleStorage {
 
         collection.add(entry);
         var saved = BibleError.safeStorageSet(COLLECTION_KEY, collection);
-        return saved;
+        if (saved) {
+            return SAVE_STATUS_SAVED;
+        } else {
+            return SAVE_STATUS_FAILED;
+        }
     }
 
     // Load all collection entries as Array<Dictionary>.

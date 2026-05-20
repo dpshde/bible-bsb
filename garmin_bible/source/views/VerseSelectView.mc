@@ -53,13 +53,15 @@ class VerseSelectView extends Ui.View {
         if (displayEnd > maxVerse) { displayEnd = maxVerse; }
         if (displayEnd < displayStart) { displayEnd = displayStart; }
 
-        var row1Y = BibleLayout.HEADER_HEIGHT + ROW_SPACING;
+        var contentTop = safeLayout.get("contentTop") as Number;
+        var contentBottom = safeLayout.get("contentBottom") as Number;
+        var row1Y = contentTop + ROW_SPACING;
         var row2Y = row1Y + lineHeight;
         var row3Y = row2Y + lineHeight;
         var hintY = row3Y + lineHeight + 4;
         var screenHeight = dc.getHeight();
-        if (hintY > screenHeight - 8) {
-            hintY = screenHeight - 8;
+        if (hintY > contentBottom - 8) {
+            hintY = contentBottom - 8;
         }
 
         // Row 1: "All verses"

@@ -355,6 +355,31 @@ module BibleLayout {
         dc.clear();
     }
 
+    // Truncate a string to fit within a given pixel width using char-width estimate.
+    // Appends "..." when truncation occurs.
+    function truncateStringToWidth(
+        text as String,
+        maxWidthPx as Number,
+        charWidth as Number
+    ) as String {
+        if (text == null || text.length() == 0) {
+            return text;
+        }
+        var maxChars = maxWidthPx / charWidth;
+        if (maxChars < 1) {
+            maxChars = 1;
+        }
+        if (text.length() <= maxChars) {
+            return text;
+        }
+        // Reserve 3 chars for ellipsis
+        var truncLen = maxChars - 3;
+        if (truncLen < 1) {
+            truncLen = 1;
+        }
+        return text.substring(0, truncLen) + "...";
+    }
+
     // Convenience: draw header text centered, respecting marginTop for safe area
     function drawHeader(
         dc as Graphics.Dc,
@@ -367,6 +392,8 @@ module BibleLayout {
         var bgColor = layout.get("bgColor") as Number;
         var dividerColor = layout.get("dividerColor") as Number;
         var marginTop = layout.get("marginTop") as Number;
+        var contentWidth = layout.get("contentWidth") as Number;
+        var charWidth = layout.get("charWidth") as Number;
 
         // Use marginTop as header Y offset so header stays inside safe area
         var headerY = marginTop > CONTENT_PADDING ? marginTop - 2 : (HEADER_HEIGHT / 2 - 1);
@@ -383,11 +410,15 @@ module BibleLayout {
         } else {
             font = Graphics.FONT_SMALL;
         }
+
+        // Truncate long book names to fit within content width
+        var truncatedText = truncateStringToWidth(text, contentWidth, charWidth);
+
         dc.drawText(
             screenWidth / 2,
             headerY,
             font,
-            text,
+            truncatedText,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
 
