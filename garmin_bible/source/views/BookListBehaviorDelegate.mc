@@ -81,9 +81,12 @@ class BookListBehaviorDelegate extends Ui.BehaviorDelegate {
         return true;
     }
 
-    // Right button: also goes to Collection
+    // Right button: open BookFilterView (matches Rust behavior)
     function onNextMode() as Boolean {
-        return onPreviousMode();
+        var filterView = new BookFilterView();
+        var filterDelegate = new BookFilterBehaviorDelegate();
+        Ui.pushView(filterView, filterDelegate, Ui.SLIDE_UP);
+        return true;
     }
 
     // Tap handler for touch devices: treat as select
@@ -111,8 +114,10 @@ class BookListBehaviorDelegate extends Ui.BehaviorDelegate {
 
         if (currentPos > 0) {
             currentPos = currentPos - 1;
+        } else {
+            // Wrap from first to last (matches Rust behavior)
+            currentPos = total - 1;
         }
-        // Clamp at first book (no wrap)
 
         state.selectedBookIndex = filteredBooks[currentPos];
         state.bookScroll = computeScrollForPosition(currentPos, state.bookScroll, total);
@@ -134,8 +139,10 @@ class BookListBehaviorDelegate extends Ui.BehaviorDelegate {
 
         if (currentPos < total - 1) {
             currentPos = currentPos + 1;
+        } else {
+            // Wrap from last to first (matches Rust behavior)
+            currentPos = 0;
         }
-        // Clamp at last book (no wrap)
 
         state.selectedBookIndex = filteredBooks[currentPos];
         state.bookScroll = computeScrollForPosition(currentPos, state.bookScroll, total);

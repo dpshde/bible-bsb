@@ -51,7 +51,10 @@ class BookListViewTest {
         return state.selectedBookIndex == 0;
     }
 
-    function testSelectionClampsAtFirstBook(logger as Test.Logger) as Boolean {
+    // Wrap tests: Up from first wraps to last; Down from last wraps to first
+    // These simulate the delegate behavior exactly.
+
+    function testScrollUpWrapsFromFirstToLast(logger as Test.Logger) as Boolean {
         var app = Application.getApp() as BibleApp;
         var state = app.state;
 
@@ -61,18 +64,20 @@ class BookListViewTest {
 
         var filteredBooks = state.getFilteredBookIndices();
         var currentPos = findBookInList(state.selectedBookIndex, filteredBooks);
+        var total = filteredBooks.size();
 
-        // Try to scroll up past first
+        // Simulate scrollUp wrap logic
         if (currentPos > 0) {
             currentPos = currentPos - 1;
+        } else {
+            currentPos = total - 1;
         }
-        // Clamp at 0 — no wrap
 
         state.selectedBookIndex = filteredBooks[currentPos];
-        return state.selectedBookIndex == 0;
+        return state.selectedBookIndex == 65; // Revelation (last book)
     }
 
-    function testSelectionClampsAtLastBook(logger as Test.Logger) as Boolean {
+    function testScrollDownWrapsFromLastToFirst(logger as Test.Logger) as Boolean {
         var app = Application.getApp() as BibleApp;
         var state = app.state;
 
@@ -83,15 +88,17 @@ class BookListViewTest {
         state.bookScroll = 0;
 
         var currentPos = findBookInList(state.selectedBookIndex, filteredBooks);
+        var total = filteredBooks.size();
 
-        // Try to scroll down past last
-        if (currentPos < filteredBooks.size() - 1) {
+        // Simulate scrollDown wrap logic
+        if (currentPos < total - 1) {
             currentPos = currentPos + 1;
+        } else {
+            currentPos = 0;
         }
-        // Clamp at last — no wrap
 
         state.selectedBookIndex = filteredBooks[currentPos];
-        return state.selectedBookIndex == lastBook;
+        return state.selectedBookIndex == 0; // Genesis (first book)
     }
 
     // --- Filter tests ---
@@ -116,8 +123,8 @@ class BookListViewTest {
         return books.size() == 66;
     }
 
-    function testFilterCountIs21(logger as Test.Logger) as Boolean {
-        return BibleBooks.FILTER_COUNT == 21;
+    function testFilterCountIs22(logger as Test.Logger) as Boolean {
+        return BibleBooks.FILTER_COUNT == 22;
     }
 
     function testFilterEmptyReturns66(logger as Test.Logger) as Boolean {
@@ -132,7 +139,7 @@ class BookListViewTest {
         var state = app.state;
 
         // Simulate applying "R" filter
-        state.filterIndex = 14; // "R" is at index 14 in FILTER_OPTIONS
+        state.filterIndex = 15; // "R" is at index 15 in FILTER_OPTIONS
         var filterOpt = BibleBooks.getFilterOption(state.filterIndex);
         var filteredBooks = BibleBooks.getFilteredBooks(filterOpt);
 
@@ -155,6 +162,16 @@ class BookListViewTest {
         state.bookScroll = 0;
 
         return state.selectedBookIndex == 0;
+    }
+
+    // --- Right-button navigation test ---
+
+    function testRightButtonOpensBookFilterView(logger as Test.Logger) as Boolean {
+        // Verify that onNextMode returns true (consumes event and pushes BookFilterView)
+        var delegate = new BookListBehaviorDelegate();
+        var handled = delegate.onNextMode();
+        // onNextMode returns true when it pushes the BookFilterView
+        return handled == true;
     }
 
     // --- Helper ---

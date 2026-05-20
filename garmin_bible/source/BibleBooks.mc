@@ -72,14 +72,14 @@ module BibleBooks {
     // Titus(T), Philemon(P), Hebrews(H), James(J), 1 Peter(1),
     // 2 Peter(2), 1 John(1), 2 John(2), 3 John(3), Jude(J),
     // Revelation(R)
-    // Unique first characters = 20: A, C, D, E, G, H, I, J, L, M, N, O, P, R, S, T, Z, 1, 2, 3
-    // Total filter options = All + 20 = 21
+    // Unique first characters = 21: A, C, D, E, G, H, I, J, K, L, M, N, O, P, R, S, T, Z, 1, 2, 3
+    // Total filter options = All + 21 = 22
     const FILTER_OPTIONS = [
-        "All", "A", "C", "D", "E", "G", "H", "I", "J",
+        "All", "A", "C", "D", "E", "G", "H", "I", "J", "K",
         "L", "M", "N", "O", "P", "R", "S", "T", "Z", "1",
         "2", "3"
     ];
-    const FILTER_COUNT = 21;
+    const FILTER_COUNT = 22;
 
     function getBookName(index as Number) as String {
         if (index < 0 || index >= BOOK_COUNT) {
@@ -175,10 +175,45 @@ module BibleBooks {
         var initial = filter.substring(0, 1);
         for (var i = 0; i < BOOK_COUNT; i++) {
             var name = getBookName(i);
-            if (name.length() > 0 && name.substring(0, 1) == initial) {
-                result.add(i);
+            if (name.length() > 0) {
+                var firstChar = name.substring(0, 1);
+                if (firstChar == initial) {
+                    result.add(i);
+                } else {
+                    var firstAlpha = getFirstAlphabeticChar(name);
+                    if (firstAlpha == initial) {
+                        result.add(i);
+                    }
+                }
             }
         }
         return result;
+    }
+
+    // Returns the first alphabetic character in the string, or empty string if none.
+    // Used to match numeric books under alphabetic filters (e.g., "1 Samuel" under "S").
+    // All BSB book names use uppercase A-Z for first alphabetic character.
+    function getFirstAlphabeticChar(name as String) as String {
+        for (var i = 0; i < name.length(); i++) {
+            var ch = name.substring(i, i + 1);
+            if (ch == null) {
+                continue;
+            }
+            var c = ch as String;
+            if (isUppercaseLetter(c)) {
+                return c;
+            }
+        }
+        return "";
+    }
+
+    // Check if a single-character string is an uppercase A-Z letter.
+    function isUppercaseLetter(c as String) as Boolean {
+        return c == "A" || c == "B" || c == "C" || c == "D" || c == "E" ||
+               c == "F" || c == "G" || c == "H" || c == "I" || c == "J" ||
+               c == "K" || c == "L" || c == "M" || c == "N" || c == "O" ||
+               c == "P" || c == "Q" || c == "R" || c == "S" || c == "T" ||
+               c == "U" || c == "V" || c == "W" || c == "X" || c == "Y" ||
+               c == "Z";
     }
 }

@@ -26,7 +26,7 @@ class BibleBooksTest {
 
     function testFilterOptionsCount(logger as Test.Logger) as Boolean {
         var count = BibleBooks.FILTER_COUNT;
-        return count == 21;
+        return count == 22;
     }
 
     function testFilterAllReturns66(logger as Test.Logger) as Boolean {
@@ -47,6 +47,59 @@ class BibleBooksTest {
     function testFilter1Returns8Books(logger as Test.Logger) as Boolean {
         var books = BibleBooks.getFilteredBooks("1");
         return books.size() == 8;
+    }
+
+    // Numeric books also appear under their first alphabetic character filter
+    // (matching Rust book_matches_filter behavior)
+    function testNumericBookUnderAlphabeticFilter(logger as Test.Logger) as Boolean {
+        // "1 Samuel" (index 8) should match filter "S"
+        var sBooks = BibleBooks.getFilteredBooks("S");
+        var has1Samuel = false;
+        for (var i = 0; i < sBooks.size(); i++) {
+            if (sBooks[i] == 8) {
+                has1Samuel = true;
+                break;
+            }
+        }
+        if (!has1Samuel) {
+            return false;
+        }
+
+        // "2 Samuel" (index 9) should also match filter "S"
+        var has2Samuel = false;
+        for (var i = 0; i < sBooks.size(); i++) {
+            if (sBooks[i] == 9) {
+                has2Samuel = true;
+                break;
+            }
+        }
+        if (!has2Samuel) {
+            return false;
+        }
+
+        // "1 Kings" (index 10) should match filter "K"
+        var kBooks = BibleBooks.getFilteredBooks("K");
+        var has1Kings = false;
+        for (var i = 0; i < kBooks.size(); i++) {
+            if (kBooks[i] == 10) {
+                has1Kings = true;
+                break;
+            }
+        }
+        if (!has1Kings) {
+            return false;
+        }
+
+        // "1 Samuel" still matches numeric filter "1"
+        var num1Books = BibleBooks.getFilteredBooks("1");
+        var has1SamuelNum = false;
+        for (var i = 0; i < num1Books.size(); i++) {
+            if (num1Books[i] == 8) {
+                has1SamuelNum = true;
+                break;
+            }
+        }
+        return has1SamuelNum;
     }
 
     function testFilterCountMatchesOptions(logger as Test.Logger) as Boolean {
