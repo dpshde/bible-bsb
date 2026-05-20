@@ -248,31 +248,35 @@ class ReaderView extends Ui.View {
             }
         }
 
-        // Always word-wrap before storing readerLines — never store raw verses
+        // Always word-wrap before storing readerLines — never store raw verses.
+        // Compute layout from DC if available, otherwise from device settings fallback.
+        var safeLayout;
         if (layout != null) {
-            var safeLayout = layout as Dictionary;
-            var contentWidth = safeLayout.get("contentWidth") as Number;
-            var charWidth = safeLayout.get("charWidth") as Number;
-            var linesPerPage = safeLayout.get("linesPerPage") as Number;
-
-            var wrapped = BibleRenderer.wrapVerses(filtered, contentWidth, charWidth);
-
-            state.readerLines = wrapped;
-            state.readerScroll = 0;
-            state.readerLinesPerPage = linesPerPage;
-            state.readerIsLoading = false;
-            state.readerError = "";
+            safeLayout = layout as Dictionary;
         } else {
-            // Layout not yet computed (no onUpdate has run).
-            // Store filtered verses pending — they will be wrapped on first onUpdate
-            // when layout is computed from the DC.
-            pendingVerses = filtered;
-            state.readerLines = [] as Array<Dictionary>;
-            state.readerScroll = 0;
-            state.readerLinesPerPage = 1;
-            state.readerIsLoading = false;
-            state.readerError = "";
+            var ds = System.getDeviceSettings();
+            var screenW = ds.screenWidth;
+            var screenH = ds.screenHeight;
+            var shape = ds.screenShape;
+            var fontSize = BibleLayout.selectFontSize(screenW);
+            var fontHeight = BibleLayout.getFontHeightForSize(fontSize);
+            var lineHeight = fontHeight + BibleLayout.LINE_SPACING;
+            var mono = BibleLayout.isMonochrome();
+            safeLayout = BibleLayout.mockLayout(screenW, screenH, fontSize, lineHeight, mono, shape);
         }
+
+        var contentWidth = safeLayout.get("contentWidth") as Number;
+        var charWidth = safeLayout.get("charWidth") as Number;
+        var linesPerPage = safeLayout.get("linesPerPage") as Number;
+
+        var wrapped = BibleRenderer.wrapVerses(filtered, contentWidth, charWidth);
+
+        state.readerLines = wrapped;
+        state.readerScroll = 0;
+        state.readerLinesPerPage = linesPerPage;
+        state.readerIsLoading = false;
+        state.readerError = "";
+        pendingVerses = null;
 
         Ui.requestUpdate();
     }

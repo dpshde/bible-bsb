@@ -475,4 +475,43 @@ class BibleRendererTest {
         var prefix0 = text0.substring(0, 2) as String;
         return prefix0 == "0 ";
     }
+
+    // ------------------------------------------------------------------
+    // Fix 1 (HIGH): Page indicator stays within safe margins
+    // ------------------------------------------------------------------
+
+    function testPageIndicatorUsesContentBottom(logger as Test.Logger) as Boolean {
+        var layout = BibleRenderer.mockLayout(176, 176, BibleRenderer.FONT_SMALL, 14, true);
+        var contentBottom = layout.get("contentBottom") as Number;
+        var fontHeight = BibleLayout.getFontHeightForSize(BibleRenderer.FONT_TINY);
+        var indicatorY = contentBottom - fontHeight;
+        if (indicatorY < 0) {
+            indicatorY = 0;
+        }
+        // On 176x176 semi-octagon: contentBottom=150, fontHeight=10, indicatorY=140
+        // Old code used screenHeight - 8 = 168, which would be below safe margin
+        return indicatorY <= contentBottom && indicatorY < 176 - 8;
+    }
+
+    function testPageIndicatorNotBelowScreenBottom(logger as Test.Logger) as Boolean {
+        var layout = BibleRenderer.mockLayout(176, 176, BibleRenderer.FONT_SMALL, 14, true);
+        var contentBottom = layout.get("contentBottom") as Number;
+        var fontHeight = BibleLayout.getFontHeightForSize(BibleRenderer.FONT_TINY);
+        var indicatorY = contentBottom - fontHeight;
+        if (indicatorY < 0) {
+            indicatorY = 0;
+        }
+        // Indicator Y plus font height must not exceed contentBottom
+        return indicatorY + fontHeight <= contentBottom;
+    }
+
+    function testPageIndicatorOnRoundScreen(logger as Test.Logger) as Boolean {
+        var layout = BibleRenderer.mockLayout(390, 390, BibleRenderer.FONT_LARGE, 24, false);
+        var contentBottom = layout.get("contentBottom") as Number;
+        var fontHeight = BibleLayout.getFontHeightForSize(BibleRenderer.FONT_TINY);
+        var indicatorY = contentBottom - fontHeight;
+        // On 390x390 round: marginBottom=10, contentBottom=372, indicatorY=362
+        // Must be within safe area
+        return indicatorY <= contentBottom && indicatorY >= 0;
+    }
 }

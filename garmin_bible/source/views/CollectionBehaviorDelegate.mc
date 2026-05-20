@@ -108,6 +108,32 @@ class CollectionBehaviorDelegate extends Ui.BehaviorDelegate {
         state.endVerse = clamped[1];
         state.cameFromCollection = true;
 
+        // Sync BookList filter: ensure selectedBookIndex exists in the filtered list.
+        // If not, reset filter to "All" and select the first matching book.
+        var filteredBooks = state.getFilteredBookIndices();
+        var found = false;
+        for (var i = 0; i < filteredBooks.size(); i++) {
+            if (filteredBooks[i] == state.bookIndex) {
+                state.selectedBookIndex = state.bookIndex;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            state.filterIndex = 0;
+            var allBooks = BibleBooks.getFilteredBooks("All");
+            if (allBooks.size() > 0) {
+                state.selectedBookIndex = allBooks[0];
+                for (var i = 0; i < allBooks.size(); i++) {
+                    if (allBooks[i] == state.bookIndex) {
+                        state.selectedBookIndex = state.bookIndex;
+                        break;
+                    }
+                }
+            }
+            state.bookScroll = 0;
+        }
+
         // Push ReaderView
         var readerView = new ReaderView();
         var readerDelegate = new ReaderBehaviorDelegate(readerView);

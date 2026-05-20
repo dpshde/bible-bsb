@@ -390,13 +390,22 @@ class BibleStorageTest {
     // Edge cases
     // -----------------------------------------------------------------------
 
-    function testSaveWithNullRef(logger as Test.Logger) as Boolean {
+    function testSaveWithNullRefRejected(logger as Test.Logger) as Boolean {
         clearStorage();
         var entry = makeTestEntry("jhn.3.16", "John 3:16");
         entry.put("scripture_ref", null);
-        // Should save but with null ref (treated as unique)
+        // Null ref should be rejected, not saved
         var saved = BibleStorage.saveEntry(entry);
-        return saved && BibleStorage.getCount() == 1;
+        return !saved && BibleStorage.getCount() == 0;
+    }
+
+    function testSaveWithEmptyRefRejected(logger as Test.Logger) as Boolean {
+        clearStorage();
+        var entry = makeTestEntry("", "");
+        entry.put("scripture_ref", "");
+        // Empty ref should be rejected
+        var saved = BibleStorage.saveEntry(entry);
+        return !saved && BibleStorage.getCount() == 0;
     }
 
     function testLoadAllIgnoresNonDictionaryItems(logger as Test.Logger) as Boolean {

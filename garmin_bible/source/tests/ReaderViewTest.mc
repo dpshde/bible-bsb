@@ -351,10 +351,10 @@ class ReaderViewTest {
     }
 
     // ------------------------------------------------------------------
-    // Fix 1: ReaderView offline load — never stores raw verses in readerLines
+    // Fix 1 / Fix 3: ReaderView offline load — always word-wrap, never raw verses
     // ------------------------------------------------------------------
 
-    function testFinishLoadWithNullLayoutDoesNotStoreRawVerses(logger as Test.Logger) as Boolean {
+    function testFinishLoadWithNullLayoutComputesLinesPerPage(logger as Test.Logger) as Boolean {
         var view = new ReaderView();
         var app = Application.getApp() as BibleApp;
         var state = app.state;
@@ -364,30 +364,26 @@ class ReaderViewTest {
             { "verseNumber" => 1, "verseText" => "In the beginning God created the heavens and the earth." }
         ] as Array<Dictionary>;
 
-        // layout is null initially — finishLoad should NOT store raw verses
+        // layout is null initially — finishLoad should compute fallback layout and wrap immediately
         view.finishLoad(verses, 1, 1);
 
-        // readerLines should be empty, not the raw verse array
-        var linesAreEmpty = (state.readerLines == null || state.readerLines.size() == 0);
-        // pendingVerses should hold the raw verses until layout is computed
-        var pending = view.pendingVerses;
-        var pendingExists = (pending != null && (pending as Array<Dictionary>).size() > 0);
-        return linesAreEmpty && pendingExists;
+        // readerLines should contain wrapped lines, not raw verses
+        var linesWrapped = (state.readerLines != null && state.readerLines.size() > 0);
+        // pendingVerses should be null — no raw verses held pending
+        var pendingIsNull = (view.pendingVerses == null);
+        // readerLinesPerPage should be > 1 (computed from fallback layout, not hardcoded 1)
+        var lppValid = state.readerLinesPerPage > 1;
+        return linesWrapped && pendingIsNull && lppValid;
     }
 
-    function testPendingVersesClearedAfterWrap(logger as Test.Logger) as Boolean {
+    function testPendingVersesIsNullAfterFinishLoad(logger as Test.Logger) as Boolean {
         var view = new ReaderView();
         var verses = [
             { "verseNumber" => 1, "verseText" => "In the beginning God created the heavens and the earth." }
         ] as Array<Dictionary>;
-        view.pendingVerses = verses;
-        // Simulate wrap from onUpdate after layout is computed
-        var layout = BibleLayout.mockLayout(176, 176, BibleLayout.FONT_SMALL, 14, true, System.SCREEN_SHAPE_SEMI_OCTAGON);
-        var contentWidth = layout.get("contentWidth") as Number;
-        var charWidth = layout.get("charWidth") as Number;
-        var wrapped = BibleRenderer.wrapVerses(verses, contentWidth, charWidth);
-        view.pendingVerses = null;
-        return wrapped.size() > 0 && view.pendingVerses == null;
+        view.finishLoad(verses, 1, 1);
+        // finishLoad should always clear pendingVerses
+        return view.pendingVerses == null;
     }
 
     // ------------------------------------------------------------------

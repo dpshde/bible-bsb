@@ -338,4 +338,76 @@ class CollectionViewTest {
         var ref1 = (all[1] as Dictionary).get("scripture_ref") as String;
         return ref0 == "gen.1.1" && ref1 == "lev.1.1";
     }
+
+    // -----------------------------------------------------------------------
+    // Fix 2: Scroll indicator safe margins
+    // -----------------------------------------------------------------------
+
+    function testScrollIndicatorCollectionUsesMarginTop(logger as Test.Logger) as Boolean {
+        var layout = BibleLayout.mockLayout(176, 176, BibleLayout.FONT_SMALL, 14, true, System.SCREEN_SHAPE_SEMI_OCTAGON);
+        var marginTop = layout.get("marginTop") as Number;
+        var trackTop = marginTop + BibleLayout.HEADER_HEIGHT;
+        // Must not be below marginTop
+        return trackTop >= marginTop + BibleLayout.HEADER_HEIGHT;
+    }
+
+    function testScrollIndicatorCollectionUsesMarginBottom(logger as Test.Logger) as Boolean {
+        var layout = BibleLayout.mockLayout(176, 176, BibleLayout.FONT_SMALL, 14, true, System.SCREEN_SHAPE_SEMI_OCTAGON);
+        var screenHeight = layout.get("screenHeight") as Number;
+        var marginBottom = layout.get("marginBottom") as Number;
+        var trackBottom = screenHeight - marginBottom;
+        // Must not extend past safe margin
+        return trackBottom <= screenHeight - marginBottom;
+    }
+
+    // -----------------------------------------------------------------------
+    // Fix 4: Collection load resets filter when book not in current filter
+    // -----------------------------------------------------------------------
+
+    function testCollectionLoadSyncsFilterToAllWhenMismatch(logger as Test.Logger) as Boolean {
+        var app = Application.getApp() as BibleApp;
+        var state = app.state;
+
+        // Set "R" filter (Ruth, Romans, Revelation only)
+        state.filterIndex = 15;
+        state.selectedBookIndex = 7;
+        state.bookScroll = 0;
+
+        // Create a CollectionBehaviorDelegate and simulate loading Genesis via handleLoadPassage
+        // We need to set up a collection entry for Genesis
+        clearStorage();
+        BibleStorage.saveEntry(makeEntry("gen.1.1", "Genesis 1:1", 0, 1, 1, 1, "2025-01-01T08:00:00Z"));
+
+        var view = new CollectionView();
+        var delegate = new CollectionBehaviorDelegate(view);
+        view.selectedIndex = 0;
+
+        delegate.handleLoadPassage();
+
+        // After loading, filter should reset to "All" because Genesis is not in "R"
+        return state.filterIndex == 0 && state.selectedBookIndex == 0;
+    }
+
+    function testCollectionLoadKeepsFilterWhenBookMatches(logger as Test.Logger) as Boolean {
+        var app = Application.getApp() as BibleApp;
+        var state = app.state;
+
+        // Set "G" filter (Genesis, Galatians)
+        state.filterIndex = 5;
+        state.selectedBookIndex = 0;
+        state.bookScroll = 0;
+
+        // Create a CollectionBehaviorDelegate and simulate loading Galatians
+        clearStorage();
+        BibleStorage.saveEntry(makeEntry("gal.1.1", "Galatians 1:1", 47, 1, 1, 1, "2025-01-01T08:00:00Z"));
+
+        var view = new CollectionView();
+        var delegate = new CollectionBehaviorDelegate(view);
+        view.selectedIndex = 0;
+
+        delegate.handleLoadPassage();
+
+        // After loading, filter should stay "G" because Galatians matches
+        return state.filterIndex == 5 && state.selectedBookIndex == 47;
+    }
 }

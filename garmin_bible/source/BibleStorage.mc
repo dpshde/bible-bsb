@@ -30,17 +30,24 @@ class BibleStorage {
             return false;
         }
 
+        // Reject null or empty scripture_ref outright — do not create duplicate-empty entries
+        var ref = entry.get("scripture_ref") as String;
+        if (ref == null || ref.length() == 0) {
+            return false;
+        }
+
         // Validate entry has minimum required fields
         if (!BibleError.isValidCollectionEntry(entry)) {
             // Attempt to sanitize the entry
             entry = BibleError.safeCollectionEntry(entry);
+            // Re-check ref after sanitization (safeCollectionEntry may fill a default)
+            ref = entry.get("scripture_ref") as String;
+            if (ref == null || ref.length() == 0) {
+                return false;
+            }
         }
 
         var collection = loadAll();
-        var ref = entry.get("scripture_ref") as String;
-        if (ref == null) {
-            ref = "";
-        }
 
         // Check for duplicate by scripture_ref
         for (var i = 0; i < collection.size(); i++) {
@@ -49,7 +56,7 @@ class BibleStorage {
                 continue;
             }
             var existingRef = existing.get("scripture_ref") as String;
-            if (existingRef != null && existingRef.equals(ref)) {
+            if (existingRef != null && existingRef == ref) {
                 return false;
             }
         }

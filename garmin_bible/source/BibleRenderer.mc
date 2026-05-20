@@ -400,12 +400,17 @@ module BibleRenderer {
             }
         }
 
-        // Draw page indicator
+        // Draw page indicator within safe margins
         if (pageIndicator != null && pageIndicator.length() > 0) {
             dc.setColor(headerColor, bgColor);
+            var fontHeight = getFontHeightForSize(FONT_TINY);
+            var indicatorY = contentBottom - fontHeight;
+            if (indicatorY < contentTop) {
+                indicatorY = contentTop;
+            }
             dc.drawText(
                 screenWidth - marginX,
-                screenHeight - 8,
+                indicatorY,
                 Graphics.FONT_TINY,
                 pageIndicator,
                 Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
