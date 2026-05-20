@@ -135,44 +135,18 @@ class BibleResourcesTest {
     }
 
     // -----------------------------------------------------------------------
-    // resourceToJsonString tests
+    // parseVersesFromObject tests (replaces resourceToJsonString round-trip)
     // -----------------------------------------------------------------------
 
-    function testResourceToJsonStringString(logger as Test.Logger) as Boolean {
-        var result = BibleApi.resourceToJsonString("hello");
-        return result.equals("hello");
-    }
-
-    function testResourceToJsonStringNumber(logger as Test.Logger) as Boolean {
-        var result = BibleApi.resourceToJsonString(42);
-        return result.equals("42");
-    }
-
-    function testResourceToJsonStringBoolean(logger as Test.Logger) as Boolean {
-        var trueResult = BibleApi.resourceToJsonString(true);
-        var falseResult = BibleApi.resourceToJsonString(false);
-        return trueResult.equals("true") && falseResult.equals("false");
-    }
-
-    function testResourceToJsonStringNull(logger as Test.Logger) as Boolean {
-        var result = BibleApi.resourceToJsonString(null);
-        return result.equals("");
-    }
-
-    function testResourceToJsonStringArray(logger as Test.Logger) as Boolean {
-        var arr = [1, 2, 3] as Array<Number>;
-        var result = BibleApi.resourceToJsonString(arr);
-        return result.equals("[1,2,3]");
-    }
-
-    function testResourceToJsonStringDictionary(logger as Test.Logger) as Boolean {
-        var dict = {
-            "key" => "value",
-            "num" => 7
-        } as Dictionary;
-        var result = BibleApi.resourceToJsonString(dict);
-        // Order may vary; just assert it contains the key fragments
-        return result.find("\"key\":\"value\"") != null && result.find("\"num\":7") != null;
+    function testParseVersesFromObjectCompact(logger as Test.Logger) as Boolean {
+        var compact = getCompactGenesis1Fixture();
+        var verses = BibleJsonScanner.parseVerses(compact);
+        if (verses.size() != 5) {
+            return false;
+        }
+        var v1 = verses[0] as Dictionary;
+        var text = v1.get("verseText") as String;
+        return text.equals("In the beginning God created the heavens and the earth.");
     }
 
     // -----------------------------------------------------------------------

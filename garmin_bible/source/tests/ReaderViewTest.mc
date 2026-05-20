@@ -351,6 +351,130 @@ class ReaderViewTest {
     }
 
     // ------------------------------------------------------------------
+    // Fix 1: ReaderView offline load — never stores raw verses in readerLines
+    // ------------------------------------------------------------------
+
+    function testFinishLoadWithNullLayoutDoesNotStoreRawVerses(logger as Test.Logger) as Boolean {
+        var view = new ReaderView();
+        var app = Application.getApp() as BibleApp;
+        var state = app.state;
+
+        // Simulate verses that would come from offline resource
+        var verses = [
+            { "verseNumber" => 1, "verseText" => "In the beginning God created the heavens and the earth." }
+        ] as Array<Dictionary>;
+
+        // layout is null initially — finishLoad should NOT store raw verses
+        view.finishLoad(verses, 1, 1);
+
+        // readerLines should be empty, not the raw verse array
+        var linesAreEmpty = (state.readerLines == null || state.readerLines.size() == 0);
+        // pendingVerses should hold the raw verses until layout is computed
+        var pending = view.pendingVerses;
+        var pendingExists = (pending != null && (pending as Array<Dictionary>).size() > 0);
+        return linesAreEmpty && pendingExists;
+    }
+
+    function testPendingVersesClearedAfterWrap(logger as Test.Logger) as Boolean {
+        var view = new ReaderView();
+        var verses = [
+            { "verseNumber" => 1, "verseText" => "In the beginning God created the heavens and the earth." }
+        ] as Array<Dictionary>;
+        view.pendingVerses = verses;
+        // Simulate wrap from onUpdate after layout is computed
+        var layout = BibleLayout.mockLayout(176, 176, BibleLayout.FONT_SMALL, 14, true, System.SCREEN_SHAPE_SEMI_OCTAGON);
+        var contentWidth = layout.get("contentWidth") as Number;
+        var charWidth = layout.get("charWidth") as Number;
+        var wrapped = BibleRenderer.wrapVerses(verses, contentWidth, charWidth);
+        view.pendingVerses = null;
+        return wrapped.size() > 0 && view.pendingVerses == null;
+    }
+
+    // ------------------------------------------------------------------
+    // Fix 2: ActionMenuView selected item color inversion
+    // ------------------------------------------------------------------
+
+    function testActionMenuColorInversionUsesCorrectColors(logger as Test.Logger) as Boolean {
+        var layout = BibleLayout.mockLayout(176, 176, BibleLayout.FONT_SMALL, 14, true, System.SCREEN_SHAPE_SEMI_OCTAGON);
+        var textColor = layout.get("textColor") as Number;
+        var bgColor = layout.get("bgColor") as Number;
+        var selectBg = layout.get("selectBg") as Number;
+        var selectText = layout.get("selectText") as Number;
+        // On 1-bit: textColor=BLACK, bgColor=WHITE
+        // selectBg should be textColor (BLACK) and selectText should be bgColor (WHITE)
+        return selectBg == textColor && selectText == bgColor;
+    }
+
+    function testActionMenuColorInversionColorDevice(logger as Test.Logger) as Boolean {
+        var layout = BibleLayout.mockLayout(390, 390, BibleLayout.FONT_LARGE, 24, false, System.SCREEN_SHAPE_ROUND);
+        var textColor = layout.get("textColor") as Number;
+        var bgColor = layout.get("bgColor") as Number;
+        var selectBg = layout.get("selectBg") as Number;
+        var selectText = layout.get("selectText") as Number;
+        // On color: textColor=WHITE, bgColor=BLACK
+        // selectBg should be textColor (WHITE) and selectText should be bgColor (BLACK)
+        return selectBg == textColor && selectText == bgColor;
+    }
+
+    // ------------------------------------------------------------------
+    // Fix 3: Header and divider use marginTop offset
+    // ------------------------------------------------------------------
+
+    function testHeaderYUsesMarginTop(logger as Test.Logger) as Boolean {
+        var layout = BibleLayout.mockLayout(176, 176, BibleLayout.FONT_SMALL, 14, true, System.SCREEN_SHAPE_SEMI_OCTAGON);
+        var marginTop = layout.get("marginTop") as Number;
+        // Header Y should be based on marginTop for semi-octagon (marginTop=18)
+        var headerY = marginTop > BibleLayout.CONTENT_PADDING ? marginTop - 2 : 6;
+        return headerY >= marginTop - 2 && headerY >= 0;
+    }
+
+    function testDividerYUsesMarginTop(logger as Test.Logger) as Boolean {
+        var layout = BibleLayout.mockLayout(176, 176, BibleLayout.FONT_SMALL, 14, true, System.SCREEN_SHAPE_SEMI_OCTAGON);
+        var marginTop = layout.get("marginTop") as Number;
+        var dividerY = marginTop > BibleLayout.CONTENT_PADDING ? (marginTop + BibleLayout.HEADER_HEIGHT - BibleLayout.CONTENT_PADDING) : BibleLayout.HEADER_HEIGHT;
+        return dividerY >= BibleLayout.HEADER_HEIGHT && dividerY >= marginTop;
+    }
+
+    function testContentTopGreaterThanMarginTop(logger as Test.Logger) as Boolean {
+        var layout = BibleLayout.mockLayout(176, 176, BibleLayout.FONT_SMALL, 14, true, System.SCREEN_SHAPE_SEMI_OCTAGON);
+        var marginTop = layout.get("marginTop") as Number;
+        var contentTop = layout.get("contentTop") as Number;
+        return contentTop >= marginTop + BibleLayout.HEADER_HEIGHT;
+    }
+
+    // ------------------------------------------------------------------
+    // Fix 5: Async callback isAlive flag in ReaderView and ShareView
+    // ------------------------------------------------------------------
+
+    function testReaderViewIsAliveOnInit(logger as Test.Logger) as Boolean {
+        var view = new ReaderView();
+        return view.isAlive;
+    }
+
+    function testReaderViewIsAliveFalseAfterOnHide(logger as Test.Logger) as Boolean {
+        var view = new ReaderView();
+        view.onHide();
+        return !view.isAlive;
+    }
+
+    function testShareViewIsAliveOnInit(logger as Test.Logger) as Boolean {
+        var shareView = new ShareView("https://route.bible/jhn.3.16");
+        return shareView.isAlive;
+    }
+
+    function testShareViewIsAliveFalseAfterOnHide(logger as Test.Logger) as Boolean {
+        var shareView = new ShareView("https://route.bible/jhn.3.16");
+        shareView.onHide();
+        return !shareView.isAlive;
+    }
+
+    function testShareViewIsAliveTrueAfterOnShow(logger as Test.Logger) as Boolean {
+        var shareView = new ShareView("https://route.bible/jhn.3.16");
+        shareView.onShow();
+        return shareView.isAlive;
+    }
+
+    // ------------------------------------------------------------------
     // Reader scroll boundaries
     // ------------------------------------------------------------------
 

@@ -349,4 +349,115 @@ class BibleApiTest {
         // would process them incrementally without large pre-allocation.
         return verses.size() > 0;
     }
+
+    // -----------------------------------------------------------------------
+    // Fix 4: BibleJsonScanner.parseVersesFromObject — direct Dictionary parsing
+    // -----------------------------------------------------------------------
+
+    private function getGenesis1Dictionary() as Dictionary {
+        // Build the nested Dictionary structure that Application.loadResource returns
+        var v1 = { "type" => "verse", "number" => 1, "content" => ["In the beginning God created the heavens and the earth."] } as Dictionary;
+        var v2 = { "type" => "verse", "number" => 2, "content" => ["And the earth was formless and void."] } as Dictionary;
+        var heading = { "type" => "heading", "content" => ["The Creation"] } as Dictionary;
+        var chapter = { "content" => [heading, v1, v2] } as Dictionary;
+        return { "chapter" => chapter } as Dictionary;
+    }
+
+    private function getPsalm23Dictionary() as Dictionary {
+        var v1 = { "type" => "verse", "number" => 1, "content" => [
+            { "text" => "The LORD is my shepherd;", "poem" => 1 },
+            { "text" => "I shall not want.", "poem" => 2 }
+        ] } as Dictionary;
+        var v2 = { "type" => "verse", "number" => 2, "content" => [
+            { "text" => "He makes me lie down in green pastures.", "poem" => 1 },
+            { "text" => "He leads me beside quiet waters.", "poem" => 2 }
+        ] } as Dictionary;
+        var chapter = { "content" => [v1, v2] } as Dictionary;
+        return { "chapter" => chapter } as Dictionary;
+    }
+
+    private function getGenesis1WithNoteDictionary() as Dictionary {
+        var v1 = { "type" => "verse", "number" => 5, "content" => [
+            "God called the light 'day,' and the darkness He called 'night.'",
+            { "noteId" => 0, "text" => "Or evening" }
+        ] } as Dictionary;
+        var chapter = { "content" => [v1] } as Dictionary;
+        return { "chapter" => chapter } as Dictionary;
+    }
+
+    function testParseVersesFromObjectGenesis1(logger as Test.Logger) as Boolean {
+        var dict = getGenesis1Dictionary();
+        var verses = BibleJsonScanner.parseVersesFromObject(dict);
+        return verses.size() == 2;
+    }
+
+    function testParseVersesFromObjectVerse1Text(logger as Test.Logger) as Boolean {
+        var dict = getGenesis1Dictionary();
+        var verses = BibleJsonScanner.parseVersesFromObject(dict);
+        if (verses.size() < 1) {
+            return false;
+        }
+        var v = verses[0] as Dictionary;
+        var text = v.get("verseText") as String;
+        return text.equals("In the beginning God created the heavens and the earth.");
+    }
+
+    function testParseVersesFromObjectHeadingSkipped(logger as Test.Logger) as Boolean {
+        var dict = getGenesis1Dictionary();
+        var verses = BibleJsonScanner.parseVersesFromObject(dict);
+        if (verses.size() < 1) {
+            return false;
+        }
+        var v = verses[0] as Dictionary;
+        var text = v.get("verseText") as String;
+        return !text.equals("The Creation");
+    }
+
+    function testParseVersesFromObjectPsalm23(logger as Test.Logger) as Boolean {
+        var dict = getPsalm23Dictionary();
+        var verses = BibleJsonScanner.parseVersesFromObject(dict);
+        if (verses.size() < 1) {
+            return false;
+        }
+        var v = verses[0] as Dictionary;
+        var text = v.get("verseText") as String;
+        return text.equals("The LORD is my shepherd; I shall not want.");
+    }
+
+    function testParseVersesFromObjectFootnoteStripped(logger as Test.Logger) as Boolean {
+        var dict = getGenesis1WithNoteDictionary();
+        var verses = BibleJsonScanner.parseVersesFromObject(dict);
+        if (verses.size() < 1) {
+            return false;
+        }
+        var v = verses[0] as Dictionary;
+        var text = v.get("verseText") as String;
+        return text.equals("God called the light 'day,' and the darkness He called 'night.'");
+    }
+
+    function testParseVersesFromObjectEmptyDict(logger as Test.Logger) as Boolean {
+        var dict = {} as Dictionary;
+        var verses = BibleJsonScanner.parseVersesFromObject(dict);
+        return verses.size() == 0;
+    }
+
+    function testParseVersesFromObjectNullChapter(logger as Test.Logger) as Boolean {
+        var dict = { "other" => "data" } as Dictionary;
+        var verses = BibleJsonScanner.parseVersesFromObject(dict);
+        return verses.size() == 0;
+    }
+
+    function testParseVersesFromObjectDirectContent(logger as Test.Logger) as Boolean {
+        // Some resources might store content array directly at root
+        var v1 = { "type" => "verse", "number" => 1, "content" => ["Hello world."] } as Dictionary;
+        var dict = { "content" => [v1] } as Dictionary;
+        var verses = BibleJsonScanner.parseVersesFromObject(dict);
+        return verses.size() == 1;
+    }
+
+    function testParseVersesFromObjectNumericBooksNotInResource(logger as Test.Logger) as Boolean {
+        // loadFromResource should return empty for a non-existent resource
+        var verses = BibleApi.loadFromResource(7, 1); // Judges has no resource
+        return verses.size() == 0;
+    }
 }

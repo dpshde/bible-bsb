@@ -12,6 +12,7 @@ class ShareView extends Ui.View {
     var hasError as Boolean = false;
     var qrSize as Number = 120;
     var requestStarted as Boolean = false;
+    var isAlive as Boolean;
 
     function initialize(passageUrl as String) {
         View.initialize();
@@ -21,6 +22,7 @@ class ShareView extends Ui.View {
         hasError = false;
         qrSize = 120;
         requestStarted = false;
+        isAlive = true;
     }
 
     function onShow() as Void {
@@ -28,12 +30,16 @@ class ShareView extends Ui.View {
         hasError = false;
         qrBitmap = null;
         requestStarted = false;
+        isAlive = true;
     }
 
     function onQrImageResponse(
         responseCode as Number,
         data as Graphics.BitmapReference or Ui.BitmapResource or Null
     ) as Void {
+        if (!isAlive) {
+            return;
+        }
         if (responseCode == 200 && data != null) {
             qrBitmap = data as Graphics.BitmapReference;
             isLoading = false;
@@ -136,6 +142,7 @@ class ShareView extends Ui.View {
     }
 
     function onHide() as Void {
+        isAlive = false;
         // Release bitmap memory
         qrBitmap = null;
     }

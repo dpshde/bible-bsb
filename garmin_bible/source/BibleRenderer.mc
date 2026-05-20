@@ -368,12 +368,16 @@ module BibleRenderer {
         dc.setColor(textColor, bgColor);
         dc.clear();
 
-        // Draw header
-        drawHeaderText(dc, fontSize, screenWidth / 2, 6, headerText, headerColor, bgColor);
+        // Draw header at marginTop offset so it stays inside safe area on semi-octagon/round screens
+        var headerY = marginX > 0 ? marginX - 2 : 6;
+        if (headerY < 0) { headerY = 0; }
+        drawHeaderText(dc, fontSize, screenWidth / 2, headerY, headerText, headerColor, bgColor);
 
-        // Draw divider
+        // Draw divider below header, also respecting marginTop
+        var dividerY = marginX > 0 ? (marginX + HEADER_HEIGHT - CONTENT_PADDING) : HEADER_HEIGHT;
+        if (dividerY < headerY + 4) { dividerY = headerY + 4; }
         dc.setColor(textColor, bgColor);
-        dc.drawLine(0, HEADER_HEIGHT, screenWidth, HEADER_HEIGHT);
+        dc.drawLine(0, dividerY, screenWidth, dividerY);
 
         // Draw content lines
         dc.setColor(textColor, bgColor);
@@ -423,13 +427,21 @@ module BibleRenderer {
         var bgColor = layout.get("bgColor") as Number;
         var headerColor = layout.get("headerColor") as Number;
 
+        var marginX = layout.get("marginX") as Number;
+
         dc.setColor(textColor, bgColor);
         dc.clear();
 
-        drawHeaderText(dc, fontSize, screenWidth / 2, 6, headerText, headerColor, bgColor);
+        // Draw header at marginTop offset in empty page too
+        var headerY = marginX > 0 ? marginX - 2 : 6;
+        if (headerY < 0) { headerY = 0; }
+        drawHeaderText(dc, fontSize, screenWidth / 2, headerY, headerText, headerColor, bgColor);
 
+        // Draw divider below header, respecting marginTop
+        var dividerY = marginX > 0 ? (marginX + HEADER_HEIGHT - CONTENT_PADDING) : HEADER_HEIGHT;
+        if (dividerY < headerY + 4) { dividerY = headerY + 4; }
         dc.setColor(textColor, bgColor);
-        dc.drawLine(0, HEADER_HEIGHT, screenWidth, HEADER_HEIGHT);
+        dc.drawLine(0, dividerY, screenWidth, dividerY);
 
         dc.setColor(textColor, bgColor);
         drawMessageText(dc, fontSize, screenWidth / 2, screenHeight / 2, message);

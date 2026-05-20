@@ -108,7 +108,8 @@ class ActionMenuView extends Ui.View {
 
         for (var i = 0; i < ITEM_COUNT; i++) {
             if (i == selectedItem) {
-                dc.setColor(bgColor, textColor);
+                // Inverted colors: selected fill uses textColor, selected text uses bgColor
+                dc.setColor(textColor, textColor);
                 dc.fillRectangle(4, itemY, width - 8, lineH);
                 dc.setColor(bgColor, textColor);
             } else {

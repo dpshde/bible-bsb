@@ -52,66 +52,13 @@ module BibleApi {
             return [] as Array<Dictionary>;
         }
         var loaded = Application.loadResource(resourceId);
-        if (loaded == null) {
+        if (loaded == null || !(loaded instanceof Dictionary)) {
             return [] as Array<Dictionary>;
         }
         // Connect IQ loads jsonData as a Monkey C Dictionary/Array structure.
-        // The compact resource only stores {"chapter":{"content":[...]}}.
-        // We need to convert it back to a JSON-like string for the scanner,
-        // or adapt the scanner to accept the Dictionary directly.
-        // For simplicity, convert the loaded structure to a JSON string.
-        var jsonStr = resourceToJsonString(loaded);
-        if (jsonStr == null || jsonStr.length() == 0) {
-            return [] as Array<Dictionary>;
-        }
-        return BibleJsonScanner.parseVerses(jsonStr);
-    }
-
-    // Convert a loaded jsonData resource (Dictionary/Array) to a JSON string.
-    // This is needed because BibleJsonScanner works on raw JSON strings.
-    function resourceToJsonString(value as Object?) as String {
-        if (value == null) {
-            return "";
-        }
-        if (value instanceof String) {
-            return value as String;
-        }
-        if (value instanceof Number) {
-            return (value as Number).toString();
-        }
-        if (value instanceof Boolean) {
-            return (value as Boolean) ? "true" : "false";
-        }
-        if (value instanceof Dictionary) {
-            var dict = value as Dictionary;
-            var result = "{";
-            var first = true;
-            var keys = dict.keys();
-            for (var i = 0; i < keys.size(); i++) {
-                var k = keys[i];
-                var v = dict.get(k);
-                if (!first) {
-                    result = result + ",";
-                }
-                first = false;
-                result = result + "\"" + (k as String) + "\":" + resourceToJsonString(v);
-            }
-            result = result + "}";
-            return result;
-        }
-        if (value instanceof Array) {
-            var arr = value as Array;
-            var result = "[";
-            for (var i = 0; i < arr.size(); i++) {
-                if (i > 0) {
-                    result = result + ",";
-                }
-                result = result + resourceToJsonString(arr[i] as Object?);
-            }
-            result = result + "]";
-            return result;
-        }
-        return "";
+        // The compact resource stores {"chapter":{"content":[...]}}.
+        // Parse directly from the loaded Object — no O(n²) string conversion.
+        return BibleJsonScanner.parseVersesFromObject(loaded as Dictionary);
     }
 }
 
@@ -129,6 +76,117 @@ class BibleJsonScanner {
     static function parseVerses(data as String) as Array<Dictionary> {
         var scanner = new BibleJsonScanner(data);
         return scanner.scanForVerses();
+    }
+
+    // Parse verses directly from a loaded resource Object (Dictionary/Array).
+    // This eliminates O(n²) string conversion — traverses the Monkey C structure directly.
+    static function parseVersesFromObject(loaded as Dictionary) as Array<Dictionary> {
+        var verses = [] as Array<Dictionary>;
+
+        var chapter = loaded.get("chapter");
+        if (chapter == null || !(chapter instanceof Dictionary)) {
+            // Try direct content array at root level
+            var rootContent = loaded.get("content");
+            if (rootContent != null && rootContent instanceof Array) {
+                parseContentArrayFromObject(rootContent as Array, verses);
+            }
+            return verses;
+        }
+
+        var chapterDict = chapter as Dictionary;
+        var content = chapterDict.get("content");
+        if (content == null || !(content instanceof Array)) {
+            return verses;
+        }
+
+        parseContentArrayFromObject(content as Array, verses);
+        return verses;
+    }
+
+    private static function parseContentArrayFromObject(content as Array, verses as Array<Dictionary>) as Void {
+        for (var i = 0; i < content.size(); i++) {
+            var item = content[i];
+            if (item == null || !(item instanceof Dictionary)) {
+                continue;
+            }
+            var obj = item as Dictionary;
+            var type = obj.get("type");
+            if (type == null || !(type instanceof String) || !((type as String).equals("verse"))) {
+                continue;
+            }
+
+            var number = obj.get("number");
+            var verseNumber = 0;
+            if (number != null && number instanceof Number) {
+                verseNumber = number as Number;
+            }
+
+            var verseContent = obj.get("content");
+            var verseText = "";
+            if (verseContent != null && verseContent instanceof Array) {
+                verseText = extractVerseTextFromArray(verseContent as Array);
+            } else if (verseContent != null && verseContent instanceof String) {
+                verseText = verseContent as String;
+            }
+
+            var verse = {} as Dictionary;
+            verse.put("verseNumber", verseNumber);
+            verse.put("verseText", verseText);
+            verses.add(verse);
+        }
+    }
+
+    private static function extractVerseTextFromArray(arr as Array) as String {
+        var result = "";
+        for (var i = 0; i < arr.size(); i++) {
+            var item = arr[i];
+            if (item == null) {
+                continue;
+            }
+            if (item instanceof String) {
+                result = joinVerseText(result, item as String, result.length() == 0);
+            } else if (item instanceof Dictionary) {
+                var obj = item as Dictionary;
+                var text = obj.get("text");
+                if (text != null && text instanceof String) {
+                    var noteId = obj.get("noteId");
+                    var isNoteId = noteId != null;
+                    var isHeading = obj.get("heading") != null;
+                    var isLineBreak = obj.get("lineBreak") != null;
+                    if (!isNoteId && !isHeading && !isLineBreak) {
+                        result = joinVerseText(result, text as String, result.length() == 0);
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private static function joinVerseText(current as String, next as String, isFirst as Boolean) as String {
+        if (isFirst) {
+            return next;
+        }
+        if (current.length() == 0 || next.length() == 0) {
+            return current + next;
+        }
+        var lastIsSpace = false;
+        if (current.length() > 0) {
+            var lastChar = current.substring(current.length() - 1, current.length());
+            if (lastChar != null) {
+                lastIsSpace = (lastChar == " ");
+            }
+        }
+        var firstIsSpace = false;
+        if (next.length() > 0) {
+            var firstChar = next.substring(0, 1);
+            if (firstChar != null) {
+                firstIsSpace = (firstChar == " ");
+            }
+        }
+        if (!lastIsSpace && !firstIsSpace) {
+            return current + " " + next;
+        }
+        return current + next;
     }
 
     public function scanForVerses() as Array<Dictionary> {

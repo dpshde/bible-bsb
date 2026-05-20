@@ -6,9 +6,17 @@ using Toybox.Application;
 
 class ReaderView extends Ui.View {
     var layout as Dictionary?;
+    var pendingVerses as Array<Dictionary>?;
+    var isAlive as Boolean;
 
     function initialize() {
         View.initialize();
+        pendingVerses = null;
+        isAlive = true;
+    }
+
+    function onHide() as Void {
+        isAlive = false;
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
@@ -20,6 +28,18 @@ class ReaderView extends Ui.View {
             layout = BibleLayout.computeLayout(dc);
         }
         var safeLayout = layout as Dictionary;
+
+        // If there are pending verses that arrived before first onUpdate, wrap them now
+        if (pendingVerses != null) {
+            var contentWidth = safeLayout.get("contentWidth") as Number;
+            var charWidth = safeLayout.get("charWidth") as Number;
+            var linesPerPage = safeLayout.get("linesPerPage") as Number;
+            var wrapped = BibleRenderer.wrapVerses(pendingVerses as Array<Dictionary>, contentWidth, charWidth);
+            state.readerLines = wrapped;
+            state.readerLinesPerPage = linesPerPage;
+            pendingVerses = null;
+            Ui.requestUpdate();
+        }
 
         // Validate passage state — show error if invalid
         if (!BibleError.isValidPassageState(state)) {
@@ -164,6 +184,10 @@ class ReaderView extends Ui.View {
         responseCode as Number,
         data as Dictionary or String or Null
     ) as Void {
+        if (!isAlive) {
+            return;
+        }
+
         var app = getApp();
         var state = app.state;
 
@@ -207,6 +231,10 @@ class ReaderView extends Ui.View {
         startVerse as Number,
         endVerse as Number
     ) as Void {
+        if (!isAlive) {
+            return;
+        }
+
         var app = getApp();
         var state = app.state;
 
@@ -220,27 +248,31 @@ class ReaderView extends Ui.View {
             }
         }
 
-        if (layout == null) {
-            // We'll wrap when onUpdate runs with a valid DC
+        // Always word-wrap before storing readerLines — never store raw verses
+        if (layout != null) {
+            var safeLayout = layout as Dictionary;
+            var contentWidth = safeLayout.get("contentWidth") as Number;
+            var charWidth = safeLayout.get("charWidth") as Number;
+            var linesPerPage = safeLayout.get("linesPerPage") as Number;
+
+            var wrapped = BibleRenderer.wrapVerses(filtered, contentWidth, charWidth);
+
+            state.readerLines = wrapped;
+            state.readerScroll = 0;
+            state.readerLinesPerPage = linesPerPage;
             state.readerIsLoading = false;
             state.readerError = "";
-            state.readerLines = filtered;
-            Ui.requestUpdate();
-            return;
+        } else {
+            // Layout not yet computed (no onUpdate has run).
+            // Store filtered verses pending — they will be wrapped on first onUpdate
+            // when layout is computed from the DC.
+            pendingVerses = filtered;
+            state.readerLines = [] as Array<Dictionary>;
+            state.readerScroll = 0;
+            state.readerLinesPerPage = 1;
+            state.readerIsLoading = false;
+            state.readerError = "";
         }
-
-        var safeLayout = layout as Dictionary;
-        var contentWidth = safeLayout.get("contentWidth") as Number;
-        var charWidth = safeLayout.get("charWidth") as Number;
-        var linesPerPage = safeLayout.get("linesPerPage") as Number;
-
-        var wrapped = BibleRenderer.wrapVerses(filtered, contentWidth, charWidth);
-
-        state.readerLines = wrapped;
-        state.readerScroll = 0;
-        state.readerLinesPerPage = linesPerPage;
-        state.readerIsLoading = false;
-        state.readerError = "";
 
         Ui.requestUpdate();
     }

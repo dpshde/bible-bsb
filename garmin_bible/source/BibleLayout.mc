@@ -355,7 +355,7 @@ module BibleLayout {
         dc.clear();
     }
 
-    // Convenience: draw header text centered
+    // Convenience: draw header text centered, respecting marginTop for safe area
     function drawHeader(
         dc as Graphics.Dc,
         layout as Dictionary,
@@ -366,6 +366,11 @@ module BibleLayout {
         var headerColor = layout.get("headerColor") as Number;
         var bgColor = layout.get("bgColor") as Number;
         var dividerColor = layout.get("dividerColor") as Number;
+        var marginTop = layout.get("marginTop") as Number;
+
+        // Use marginTop as header Y offset so header stays inside safe area
+        var headerY = marginTop > CONTENT_PADDING ? marginTop - 2 : (HEADER_HEIGHT / 2 - 1);
+        if (headerY < 0) { headerY = 0; }
 
         dc.setColor(headerColor, bgColor);
         var font;
@@ -380,14 +385,17 @@ module BibleLayout {
         }
         dc.drawText(
             screenWidth / 2,
-            HEADER_HEIGHT / 2 - 1,
+            headerY,
             font,
             text,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
 
+        // Divider below header, also respecting marginTop
+        var dividerY = marginTop > CONTENT_PADDING ? (marginTop + HEADER_HEIGHT - CONTENT_PADDING) : HEADER_HEIGHT;
+        if (dividerY < headerY + 4) { dividerY = headerY + 4; }
         dc.setColor(dividerColor, bgColor);
-        dc.drawLine(0, HEADER_HEIGHT, screenWidth, HEADER_HEIGHT);
+        dc.drawLine(0, dividerY, screenWidth, dividerY);
     }
 
     // Convenience: draw a selectable row with highlight
