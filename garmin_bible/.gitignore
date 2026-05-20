@@ -1,5 +1,6 @@
 # Connect IQ build artifacts
 bin/
+.developer_key.der
 *.prg
 *.prg.debug.xml
 *.mir

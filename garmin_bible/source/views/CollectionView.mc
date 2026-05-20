@@ -47,10 +47,8 @@ class CollectionView extends Ui.View {
         var marginX = safeLayout.get("marginX") as Number;
         var textColor = safeLayout.get("textColor") as Number;
         var bgColor = safeLayout.get("bgColor") as Number;
-        var selectBg = safeLayout.get("selectBg") as Number;
-        var selectText = safeLayout.get("selectText") as Number;
         var fontSize = safeLayout.get("fontSize") as Number;
-        var lineHeight = safeLayout.get("lineHeight") as Number;
+        var lineHeight = BibleLayout.getListRowHeight(safeLayout);
         if (lineHeight < 1) {
             lineHeight = 1;
         }
@@ -105,27 +103,13 @@ class CollectionView extends Ui.View {
             var y = contentTop + (i * lineHeight);
             var isSelected = (listIdx == selectedIndex);
 
-            if (isSelected) {
-                dc.setColor(selectBg, selectText);
-                dc.fillRectangle(0, y, width, lineHeight);
-                dc.setColor(selectText, selectBg);
-            } else {
-                dc.setColor(textColor, bgColor);
-            }
-
             var entry = collection[listIdx] as Dictionary;
             var label = entry.get("display_ref") as String;
             if (label == null || label.length() == 0) {
                 label = "(unknown)";
             }
 
-            dc.drawText(
-                marginX,
-                y + (lineHeight / 2) - 1,
-                rowFont,
-                label,
-                Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER
-            );
+            BibleLayout.drawSelectableRow(dc, safeLayout, y, lineHeight, label, isSelected, marginX);
         }
 
         if (total > maxVisible) {
@@ -184,15 +168,15 @@ class CollectionView extends Ui.View {
     ) as Void {
         var textColor = layout.get("textColor") as Number;
         var bgColor = layout.get("bgColor") as Number;
-        var width = layout.get("screenWidth") as Number;
-        var marginX = layout.get("marginX") as Number;
-        var scrollBarX = width - marginX - 3;
+        var contentTop = layout.get("contentTop") as Number;
+        var contentBottom = layout.get("contentBottom") as Number;
+        var scrollBarX = BibleLayout.getSafeRowRight(layout, contentTop, contentBottom - contentTop) - 3;
         if (scrollBarX < 0) {
             scrollBarX = 0;
         }
 
-        var trackTop = layout.get("contentTop") as Number;
-        var trackBottom = layout.get("contentBottom") as Number;
+        var trackTop = contentTop;
+        var trackBottom = contentBottom;
         var trackHeight = trackBottom - trackTop;
 
         if (trackHeight <= 0) {

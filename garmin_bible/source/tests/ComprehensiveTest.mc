@@ -19,6 +19,7 @@ using Toybox.Graphics;
 // 9. Error path tests (no connection, 404, malformed JSON, storage)
 // ===================================================================
 
+(:test)
 class ComprehensiveTest {
 
     // ------------------------------------------------------------------

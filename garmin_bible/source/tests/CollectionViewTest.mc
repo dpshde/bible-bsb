@@ -2,6 +2,7 @@ import Toybox.Lang;
 using Toybox.Test;
 using Toybox.Application;
 
+(:test)
 class CollectionViewTest {
 
     // -----------------------------------------------------------------------

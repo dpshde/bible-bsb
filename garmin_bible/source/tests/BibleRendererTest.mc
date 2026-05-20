@@ -3,6 +3,7 @@ using Toybox.Graphics;
 using Toybox.System;
 using Toybox.Test;
 
+(:test)
 class BibleRendererTest {
 
     // ------------------------------------------------------------------

@@ -3,6 +3,7 @@ using Toybox.Test;
 using Toybox.Application;
 using Toybox.Graphics;
 
+(:test)
 class ReaderViewTest {
 
     // ------------------------------------------------------------------

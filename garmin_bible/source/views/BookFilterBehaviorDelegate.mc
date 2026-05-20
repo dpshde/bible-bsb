@@ -7,36 +7,30 @@ class BookFilterBehaviorDelegate extends Ui.BehaviorDelegate {
         BehaviorDelegate.initialize();
     }
 
-    // Up button: move selection up by one row
+    // Up button: move backward one filter in the same incremental snake order
+    // used by the filter grid.
     function onPreviousPage() as Boolean {
         var app = Application.getApp() as BibleApp;
         var state = app.state;
-        var total = BibleBooks.FILTER_COUNT;
-        var cols = 5;
 
-        if (state.filterIndex >= cols) {
-            state.filterIndex = state.filterIndex - cols;
+        if (state.filterIndex > 0) {
+            state.filterIndex = state.filterIndex - 1;
         }
-        // Clamp at top row (no wrap)
 
         Ui.requestUpdate();
         return true;
     }
 
-    // Down button: move selection down by one row
+    // Down button: move forward one filter in the same incremental snake order
+    // used by the filter grid.
     function onNextPage() as Boolean {
         var app = Application.getApp() as BibleApp;
         var state = app.state;
         var total = BibleBooks.FILTER_COUNT;
-        var cols = 5;
 
-        if (state.filterIndex + cols < total) {
-            state.filterIndex = state.filterIndex + cols;
-        } else if (state.filterIndex < total - 1) {
-            // Snap to last option if moving down from row above last partial row
-            state.filterIndex = total - 1;
+        if (state.filterIndex + 1 < total) {
+            state.filterIndex = state.filterIndex + 1;
         }
-        // Clamp at last option (no wrap)
 
         Ui.requestUpdate();
         return true;

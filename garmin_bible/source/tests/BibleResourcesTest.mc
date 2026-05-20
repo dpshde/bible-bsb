@@ -3,6 +3,7 @@ import Toybox.Lang;
 using Toybox.Test;
 using Toybox.WatchUi as WatchUi;
 
+(:test)
 class BibleResourcesTest {
 
     // -----------------------------------------------------------------------

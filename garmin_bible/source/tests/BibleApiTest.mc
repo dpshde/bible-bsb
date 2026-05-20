@@ -1,6 +1,7 @@
 import Toybox.Lang;
 using Toybox.Test;
 
+(:test)
 class BibleApiTest {
 
     // -----------------------------------------------------------------------

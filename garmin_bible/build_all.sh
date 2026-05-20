@@ -7,7 +7,8 @@
 #
 # Requirements:
 #   - monkeyc v9.1.0 at /tmp/connectiq/sdk_zip/bin/monkeyc
-#   - dev signing key at /tmp/dev_key.der
+#   - RSA 4096-bit dev signing key at .developer_key.der, generated on demand
+#     (or set CONNECTIQ_DEV_KEY to use a custom key)
 #   - Device data at ~/.Garmin/ConnectIQ/Devices/
 #
 # Targets (must match manifest.xml <iq:product> ids):
@@ -29,8 +30,10 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MONKEYC="/tmp/connectiq/sdk_zip/bin/monkeyc"
-KEY="/tmp/dev_key.der"
+KEY="${CONNECTIQ_DEV_KEY:-$SCRIPT_DIR/.developer_key.der}"
 OUT_DIR="$SCRIPT_DIR/bin"
+
+source "$SCRIPT_DIR/scripts/dev_key.sh"
 
 MODE="${1:-build}"
 
@@ -70,6 +73,7 @@ case "$MODE" in
 esac
 
 mkdir -p "$OUT_DIR"
+ensure_connectiq_dev_key "$KEY"
 
 PASS=0
 FAIL=0

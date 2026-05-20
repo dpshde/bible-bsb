@@ -15,14 +15,11 @@ class VerseSelectView extends Ui.View {
         layout = BibleLayout.computeLayout(dc);
         var safeLayout = layout as Dictionary;
 
-        var width = dc.getWidth();
         var marginX = safeLayout.get("marginX") as Number;
         var textColor = safeLayout.get("textColor") as Number;
         var bgColor = safeLayout.get("bgColor") as Number;
-        var selectBg = safeLayout.get("selectBg") as Number;
-        var selectText = safeLayout.get("selectText") as Number;
         var fontSize = safeLayout.get("fontSize") as Number;
-        var lineHeight = safeLayout.get("lineHeight") as Number;
+        var lineHeight = BibleLayout.getListRowHeight(safeLayout);
         if (lineHeight < 1) {
             lineHeight = 1;
         }
@@ -89,7 +86,7 @@ class VerseSelectView extends Ui.View {
             hintFont = Graphics.FONT_TINY;
         }
         dc.drawText(
-            width / 2,
+            BibleLayout.getSafeRowCenterX(safeLayout, hintY, 8),
             hintY,
             hintFont,
             hint,
@@ -105,39 +102,12 @@ class VerseSelectView extends Ui.View {
         text as String,
         isSelected as Boolean
     ) as Void {
-        var width = layout.get("screenWidth") as Number;
         var marginX = layout.get("marginX") as Number;
         var textColor = layout.get("textColor") as Number;
         var bgColor = layout.get("bgColor") as Number;
-        var selectBg = layout.get("selectBg") as Number;
-        var selectText = layout.get("selectText") as Number;
         var fontSize = layout.get("fontSize") as Number;
 
-        if (isSelected) {
-            dc.setColor(selectBg, selectText);
-            dc.fillRectangle(0, y - 10, width, rowHeight);
-            dc.setColor(selectText, selectBg);
-        } else {
-            dc.setColor(textColor, bgColor);
-        }
-
-        var font;
-        if (fontSize == BibleLayout.FONT_LARGE) {
-            font = Graphics.FONT_LARGE;
-        } else if (fontSize == BibleLayout.FONT_MEDIUM) {
-            font = Graphics.FONT_MEDIUM;
-        } else if (fontSize == BibleLayout.FONT_TINY) {
-            font = Graphics.FONT_TINY;
-        } else {
-            font = Graphics.FONT_SMALL;
-        }
-        dc.drawText(
-            marginX,
-            y,
-            font,
-            text,
-            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER
-        );
+        BibleLayout.drawSelectableRow(dc, layout, y - (rowHeight / 2), rowHeight, text, isSelected, marginX);
     }
 
     private function getApp() as BibleApp {

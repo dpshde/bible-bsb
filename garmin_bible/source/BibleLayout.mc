@@ -34,6 +34,14 @@ module BibleLayout {
     const MARGIN_ROUND = 10;
     const MARGIN_RECTANGLE = 4;
 
+    // Instinct-style semi-octagon screens have a top-right subscreen that is
+    // part of the device chrome, not usable app canvas. Keep top-row content
+    // to the left of it.
+    const SUBSCREEN_SAFE_RIGHT_SMALL = 88;
+    const SUBSCREEN_BOTTOM_SMALL = 70;
+    const SUBSCREEN_GRID_COLS_SMALL = 3;
+    const MIN_LIST_ROW_HEIGHT_SMALL = 16;
+
     // Screen width breakpoints for font selection
     const WIDTH_SMALL_MAX = 180;
     const WIDTH_MEDIUM_MAX = 260;
@@ -208,6 +216,7 @@ module BibleLayout {
         layout.put("screenHeight", screenHeight);
 
         var deviceSettings = System.getDeviceSettings();
+        layout.put("screenShape", deviceSettings.screenShape);
 
         // Font selection with readability scaling
         var fontSize = selectFontSize(screenWidth);
@@ -288,6 +297,7 @@ module BibleLayout {
         layout.put("screenHeight", screenHeight);
         layout.put("fontSize", fontSize);
         layout.put("lineHeight", lineHeight);
+        layout.put("screenShape", screenShape);
 
         var marginX;
         var marginTop;
@@ -347,6 +357,76 @@ module BibleLayout {
         return layout;
     }
 
+    function hasTopRightSubscreen(layout as Dictionary) as Boolean {
+        var screenWidth = layout.get("screenWidth") as Number;
+        var screenHeight = layout.get("screenHeight") as Number;
+        var screenShape = layout.get("screenShape") as Number;
+        return screenShape == System.SCREEN_SHAPE_SEMI_OCTAGON &&
+               screenWidth <= WIDTH_SMALL_MAX && screenHeight <= WIDTH_SMALL_MAX;
+    }
+
+    function getSafeRowLeft(layout as Dictionary, y as Number, rowHeight as Number) as Number {
+        return layout.get("marginX") as Number;
+    }
+
+    function getSafeRowRight(layout as Dictionary, y as Number, rowHeight as Number) as Number {
+        var screenWidth = layout.get("screenWidth") as Number;
+        var marginX = layout.get("marginX") as Number;
+        var right = screenWidth - marginX;
+
+        if (hasTopRightSubscreen(layout) && y < SUBSCREEN_BOTTOM_SMALL) {
+            right = SUBSCREEN_SAFE_RIGHT_SMALL;
+        }
+
+        if (right < marginX + 1) {
+            right = marginX + 1;
+        }
+        return right;
+    }
+
+    function getSafeRowWidth(layout as Dictionary, y as Number, rowHeight as Number) as Number {
+        var width = getSafeRowRight(layout, y, rowHeight) - getSafeRowLeft(layout, y, rowHeight);
+        if (width < 1) {
+            width = 1;
+        }
+        return width;
+    }
+
+    function getSafeRowCenterX(layout as Dictionary, y as Number, rowHeight as Number) as Number {
+        return getSafeRowLeft(layout, y, rowHeight) + (getSafeRowWidth(layout, y, rowHeight) / 2);
+    }
+
+    function getSafeHighlightX(layout as Dictionary, y as Number, rowHeight as Number) as Number {
+        var x = getSafeRowLeft(layout, y, rowHeight) - 2;
+        if (x < 0) {
+            x = 0;
+        }
+        return x;
+    }
+
+    function getSafeHighlightWidth(layout as Dictionary, y as Number, rowHeight as Number) as Number {
+        var width = getSafeRowRight(layout, y, rowHeight) - getSafeHighlightX(layout, y, rowHeight);
+        if (width < 1) {
+            width = 1;
+        }
+        return width;
+    }
+
+    function getGridColumnCount(layout as Dictionary, preferredCols as Number) as Number {
+        if (hasTopRightSubscreen(layout) && preferredCols > SUBSCREEN_GRID_COLS_SMALL) {
+            return SUBSCREEN_GRID_COLS_SMALL;
+        }
+        return preferredCols;
+    }
+
+    function getListRowHeight(layout as Dictionary) as Number {
+        var lineHeight = layout.get("lineHeight") as Number;
+        if (hasTopRightSubscreen(layout) && lineHeight < MIN_LIST_ROW_HEIGHT_SMALL) {
+            return MIN_LIST_ROW_HEIGHT_SMALL;
+        }
+        return lineHeight;
+    }
+
     // Convenience: apply background color and clear screen
     function clearBackground(dc as Graphics.Dc, layout as Dictionary) as Void {
         var bgColor = layout.get("bgColor") as Number;
@@ -392,8 +472,13 @@ module BibleLayout {
         var bgColor = layout.get("bgColor") as Number;
         var dividerColor = layout.get("dividerColor") as Number;
         var marginTop = layout.get("marginTop") as Number;
-        var contentWidth = layout.get("contentWidth") as Number;
+        var marginX = layout.get("marginX") as Number;
         var charWidth = layout.get("charWidth") as Number;
+        var headerRight = getSafeRowRight(layout, 0, marginTop + HEADER_HEIGHT);
+        var headerWidth = headerRight - marginX;
+        if (headerWidth < 1) {
+            headerWidth = 1;
+        }
 
         // Use marginTop as header Y offset so header stays inside safe area
         var headerY = marginTop > CONTENT_PADDING ? marginTop - 2 : (HEADER_HEIGHT / 2 - 1);
@@ -412,10 +497,10 @@ module BibleLayout {
         }
 
         // Truncate long book names to fit within content width
-        var truncatedText = truncateStringToWidth(text, contentWidth, charWidth);
+        var truncatedText = truncateStringToWidth(text, headerWidth, charWidth);
 
         dc.drawText(
-            screenWidth / 2,
+            marginX + (headerWidth / 2),
             headerY,
             font,
             truncatedText,
@@ -426,7 +511,11 @@ module BibleLayout {
         var dividerY = marginTop > CONTENT_PADDING ? (marginTop + HEADER_HEIGHT - CONTENT_PADDING) : HEADER_HEIGHT;
         if (dividerY < headerY + 4) { dividerY = headerY + 4; }
         dc.setColor(dividerColor, bgColor);
-        dc.drawLine(0, dividerY, screenWidth, dividerY);
+        if (hasTopRightSubscreen(layout)) {
+            dc.drawLine(marginX, dividerY, headerRight, dividerY);
+        } else {
+            dc.drawLine(0, dividerY, screenWidth, dividerY);
+        }
     }
 
     // Convenience: draw a selectable row with highlight
@@ -439,7 +528,6 @@ module BibleLayout {
         isSelected as Boolean,
         x as Number
     ) as Void {
-        var width = layout.get("screenWidth") as Number;
         var fontSize = layout.get("fontSize") as Number;
         var textColor = layout.get("textColor") as Number;
         var bgColor = layout.get("bgColor") as Number;
@@ -448,7 +536,12 @@ module BibleLayout {
 
         if (isSelected) {
             dc.setColor(selectBg, selectText);
-            dc.fillRectangle(0, y, width, rowHeight);
+            dc.fillRectangle(
+                getSafeHighlightX(layout, y, rowHeight),
+                y,
+                getSafeHighlightWidth(layout, y, rowHeight),
+                rowHeight
+            );
             dc.setColor(selectText, selectBg);
         } else {
             dc.setColor(textColor, bgColor);
@@ -464,11 +557,12 @@ module BibleLayout {
         } else {
             font = Graphics.FONT_SMALL;
         }
+        var safeText = truncateStringToWidth(text, getSafeRowWidth(layout, y, rowHeight) - 2, layout.get("charWidth") as Number);
         dc.drawText(
             x,
             y + (rowHeight / 2) - 1,
             font,
-            text,
+            safeText,
             Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER
         );
     }

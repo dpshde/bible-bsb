@@ -44,6 +44,8 @@ class ChapterListView extends Ui.View {
         }
 
         var totalRows = (maxChapter + COLS - 1) / COLS;
+        var cols = BibleLayout.getGridColumnCount(safeLayout, COLS);
+        totalRows = (maxChapter + cols - 1) / cols;
         if (totalRows < 1) {
             totalRows = 1;
         }
@@ -52,12 +54,12 @@ class ChapterListView extends Ui.View {
         var contentTop = safeLayout.get("contentTop") as Number;
         var contentBottom = safeLayout.get("contentBottom") as Number;
         var contentHeight = contentBottom - contentTop;
-        var contentWidth = safeLayout.get("contentWidth") as Number;
-        var cellW = contentWidth / COLS;
+        var contentWidth = BibleLayout.getSafeRowWidth(safeLayout, contentTop, contentHeight);
+        var cellW = contentWidth / cols;
         if (cellW < 1) {
             cellW = 1;
         }
-        var cellH = safeLayout.get("lineHeight") as Number;
+        var cellH = BibleLayout.getListRowHeight(safeLayout);
         if (cellH < 1) {
             cellH = 1;
         }
@@ -67,7 +69,7 @@ class ChapterListView extends Ui.View {
             maxVisibleRows = 1;
         }
 
-        var selectedRow = (state.chapter - 1) / COLS;
+        var selectedRow = (state.chapter - 1) / cols;
 
         // Determine which row range to show
         var startRow;
@@ -94,10 +96,11 @@ class ChapterListView extends Ui.View {
 
         // Draw grid cells
         for (var row = startRow; row < startRow + maxVisibleRows && row < totalRows; row++) {
-            for (var col = 0; col < COLS; col++) {
-                var chapterNum = row * COLS + col + 1;
+            for (var col = 0; col < cols; col++) {
+                var chapterIndex = snakeIndexForCell(row, col, cols);
+                var chapterNum = chapterIndex + 1;
                 if (chapterNum > maxChapter) {
-                    break;
+                    continue;
                 }
 
                 var displayRow = row - startRow;
@@ -129,6 +132,13 @@ class ChapterListView extends Ui.View {
         }
     }
 
+    private function snakeIndexForCell(row as Number, col as Number, cols as Number) as Number {
+        if ((row % 2) == 0) {
+            return row * cols + col;
+        }
+        return row * cols + (cols - 1 - col);
+    }
+
     private function drawScrollIndicator(
         dc as Graphics.Dc,
         layout as Dictionary,
@@ -139,15 +149,15 @@ class ChapterListView extends Ui.View {
     ) as Void {
         var textColor = layout.get("textColor") as Number;
         var bgColor = layout.get("bgColor") as Number;
-        var width = layout.get("screenWidth") as Number;
-        var marginX = layout.get("marginX") as Number;
-        var scrollBarX = width - marginX - 3;
+        var contentTop = layout.get("contentTop") as Number;
+        var contentBottom = layout.get("contentBottom") as Number;
+        var scrollBarX = BibleLayout.getSafeRowRight(layout, contentTop, contentBottom - contentTop) - 3;
         if (scrollBarX < 0) {
             scrollBarX = 0;
         }
 
-        var trackTop = BibleLayout.HEADER_HEIGHT + layout.get("marginTop") as Number;
-        var trackBottom = height - layout.get("marginBottom") as Number;
+        var trackTop = contentTop;
+        var trackBottom = contentBottom;
         var trackHeight = trackBottom - trackTop;
 
         if (trackHeight <= 0) {

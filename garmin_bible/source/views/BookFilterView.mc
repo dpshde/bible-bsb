@@ -40,17 +40,19 @@ class BookFilterView extends Ui.View {
 
         var totalOptions = BibleBooks.FILTER_COUNT;
         var totalRows = (totalOptions + COLS - 1) / COLS;
+        var cols = BibleLayout.getGridColumnCount(safeLayout, COLS);
+        totalRows = (totalOptions + cols - 1) / cols;
 
         // Derive cell dimensions from layout
         var contentTop = safeLayout.get("contentTop") as Number;
         var contentBottom = safeLayout.get("contentBottom") as Number;
         var contentHeight = contentBottom - contentTop;
-        var contentWidth = safeLayout.get("contentWidth") as Number;
-        var cellW = contentWidth / COLS;
+        var contentWidth = BibleLayout.getSafeRowWidth(safeLayout, contentTop, contentHeight);
+        var cellW = contentWidth / cols;
         if (cellW < 1) {
             cellW = 1;
         }
-        var cellH = safeLayout.get("lineHeight") as Number;
+        var cellH = BibleLayout.getListRowHeight(safeLayout);
         if (cellH < 1) {
             cellH = 1;
         }
@@ -61,7 +63,7 @@ class BookFilterView extends Ui.View {
         }
 
         // Determine which row range to show
-        var selectedRow = selectedFilter / COLS;
+        var selectedRow = selectedFilter / cols;
         var startRow;
         if (selectedRow >= maxVisibleRows - 1) {
             startRow = selectedRow - maxVisibleRows + 1;
@@ -85,41 +87,49 @@ class BookFilterView extends Ui.View {
         }
 
         // Draw grid cells
-        for (var i = 0; i < totalOptions; i++) {
-            var row = i / COLS;
-            var col = i % COLS;
-
-            if (row < startRow || row >= startRow + maxVisibleRows) {
-                continue;
-            }
-
+        for (var row = startRow; row < startRow + maxVisibleRows && row < totalRows; row++) {
             var displayRow = row - startRow;
-            var x = marginX + (col * cellW);
-            var y = contentTop + (displayRow * cellH);
-            var isSelected = (i == selectedFilter);
+            for (var col = 0; col < cols; col++) {
+                var i = snakeIndexForCell(row, col, cols);
+                if (i >= totalOptions) {
+                    continue;
+                }
 
-            if (isSelected) {
-                dc.setColor(selectBg, selectText);
-                dc.fillRectangle(x, y, cellW - 2, cellH - 2);
-                dc.setColor(selectText, selectBg);
-            } else {
-                dc.setColor(textColor, bgColor);
+                var x = marginX + (col * cellW);
+                var y = contentTop + (displayRow * cellH);
+                var isSelected = (i == selectedFilter);
+
+                if (isSelected) {
+                    dc.setColor(selectBg, selectText);
+                    dc.fillRectangle(x, y, cellW - 2, cellH - 2);
+                    dc.setColor(selectText, selectBg);
+                } else {
+                    dc.setColor(textColor, bgColor);
+                }
+
+                var opt = BibleBooks.getFilterOption(i);
+                opt = BibleLayout.truncateStringToWidth(opt, cellW - 2, safeLayout.get("charWidth") as Number);
+                dc.drawText(
+                    x + (cellW / 2) - 1,
+                    y + (cellH / 2) - 1,
+                    cellFont,
+                    opt,
+                    Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+                );
             }
-
-            var opt = BibleBooks.getFilterOption(i);
-            dc.drawText(
-                x + (cellW / 2) - 1,
-                y + (cellH / 2) - 1,
-                cellFont,
-                opt,
-                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-            );
         }
 
         // Draw scroll indicator if needed
         if (totalRows > maxVisibleRows) {
             drawScrollIndicator(dc, safeLayout, startRow, totalRows, maxVisibleRows, contentTop, contentHeight);
         }
+    }
+
+    private function snakeIndexForCell(row as Number, col as Number, cols as Number) as Number {
+        if ((row % 2) == 0) {
+            return row * cols + col;
+        }
+        return row * cols + (cols - 1 - col);
     }
 
     private function drawScrollIndicator(
@@ -133,9 +143,7 @@ class BookFilterView extends Ui.View {
     ) as Void {
         var textColor = layout.get("textColor") as Number;
         var bgColor = layout.get("bgColor") as Number;
-        var width = layout.get("screenWidth") as Number;
-        var marginX = layout.get("marginX") as Number;
-        var scrollBarX = width - marginX - 3;
+        var scrollBarX = BibleLayout.getSafeRowRight(layout, contentTop, contentHeight) - 3;
         if (scrollBarX < 0) {
             scrollBarX = 0;
         }

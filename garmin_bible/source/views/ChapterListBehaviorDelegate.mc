@@ -10,34 +10,30 @@ class ChapterListBehaviorDelegate extends Ui.BehaviorDelegate {
         view = v;
     }
 
-    // Up button: move selection up by 5 chapters (one row)
+    // Up button: move backward one chapter. The grid draws in a snake path,
+    // so incremental movement stays adjacent instead of jumping rows.
     function onPreviousPage() as Boolean {
         var app = Application.getApp() as BibleApp;
         var state = app.state;
-        var cols = 5;
 
-        if (state.chapter > cols) {
-            state.chapter = state.chapter - cols;
+        if (state.chapter > 1) {
+            state.chapter = state.chapter - 1;
         }
-        // Clamp at first row (no wrap)
 
         Ui.requestUpdate();
         return true;
     }
 
-    // Down button: move selection down by 5 chapters (one row)
+    // Down button: move forward one chapter. The visual snake order keeps the
+    // next chapter next to the current one at row boundaries.
     function onNextPage() as Boolean {
         var app = Application.getApp() as BibleApp;
         var state = app.state;
         var maxChapter = BibleBooks.getChapterCount(state.bookIndex);
-        var cols = 5;
 
-        if (state.chapter + cols <= maxChapter) {
-            state.chapter = state.chapter + cols;
-        } else if (state.chapter < maxChapter) {
-            state.chapter = maxChapter;
+        if (state.chapter < maxChapter) {
+            state.chapter = state.chapter + 1;
         }
-        // Clamp at last chapter (no wrap)
 
         Ui.requestUpdate();
         return true;

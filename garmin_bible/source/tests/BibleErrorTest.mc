@@ -4,6 +4,7 @@ using Toybox.Application;
 using Toybox.System;
 using Toybox.Graphics;
 
+(:test)
 class BibleErrorTest {
 
     // ------------------------------------------------------------------

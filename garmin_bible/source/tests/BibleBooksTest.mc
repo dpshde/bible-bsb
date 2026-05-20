@@ -2,6 +2,7 @@ import Toybox.Lang;
 using Toybox.System;
 using Toybox.Test;
 
+(:test)
 class BibleBooksTest {
 
     function testBookCount(logger as Test.Logger) as Boolean {

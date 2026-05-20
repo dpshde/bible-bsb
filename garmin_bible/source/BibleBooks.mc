@@ -166,22 +166,22 @@ module BibleBooks {
     function getFilteredBooks(filter as String) as Array<Number> {
         var result = [] as Array<Number>;
         var allFilter = "";
-        if (filter.length() == 0 || filter == allFilter || filter == "All") {
+        if (filter.length() == 0 || filter.equals(allFilter) || filter.equals("All")) {
             for (var i = 0; i < BOOK_COUNT; i++) {
                 result.add(i);
             }
             return result;
         }
-        var initial = filter.substring(0, 1);
+        var initial = filter.substring(0, 1) as String;
         for (var i = 0; i < BOOK_COUNT; i++) {
             var name = getBookName(i);
             if (name.length() > 0) {
-                var firstChar = name.substring(0, 1);
-                if (firstChar == initial) {
+                var firstChar = name.substring(0, 1) as String;
+                if (firstChar.equals(initial)) {
                     result.add(i);
                 } else {
                     var firstAlpha = getFirstAlphabeticChar(name);
-                    if (firstAlpha == initial) {
+                    if (firstAlpha.equals(initial)) {
                         result.add(i);
                     }
                 }
@@ -209,11 +209,11 @@ module BibleBooks {
 
     // Check if a single-character string is an uppercase A-Z letter.
     function isUppercaseLetter(c as String) as Boolean {
-        return c == "A" || c == "B" || c == "C" || c == "D" || c == "E" ||
-               c == "F" || c == "G" || c == "H" || c == "I" || c == "J" ||
-               c == "K" || c == "L" || c == "M" || c == "N" || c == "O" ||
-               c == "P" || c == "Q" || c == "R" || c == "S" || c == "T" ||
-               c == "U" || c == "V" || c == "W" || c == "X" || c == "Y" ||
-               c == "Z";
+        return c.equals("A") || c.equals("B") || c.equals("C") || c.equals("D") || c.equals("E") ||
+               c.equals("F") || c.equals("G") || c.equals("H") || c.equals("I") || c.equals("J") ||
+               c.equals("K") || c.equals("L") || c.equals("M") || c.equals("N") || c.equals("O") ||
+               c.equals("P") || c.equals("Q") || c.equals("R") || c.equals("S") || c.equals("T") ||
+               c.equals("U") || c.equals("V") || c.equals("W") || c.equals("X") || c.equals("Y") ||
+               c.equals("Z");
     }
 }

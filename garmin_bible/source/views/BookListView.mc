@@ -15,15 +15,12 @@ class BookListView extends Ui.View {
         layout = BibleLayout.computeLayout(dc);
         var safeLayout = layout as Dictionary;
 
-        var width = dc.getWidth();
         var height = dc.getHeight();
         var marginX = safeLayout.get("marginX") as Number;
         var textColor = safeLayout.get("textColor") as Number;
         var bgColor = safeLayout.get("bgColor") as Number;
-        var selectBg = safeLayout.get("selectBg") as Number;
-        var selectText = safeLayout.get("selectText") as Number;
         var fontSize = safeLayout.get("fontSize") as Number;
-        var lineHeight = safeLayout.get("lineHeight") as Number;
+        var lineHeight = BibleLayout.getListRowHeight(safeLayout);
         if (lineHeight < 1) {
             lineHeight = 1;
         }
@@ -74,32 +71,8 @@ class BookListView extends Ui.View {
             var y = contentTop + (i * lineHeight);
             var isSelected = (bookIndex == state.selectedBookIndex);
 
-            if (isSelected) {
-                dc.setColor(selectBg, selectText);
-                dc.fillRectangle(0, y, width, lineHeight);
-                dc.setColor(selectText, selectBg);
-            } else {
-                dc.setColor(textColor, bgColor);
-            }
-
             var bookName = BibleBooks.getBookName(bookIndex);
-            var font;
-            if (fontSize == BibleLayout.FONT_LARGE) {
-                font = Graphics.FONT_LARGE;
-            } else if (fontSize == BibleLayout.FONT_MEDIUM) {
-                font = Graphics.FONT_MEDIUM;
-            } else if (fontSize == BibleLayout.FONT_TINY) {
-                font = Graphics.FONT_TINY;
-            } else {
-                font = Graphics.FONT_SMALL;
-            }
-            dc.drawText(
-                marginX,
-                y + (lineHeight / 2) - 1,
-                font,
-                bookName,
-                Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER
-            );
+            BibleLayout.drawSelectableRow(dc, safeLayout, y, lineHeight, bookName, isSelected, marginX);
         }
 
         // Draw scroll indicator if needed
@@ -130,17 +103,15 @@ class BookListView extends Ui.View {
     ) as Void {
         var textColor = layout.get("textColor") as Number;
         var bgColor = layout.get("bgColor") as Number;
-        var width = layout.get("screenWidth") as Number;
-        var marginX = layout.get("marginX") as Number;
-        var marginTop = layout.get("marginTop") as Number;
-        var marginBottom = layout.get("marginBottom") as Number;
-        var scrollBarX = width - marginX - SCROLL_BAR_WIDTH;
+        var contentTop = layout.get("contentTop") as Number;
+        var contentBottom = layout.get("contentBottom") as Number;
+        var scrollBarX = BibleLayout.getSafeRowRight(layout, contentTop, contentBottom - contentTop) - SCROLL_BAR_WIDTH;
         if (scrollBarX < 0) {
             scrollBarX = 0;
         }
 
-        var trackTop = marginTop + BibleLayout.HEADER_HEIGHT;
-        var trackBottom = height - marginBottom;
+        var trackTop = contentTop;
+        var trackBottom = contentBottom;
         var trackHeight = trackBottom - trackTop;
 
         if (trackHeight <= 0) {

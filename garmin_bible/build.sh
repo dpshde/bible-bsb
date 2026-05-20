@@ -23,9 +23,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEVICE="${1:-instinct3solar45mm}"
 MONKEYC="/tmp/connectiq/sdk_zip/bin/monkeyc"
-KEY="/tmp/dev_key.der"
+KEY="${CONNECTIQ_DEV_KEY:-$SCRIPT_DIR/.developer_key.der}"
 OUT_DIR="$SCRIPT_DIR/bin"
 OUT_FILE="$OUT_DIR/bible_${DEVICE}.prg"
+
+source "$SCRIPT_DIR/scripts/dev_key.sh"
 
 # DEVICE is always set via default above, but we keep a basic
 # argument check for any future expansion.
@@ -40,6 +42,7 @@ if [ $# -gt 1 ]; then
 fi
 
 mkdir -p "$OUT_DIR"
+ensure_connectiq_dev_key "$KEY"
 
 echo "Building Bible BSB for $DEVICE ..."
 "$MONKEYC" -f "$SCRIPT_DIR/monkey.jungle" -d "$DEVICE" -y "$KEY" -o "$OUT_FILE"
