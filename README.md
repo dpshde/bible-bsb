@@ -5,6 +5,17 @@ Flipper Zero apps for reading and saving Berean Standard Bible passages offline.
 - `bible_bsb/` is the C app that ships. Build it with ufbt from that directory. The app id is `bible_bsb`.
 - `src/` is the Rust prototype. Build it with `cargo build --release`. `scripts/validate.sh` checks that build. The package name is `kindled_spark`.
 
+## Screens
+
+<p align="center">
+  <img src="screenshots/books.png" width="384" alt="Book list">
+  <img src="screenshots/chapters.png" width="384" alt="John chapters">
+</p>
+<p align="center">
+  <img src="screenshots/verses.png" width="384" alt="John 3 verse select">
+  <img src="screenshots/reader.png" width="384" alt="John 3 reader">
+</p>
+
 ## Features
 
 - **Offline BSB reading** — Browse all 66 books by chapter and verse range. BSB text lives on your SD card (no network required).
