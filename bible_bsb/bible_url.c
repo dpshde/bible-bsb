@@ -7,7 +7,7 @@
 /* ============================================================================
  * route.bible URL builder
  *
- * Canonical URL format (mirrors Rust src/route_url.rs exactly):
+ * Canonical URL format:
  *
  *   All verses:     https://route.bible/{book_lower}.{chapter}?v=BSB&src=kindled_spark
  *   Single verse:   https://route.bible/{book_lower}.{chapter}.{verse}?v=BSB&src=kindled_spark
@@ -62,7 +62,7 @@ bool bible_build_route_url(const BiblePassage* passage, char* out, size_t out_le
             (unsigned int)passage->chapter,
             (unsigned int)passage->start_verse);
     } else {
-        /* All verses — no verse number appended, matching Rust build_url */
+        /* All verses: no verse number appended */
         snprintf(
             out,
             out_len,

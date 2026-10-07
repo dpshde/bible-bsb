@@ -90,7 +90,7 @@ typedef struct {
 } BibleCollectionEntry;
 
 /* ============================================================================
- * App state — central mutable state (mirrors Rust AppState)
+ * App state
  * ============================================================================ */
 typedef struct BibleAppState {
     /* Navigation */
@@ -113,6 +113,8 @@ typedef struct BibleAppState {
     uint8_t collection_count;
     uint8_t collection_capacity;
     bool collection_loaded;
+    bool bsb_data_present; /* true when bsb/gen/1.json is on the SD card */
+    bool show_data_help; /* true when a chapter file was missing */
 
     /* Rendering */
     BibleLine* lines; /* dynamically allocated, NULL if no lines */

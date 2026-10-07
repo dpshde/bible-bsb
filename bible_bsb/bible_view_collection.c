@@ -6,7 +6,7 @@
 #include <string.h>
 
 /* ============================================================================
- * Collection layout constants — match Rust src/views/collection.rs exactly
+ * Collection layout constants
  * ============================================================================ */
 #define COLLECTION_HEADER_Y  10
 #define COLLECTION_DIVIDER_Y 12
@@ -18,6 +18,10 @@
 void bible_bsb_view_collection_draw(Canvas* canvas, void* ctx) {
     BibleApp* app = bible_app_from_draw(ctx);
     BibleAppState* state = app->state;
+    if(state->show_data_help) {
+        bible_draw_missing_data(canvas);
+        return;
+    }
 
     canvas_clear(canvas);
     canvas_set_font(canvas, FontPrimary);
@@ -89,6 +93,11 @@ bool bible_bsb_view_collection_input(InputEvent* event, void* ctx) {
     if(event->type != InputTypePress && event->type != InputTypeRepeat &&
        event->type != InputTypeShort && event->type != InputTypeLong) {
         return false;
+    }
+
+    if(state->show_data_help) {
+        bible_app_request_redraw(app);
+        return !(event->key == InputKeyBack && event->type == InputTypeShort);
     }
 
     bool consumed = false;
@@ -170,6 +179,8 @@ bool bible_bsb_view_collection_input(InputEvent* event, void* ctx) {
             bool loaded = bible_storage_load_verses_for_entry(state, state->collection_scroll);
             if(loaded) {
                 scene_manager_next_scene(app->scene_manager, BibleSceneReader);
+            } else if(state->show_data_help) {
+                /* The missing-file screen replaces the toast. */
             } else if(!bible_toast_active(&state->toast)) {
                 bible_toast_set(&state->toast, "Load failed");
             }

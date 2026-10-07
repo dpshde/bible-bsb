@@ -7,7 +7,7 @@
 #include <string.h>
 
 /* ============================================================================
- * ActionMenu layout constants — match Rust src/views/reader.rs draw_action_menu
+ * ActionMenu layout constants
  * ============================================================================ */
 #define ACTION_MENU_HEADER_Y  10
 #define ACTION_MENU_DIVIDER_Y 12
@@ -68,7 +68,7 @@ bool bible_bsb_view_action_menu_input(InputEvent* event, void* ctx) {
 
     if(event->key == InputKeyUp &&
        (event->type == InputTypePress || event->type == InputTypeRepeat)) {
-        /* Clamp, matching Rust — do not wrap past the first item. */
+        /* Clamp: do not wrap past the first item. */
         if(state->action_menu_selection > 0) {
             state->action_menu_selection -= 1;
         }

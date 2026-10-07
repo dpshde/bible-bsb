@@ -8,6 +8,7 @@
 #include "bible_view_collection.h"
 #include "bible_view_nfc_share.h"
 #include "bible_storage.h"
+#include "bible_loader.h"
 #include "bible_books.h"
 #include "bible_nfc.h"
 
@@ -54,6 +55,7 @@ static bool bible_bsb_navigation_event_callback(void* context) {
 static void bible_bsb_scene_book_list_on_enter(void* context) {
     BibleApp* app = context;
     app->state->current_scene = BibleSceneBookList;
+    app->state->bsb_data_present = bible_chapter_data_present();
     view_dispatcher_switch_to_view(app->view_dispatcher, BibleViewBookList);
 }
 
@@ -162,7 +164,10 @@ static bool bible_bsb_scene_verse_select_on_event(void* context, SceneManagerEve
 }
 
 static void bible_bsb_scene_verse_select_on_exit(void* context) {
-    UNUSED(context);
+    BibleApp* app = context;
+    if(app && app->state) {
+        app->state->show_data_help = false;
+    }
 }
 
 /* ============================================================================
@@ -182,7 +187,10 @@ static bool bible_bsb_scene_reader_on_event(void* context, SceneManagerEvent eve
 }
 
 static void bible_bsb_scene_reader_on_exit(void* context) {
-    UNUSED(context);
+    BibleApp* app = context;
+    if(app && app->state) {
+        app->state->show_data_help = false;
+    }
 }
 
 /* ============================================================================
@@ -233,11 +241,14 @@ static bool bible_bsb_scene_collection_on_event(void* context, SceneManagerEvent
 }
 
 static void bible_bsb_scene_collection_on_exit(void* context) {
-    UNUSED(context);
+    BibleApp* app = context;
+    if(app && app->state) {
+        app->state->show_data_help = false;
+    }
 }
 
 /* ============================================================================
- * Scene handlers — NfcShare (stub for future feature)
+ * Scene handlers - NFC share
  * ============================================================================ */
 
 static void bible_bsb_scene_nfc_share_on_enter(void* context) {
@@ -247,8 +258,23 @@ static void bible_bsb_scene_nfc_share_on_enter(void* context) {
 }
 
 static bool bible_bsb_scene_nfc_share_on_event(void* context, SceneManagerEvent event) {
-    UNUSED(context);
-    UNUSED(event);
+    BibleApp* app = context;
+    if(!app || !app->state) {
+        return false;
+    }
+
+    if(event.type == SceneManagerEventTypeBack) {
+        bool export_mode = app->state->nfc_is_export;
+        bible_nfc_stop(app->state);
+        if(export_mode) {
+            scene_manager_search_and_switch_to_another_scene(
+                app->scene_manager, BibleSceneCollection);
+        } else {
+            scene_manager_search_and_switch_to_another_scene(
+                app->scene_manager, BibleSceneReader);
+        }
+        return true;
+    }
     return false;
 }
 
@@ -303,7 +329,7 @@ static const SceneManagerHandlers bible_bsb_scene_handlers = {
 };
 
 /* ============================================================================
- * Custom view draw/input callbacks — 4 navigation views + 4 future stubs
+ * Custom view draw and input callbacks
  * ============================================================================ */
 
 static void bible_bsb_wrapper_book_filter_draw(Canvas* canvas, void* ctx) {
@@ -345,7 +371,7 @@ static void bible_bsb_tick_callback(void* context) {
     BibleApp* app = context;
     if(app && app->state) {
         bible_toast_tick(&app->state->toast);
-        /* Match the Rust loop, which calls view_port_update every iteration. */
+        /* Queue a redraw so toast timers and the NFC pulse stay current. */
         bible_app_request_redraw(app);
     }
 }

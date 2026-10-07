@@ -7,14 +7,14 @@
 #include <string.h>
 
 /* ============================================================================
- * Reader layout constants — match Rust src/views/reader.rs exactly
+ * Reader layout constants
  * ============================================================================ */
 #define READER_HEADER_Y  8
 #define READER_DIVIDER_Y 10
 #define READER_CONTENT_Y 16
 
 /* ============================================================================
- * Display ref builder — mirrors Rust Passage::display_ref()
+ * Display reference for the header
  * ============================================================================ */
 static void bible_passage_display_ref(const BibleAppState* state, char* out, size_t out_len) {
     const BiblePassage* passage = state ? &state->passage : NULL;
@@ -50,7 +50,7 @@ static void bible_passage_display_ref(const BibleAppState* state, char* out, siz
 }
 
 /* ============================================================================
- * Verse-first-line navigation helpers — match Rust next_verse_offset / prev_verse_offset
+ * Verse-first-line navigation helpers
  * ============================================================================ */
 
 static uint16_t
@@ -117,6 +117,10 @@ void bible_bsb_view_reader_draw(Canvas* canvas, void* ctx) {
         return;
     }
     BibleAppState* state = app->state;
+    if(state->show_data_help) {
+        bible_draw_missing_data(canvas);
+        return;
+    }
 
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
@@ -173,6 +177,11 @@ bool bible_bsb_view_reader_input(InputEvent* event, void* ctx) {
     if(event->type != InputTypePress && event->type != InputTypeRepeat &&
        event->type != InputTypeShort && event->type != InputTypeLong) {
         return false;
+    }
+
+    if(state->show_data_help) {
+        bible_app_request_redraw(app);
+        return !(event->key == InputKeyBack && event->type == InputTypeShort);
     }
 
     uint16_t total_lines = state->line_count;

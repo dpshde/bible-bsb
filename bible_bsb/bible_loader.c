@@ -10,7 +10,7 @@
  * Chapter loader — single-pass incremental parsing, NO verse array in RAM
  * ============================================================================ */
 
-#define BSB_PATH_PREFIX "/ext/apps_data/kindled_spark/bsb/"
+#define BSB_PATH_PREFIX APP_DATA_PATH("bsb/")
 
 static void bible_sanitize_text(char* text, size_t max_len) {
     size_t len = strlen(text);
@@ -80,6 +80,16 @@ static bool bible_build_path(uint8_t book_index, uint16_t chapter, char* path, s
         }
     }
     return true;
+}
+
+bool bible_chapter_data_present(void) {
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+    if(!storage) {
+        return false;
+    }
+    bool present = storage_file_exists(storage, APP_DATA_PATH("bsb/gen/1.json"));
+    furi_record_close(RECORD_STORAGE);
+    return present;
 }
 
 typedef enum {
@@ -308,6 +318,7 @@ bool bible_load_chapter(
     furi_check(state);
 
     char path[128];
+    state->show_data_help = false;
     if(!bible_build_path(book_index, chapter, path, sizeof(path))) {
         return false;
     }
@@ -325,6 +336,10 @@ bool bible_load_chapter(
     BibleFileStatus file_status = bible_read_chapter_file(path, &buf, &total);
     if(file_status == BibleFileOom) {
         bible_toast_set(&state->toast, "OOM");
+        return false;
+    }
+    if(file_status == BibleFileMissing) {
+        state->show_data_help = true;
         return false;
     }
     if(file_status != BibleFileOk) {

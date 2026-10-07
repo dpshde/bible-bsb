@@ -6,7 +6,7 @@
 #include <string.h>
 
 /* ============================================================================
- * VerseSelect layout constants — match Rust src/views/verse_select.rs exactly
+ * VerseSelect layout constants
  * ============================================================================ */
 #define VERSE_SELECT_HEADER_H 12
 #define VERSE_SELECT_LINE_H   12
@@ -30,6 +30,10 @@ void bible_bsb_view_verse_select_draw(Canvas* canvas, void* ctx) {
         return;
     }
     BibleAppState* state = app->state;
+    if(state->show_data_help) {
+        bible_draw_missing_data(canvas);
+        return;
+    }
 
     char header[48];
     snprintf(
@@ -83,6 +87,15 @@ bool bible_bsb_view_verse_select_input(InputEvent* event, void* ctx) {
     if(event->type != InputTypePress && event->type != InputTypeRepeat &&
        event->type != InputTypeShort && event->type != InputTypeLong) {
         return false;
+    }
+
+    if(state->show_data_help) {
+        bool retry = event->key == InputKeyOk && event->type == InputTypeShort;
+        bool leave = event->key == InputKeyBack && event->type == InputTypeShort;
+        if(!retry) {
+            bible_app_request_redraw(app);
+            return !leave;
+        }
     }
 
     uint16_t max_v = max_verse_for_chapter(state->selected_book, state->selected_chapter);
@@ -162,6 +175,8 @@ bool bible_bsb_view_verse_select_input(InputEvent* event, void* ctx) {
             state->scroll_offset = 0;
             state->reader_came_from_collection = false;
             scene_manager_next_scene(app->scene_manager, BibleSceneReader);
+        } else if(state->show_data_help) {
+            /* The missing-file screen replaces the toast. */
         } else if(!bible_toast_active(&state->toast)) {
             /* Loader sets "OOM" itself; don't hide that with a missing-file toast. */
             bible_toast_set(&state->toast, "No BSB data");

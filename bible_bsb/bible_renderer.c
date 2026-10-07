@@ -125,7 +125,7 @@ void bible_draw_scroll_indicator(
         return;
     }
 
-    /* Match Rust calculation: thumb proportional to visible/total */
+    /* Thumb height is proportional to visible/total. */
     int32_t avail = BIBLE_SCREEN_HEIGHT - header_height;
     int32_t thumb_height = (visible * BIBLE_SCREEN_HEIGHT / total);
     if(thumb_height < 4) {
@@ -152,10 +152,10 @@ void bible_draw_toast(Canvas* canvas, const BibleToast* toast) {
 
     canvas_set_font(canvas, FontSecondary);
 
-    /* Width based on message length (same formula as Rust: len*5 + 4) */
+    /* Width based on message length: len * 5 + 4, capped at 20 characters. */
     size_t msg_len = strlen(toast->message);
     if(msg_len > 20) {
-        msg_len = 20; /* Rust caps at 20 for width calc */
+        msg_len = 20;
     }
     uint8_t toast_w = (uint8_t)(msg_len * 5) + 4;
     uint8_t toast_x = (BIBLE_SCREEN_WIDTH - toast_w) / 2;
@@ -213,6 +213,24 @@ uint16_t bible_total_pages(const BibleLine* lines, uint16_t line_count, int16_t 
 /* ============================================================================
  * Inverted highlight — black box + white text
  * ============================================================================ */
+
+void bible_draw_missing_data(Canvas* canvas) {
+    if(!canvas) return;
+    canvas_reset(canvas);
+    canvas_clear(canvas);
+    canvas_set_color(canvas, ColorBlack);
+
+    canvas_set_font(canvas, FontPrimary);
+    canvas_draw_str(canvas, 2, 8, "BSB files missing");
+
+    canvas_set_font(canvas, FontSecondary);
+    canvas_draw_str(canvas, 2, 18, "Copy the bsb folder to");
+    canvas_draw_str(canvas, 2, 27, "/ext/apps_data/");
+    canvas_draw_str(canvas, 2, 36, "bible_bsb/bsb/");
+    canvas_draw_str(canvas, 2, 47, "Get bsb-data-v1 from");
+    canvas_draw_str(canvas, 2, 56, "github.com/dpshde/");
+    canvas_draw_str(canvas, 2, 63, "bible-bsb/releases");
+}
 
 void bible_draw_inverted_highlight(
     Canvas* canvas,

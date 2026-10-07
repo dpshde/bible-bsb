@@ -5,7 +5,7 @@
 #include <string.h>
 
 /* ============================================================================
- * BookFilter layout constants — match Rust src/views/book_filter.rs exactly
+ * BookFilter layout constants
  * ============================================================================ */
 #define BOOK_FILTER_COLS             5
 #define BOOK_FILTER_CELL_W           25

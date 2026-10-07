@@ -2,12 +2,25 @@
 #include "bible_renderer.h"
 #include "bible_loader.h"
 #include "bible_books.h"
+#include "bible_time.h"
 
 #include <furi.h>
+#include <furi_hal_rtc.h>
 #include <storage/storage.h>
 #include <string.h>
 
-#define COLLECTION_PATH "/ext/apps_data/kindled_spark/collection.json"
+#define COLLECTION_PATH APP_DATA_PATH("collection.json")
+
+static void bible_stamp_now(char* out, size_t out_len) {
+    DateTime dt = {0};
+    furi_hal_rtc_get_datetime(&dt);
+    if(!bible_format_iso8601(
+           out, out_len, dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second)) {
+        if(out && out_len > 0) {
+            out[0] = '\0';
+        }
+    }
+}
 
 /* ============================================================================
  * Streaming JSON writer — 512-byte fixed buffer, writes directly to SD file
@@ -446,7 +459,7 @@ static void build_canonical_ref(const BiblePassage* passage, char* out, size_t o
             (unsigned int)passage->chapter,
             (unsigned int)passage->start_verse);
     } else {
-        /* All verses — canonical ref has no verse number (matches Rust) */
+        /* All verses: canonical ref has no verse number */
         snprintf(out, out_len, "%s.%u", osis, (unsigned int)passage->chapter);
     }
 }
@@ -561,7 +574,7 @@ void bible_save_passage(BibleAppState* state) {
     e->chapter = state->passage.chapter;
     e->start_verse = state->passage.start_verse;
     e->end_verse = state->passage.end_verse;
-    strlcpy(e->captured_at, "2026-01-01T00:00:00Z", sizeof(e->captured_at));
+    bible_stamp_now(e->captured_at, sizeof(e->captured_at));
     e->note[0] = '\0';
 
     state->collection_count++;
@@ -703,13 +716,24 @@ bool bible_storage_build_kindled_json(BibleAppState* state, char* out_buf, size_
     size_t pos = 0;
     out_buf[0] = '\0';
 
-    if(!json_buf_append(
-           out_buf,
-           out_len,
-           &pos,
-           "{\"format\":\"kindled\",\"version\":1,\"exported_at\":\"2026-01-01T00:00:00Z\","
-           "\"schema_version\":1,\"counts\":{\"blocks\":"))
-        return false;
+    char exported_at[32];
+    bible_stamp_now(exported_at, sizeof(exported_at));
+    char export_header[160];
+    if(exported_at[0] != '\0') {
+        snprintf(
+            export_header,
+            sizeof(export_header),
+            "{\"format\":\"kindled\",\"version\":1,\"exported_at\":\"%s\","
+            "\"schema_version\":1,\"counts\":{\"blocks\":",
+            exported_at);
+    } else {
+        snprintf(
+            export_header,
+            sizeof(export_header),
+            "{\"format\":\"kindled\",\"version\":1,"
+            "\"schema_version\":1,\"counts\":{\"blocks\":");
+    }
+    if(!json_buf_append(out_buf, out_len, &pos, export_header)) return false;
 
     char num_buf[8];
     snprintf(num_buf, sizeof(num_buf), "%u", (unsigned int)state->collection_count);

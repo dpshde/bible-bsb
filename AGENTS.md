@@ -108,15 +108,19 @@ Before running the app, populate the SD card with Berean Standard Bible chapter 
 ```sh
 python3 scripts/fetch_bsb.py --output bsb_sd/
 ```
-Then copy `bsb_sd/` contents to the Flipper:
+Then copy `bsb_sd/` contents to the Flipper for the shipping C app:
 ```
-/ext/apps_data/kindled_spark/bsb/
+/ext/apps_data/bible_bsb/bsb/
 ```
 
-Saved passages are stored at:
+`scripts/fetch_bsb.py --zip bsb-data-v1.zip` writes that same tree under a `bsb/` prefix. Unzip the archive into `/ext/apps_data/bible_bsb/`.
+
+Saved passages for the C app are stored at:
 ```
-/ext/apps_data/kindled_spark/collection.json
+/ext/apps_data/bible_bsb/collection.json
 ```
+
+The Rust prototype in `src/` still reads `/ext/apps_data/kindled_spark/`.
 
 ## Debugging & Runtime Learnings
 

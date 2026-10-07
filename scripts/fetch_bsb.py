@@ -14,6 +14,7 @@ import json
 import shutil
 import tempfile
 import urllib.request
+import zipfile
 from pathlib import Path
 
 BSB_JSONL_URL = "https://arweave.net/B6yeNb3lk_VkiIp-fTWVh13TlM94LjLK6kC63BPXa8s"
@@ -126,10 +127,27 @@ def build_chapters(jsonl_path: Path, output_dir: Path) -> int:
     return len(chapters)
 
 
+def write_release_zip(chapter_dir: Path, zip_path: Path) -> int:
+    """Pack chapter files as bsb/<book>/<chapter>.json for /ext/apps_data/bible_bsb/."""
+    zip_path.parent.mkdir(parents=True, exist_ok=True)
+    count = 0
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(chapter_dir.rglob("*.json")):
+            rel = path.relative_to(chapter_dir).as_posix()
+            archive.write(path, f"bsb/{rel}")
+            count += 1
+    return count
+
+
 def main():
     parser = argparse.ArgumentParser(description="Build BSB chapter files for Bible [BSB]")
     parser.add_argument("--input", type=Path, help="Existing bsb.jsonl path. Defaults to the hosted Arweave dataset.")
     parser.add_argument("--output", type=Path, default=Path("bsb_sd"), help="Output directory")
+    parser.add_argument(
+        "--zip",
+        type=Path,
+        help="Also write a zip whose bsb/ folder unzips into /ext/apps_data/bible_bsb/",
+    )
     args = parser.parse_args()
 
     if args.input:
@@ -141,7 +159,14 @@ def main():
             total = build_chapters(jsonl_path, args.output)
 
     print(f"Done. Wrote {total} chapter files to {args.output}")
-    print(f"Copy the contents of {args.output} to /ext/apps_data/kindled_spark/bsb/ on your Flipper SD card.")
+    print(
+        "Copy the contents of "
+        f"{args.output} to /ext/apps_data/bible_bsb/bsb/ on the Flipper SD card."
+    )
+    if args.zip:
+        zipped = write_release_zip(args.output, args.zip)
+        print(f"Wrote {zipped} chapter files to {args.zip}")
+        print("Unzip it so bsb/ lands in /ext/apps_data/bible_bsb/.")
 
 
 if __name__ == "__main__":

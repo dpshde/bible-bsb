@@ -7,7 +7,7 @@
 #include "bible_state.h"
 
 /* ============================================================================
- * Canvas layout constants — match the Rust app exactly
+ * Canvas layout constants
  * ============================================================================ */
 #define BIBLE_CHAR_WIDTH    6
 #define BIBLE_CHAR_HEIGHT   8
@@ -132,6 +132,11 @@ uint16_t bible_total_pages(const BibleLine* lines, uint16_t line_count, int16_t 
  * @param text_x  text x position
  * @param text_y  text baseline y position
  */
+/**
+ * Full-screen instructions shown when the BSB chapter pack is not on the SD card.
+ */
+void bible_draw_missing_data(Canvas* canvas);
+
 void bible_draw_inverted_highlight(
     Canvas* canvas,
     uint8_t x,

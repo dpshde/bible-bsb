@@ -1,11 +1,12 @@
 #include "bible_app.h"
 #include "bible_books.h"
+#include "bible_loader.h"
 #include "bible_renderer.h"
 
 #include <string.h>
 
 /* ============================================================================
- * BookList layout constants — match Rust src/views/book_list.rs exactly
+ * BookList layout constants
  * ============================================================================ */
 #define BOOK_LIST_LINE_HEIGHT   10
 #define BOOK_LIST_HEADER_HEIGHT 12
@@ -25,6 +26,10 @@ void bible_bsb_view_book_list_draw(Canvas* canvas, void* ctx) {
         return;
     }
     BibleAppState* state = app->state;
+    if(!state->bsb_data_present) {
+        bible_draw_missing_data(canvas);
+        return;
+    }
     if(state->selected_book < BIBLE_BOOK_COUNT && OSIS_BOOK_NAMES[state->selected_book]) {
         strlcpy(
             state->selected_book_name,
@@ -62,7 +67,7 @@ void bible_bsb_view_book_list_draw(Canvas* canvas, void* ctx) {
         start_idx = filtered_count > max_visible ? filtered_count - max_visible : 0;
     }
 
-    /* Draw each visible book. Rust uses a full-width inverted bar, not a caret. */
+    /* Draw each visible book with a full-width inverted bar. */
     for(uint8_t i = 0; i < max_visible; i++) {
         uint8_t list_idx = start_idx + i;
         if(list_idx >= filtered_count) break;
@@ -103,6 +108,17 @@ bool bible_bsb_view_book_list_input(InputEvent* event, void* ctx) {
     if(event->type != InputTypePress && event->type != InputTypeRepeat &&
        event->type != InputTypeShort && event->type != InputTypeLong) {
         return false;
+    }
+
+    if(!state->bsb_data_present) {
+        if(event->key == InputKeyOk && event->type == InputTypeShort) {
+            state->bsb_data_present = bible_chapter_data_present();
+        } else if(event->key == InputKeyBack && event->type == InputTypeShort) {
+            bible_app_request_redraw(app);
+            return false;
+        }
+        bible_app_request_redraw(app);
+        return true;
     }
 
     /* Build filtered list */

@@ -1,11 +1,10 @@
 #include "bible_view_nfc_share.h"
 #include "bible_renderer.h"
-#include "bible_nfc.h"
 
 #include <string.h>
 
 /* ============================================================================
- * NfcShare layout constants — match Rust src/views/nfc_share.rs exactly
+ * NfcShare layout constants
  * ============================================================================ */
 #define NFC_SHARE_HEADER_Y  10
 #define NFC_SHARE_DIVIDER_Y 12
@@ -74,31 +73,14 @@ void bible_bsb_view_nfc_share_draw(Canvas* canvas, void* ctx) {
  * ============================================================================ */
 bool bible_bsb_view_nfc_share_input(InputEvent* event, void* ctx) {
     BibleApp* app = ctx;
-    BibleAppState* state = app->state;
 
-    /* Only process Press, Repeat, Short, Long — ignore Release */
+    /* Only process Press, Repeat, Short, Long. Ignore Release.
+     * Back is left unconsumed so the NFC share scene can stop emulation. */
     if(event->type != InputTypePress && event->type != InputTypeRepeat &&
        event->type != InputTypeShort && event->type != InputTypeLong) {
         return false;
     }
 
-    bool consumed = false;
-
-    if(event->key == InputKeyBack && event->type == InputTypeShort) {
-        /* Stop NFC emulation */
-        bible_nfc_stop(state);
-
-        /* Return to Reader or Collection */
-        if(state->nfc_is_export) {
-            state->nfc_is_export = false;
-            scene_manager_search_and_switch_to_another_scene(
-                app->scene_manager, BibleSceneCollection);
-        } else {
-            scene_manager_search_and_switch_to_another_scene(app->scene_manager, BibleSceneReader);
-        }
-        consumed = true;
-    }
-
     bible_app_request_redraw(app);
-    return consumed;
+    return false;
 }

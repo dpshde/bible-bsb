@@ -11,7 +11,7 @@
 #include <nfc/protocols/nfc_generic_event.h>
 
 /* ============================================================================
- * NDEF constants — match Rust nfc_share.rs exactly
+ * NDEF constants
  * ============================================================================ */
 #define NDEF_HEADER      0xD1 /* MB=1, ME=1, SR=1, TNF=01 (Well-known) */
 #define NDEF_TYPE_LEN    0x01 /* Single-byte type */
@@ -231,8 +231,7 @@ static bool start_ndef_emulation(const uint8_t* ndef, uint8_t ndef_len) {
     nfc_data_generator_fill_data(NfcDataGeneratorTypeNTAG215, device);
 
     /* 3. Get protocol-specific data pointer and write NDEF into pages.
-     *    nfc_device_get_data returns const, but the Rust app modifies in place.
-     *    We follow the same pattern: cast away const for page mutation. */
+     *    nfc_device_get_data returns const. The page buffer is mutated in place. */
     const NfcDeviceData* data = nfc_device_get_data(device, NfcProtocolMfUltralight);
     if(data == NULL) {
         nfc_device_free(device);

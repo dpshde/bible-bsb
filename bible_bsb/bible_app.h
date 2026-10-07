@@ -61,5 +61,5 @@ static inline BibleApp* bible_app_from_draw(void* model) {
 }
 
 /* ViewDispatcher only redraws on view switch or view_commit_model().
- * Rust updates the viewport every loop, so call this after state changes. */
+ * Call this after state changes. */
 void bible_app_request_redraw(BibleApp* app);

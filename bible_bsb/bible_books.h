@@ -4,10 +4,9 @@
 #include <stdbool.h>
 
 /* ============================================================================
- * Bible metadata — 66-book canon
+ * Bible metadata: 66-book canon
  *
- * Cross-referenced against Rust src/books.rs.
- * All arrays are indexable 0–65.
+ * All arrays are indexable 0-65.
  * ============================================================================ */
 
 #define BIBLE_BOOK_COUNT 66

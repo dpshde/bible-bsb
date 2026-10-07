@@ -5,7 +5,7 @@
 #include <string.h>
 
 /* ============================================================================
- * ChapterList layout constants — match Rust src/views/chapter_list.rs exactly
+ * ChapterList layout constants
  * ============================================================================ */
 #define CHAPTER_LIST_COLS     5
 #define CHAPTER_LIST_CELL_W   24

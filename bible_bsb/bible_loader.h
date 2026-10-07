@@ -6,15 +6,23 @@
 #include "bible_state.h"
 
 /**
+ * True when Genesis 1 is on the SD card.
+ * The app treats that file as the signal that the chapter pack is installed.
+ */
+bool bible_chapter_data_present(void);
+
+/**
  * Load a chapter from SD card into display lines, optionally filtering to a verse range.
  *
- * Reads the chapter JSON file at /ext/apps_data/kindled_spark/bsb/{osis}/{chapter}.json
+ * Reads APP_DATA_PATH("bsb/<osis>/<chapter>.json"), which is
+ * /ext/apps_data/bible_bsb/bsb/<osis>/<chapter>.json on the SD card,
  * using 1KB chunked reads (max 20KB). Extracts verse number (n) and text (t) pairs
  * via a minimal byte-scanner. Parses ONE verse at a time: sanitizes its text,
  * wraps it into BibleLine entries appended to state->lines, then discards the text.
- * No verse texts are retained in RAM — only the wrapped display lines.
+ * No verse texts are retained in RAM. Only the wrapped display lines are kept.
  *
  * If start_verse > 0, only verses in [start_verse, end_verse] are retained.
+ * A missing file sets state->show_data_help.
  *
  * @param book_index   0-65 book index
  * @param chapter      1-150 chapter number

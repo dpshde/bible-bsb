@@ -2,6 +2,8 @@
 
 Flipper Zero apps for reading and saving Berean Standard Bible passages offline.
 
+[![Support on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/dpshade)
+
 - `bible_bsb/` is the C app that ships. Build it with ufbt from that directory. The app id is `bible_bsb`.
 - `src/` is the Rust prototype. Build it with `cargo build --release`. `scripts/validate.sh` checks that build. The package name is `kindled_spark`.
 
@@ -37,7 +39,10 @@ Flipper Zero apps for reading and saving Berean Standard Bible passages offline.
    ```bash
    python3 scripts/fetch_bsb.py --input /path/to/bsb.jsonl --output bsb_sd/
    ```
-   Copy the contents of `bsb_sd/` to `/ext/apps_data/kindled_spark/bsb/` on your Flipper's SD card.
+   Copy the contents of `bsb_sd/` to `/ext/apps_data/bible_bsb/bsb/` on your Flipper's SD card.
+   A ready-made zip of that folder is published as
+   [bsb-data-v1](https://github.com/dpshde/bible-bsb/releases/download/bsb-data-v1/bsb-data-v1.zip).
+   Unzip it so `bsb/` lands in `/ext/apps_data/bible_bsb/`.
 
 2. **Install the app** — From `bible_bsb/`, build with [ufbt](https://github.com/flipperdevices/flipperzero-ufbt) and copy `dist/bible_bsb.fap` to `/ext/apps/Media/` on the Flipper. The app id is `bible_bsb`.
 
@@ -62,7 +67,7 @@ https://route.bible/jhn.3.16?v=BSB&src=kindled_spark
 
 ## Data Format
 
-Saved passages are stored at `/ext/apps_data/kindled_spark/collection.json`.
+Saved passages are stored at `/ext/apps_data/bible_bsb/collection.json`.
 
 ## License
 
