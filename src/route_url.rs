@@ -4,7 +4,7 @@ use alloc::string::String;
 
 const ROUTE_BASE: &str = "https://route.bible";
 const DEFAULT_TRANSLATION: &str = "BSB";
-const SOURCE_TAG: &str = "bible_bsb";
+const SOURCE_TAG: &str = "flipper_bible_bsb";
 
 fn u16_to_string(n: u16) -> String {
     if n == 0 {
@@ -26,7 +26,7 @@ fn u16_to_string(n: u16) -> String {
 }
 
 /// Build a canonical route.bible URL from passage components.
-/// Example: `https://route.bible/gen.1.1-3?v=BSB&src=bible_bsb`
+/// Example: `https://route.bible/gen.1.1-3?v=BSB&src=flipper_bible_bsb`
 pub fn build_url(book_code: &str, chapter: u16, start_verse: u16, end_verse: u16) -> String {
     let code_lower = book_code.to_lowercase();
     let mut path = String::with_capacity(32);

@@ -14,10 +14,10 @@
  * Build a canonical route.bible URL for the given passage.
  *
  * Single verse:
- *   https://route.bible/{book_lower}.{chapter}.{verse}?v=BSB&src=bible_bsb
+ *   https://route.bible/{book_lower}.{chapter}.{verse}?v=BSB&src=flipper_bible_bsb
  *
  * Verse range:
- *   https://route.bible/{book_lower}.{chapter}.{start}-{book_lower}.{chapter}.{end}?v=BSB&src=bible_bsb
+ *   https://route.bible/{book_lower}.{chapter}.{start}-{book_lower}.{chapter}.{end}?v=BSB&src=flipper_bible_bsb
  *
  * @param passage  the passage to build a URL for
  * @param out      output buffer (must be at least 128 bytes)
