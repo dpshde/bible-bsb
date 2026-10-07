@@ -9,9 +9,9 @@
  *
  * Canonical URL format:
  *
- *   All verses:     https://route.bible/{book_lower}.{chapter}?v=BSB&src=kindled_spark
- *   Single verse:   https://route.bible/{book_lower}.{chapter}.{verse}?v=BSB&src=kindled_spark
- *   Verse range:    https://route.bible/{book_lower}.{chapter}.{start}-{book_lower}.{chapter}.{end}?v=BSB&src=kindled_spark
+ *   All verses:     https://route.bible/{book_lower}.{chapter}?v=BSB&src=bible_bsb
+ *   Single verse:   https://route.bible/{book_lower}.{chapter}.{verse}?v=BSB&src=bible_bsb
+ *   Verse range:    https://route.bible/{book_lower}.{chapter}.{start}-{book_lower}.{chapter}.{end}?v=BSB&src=bible_bsb
  *
  * Book names use lowercased OSIS codes (e.g., "gen", "jhn", "rev").
  * Used by ActionMenu NFC share (bible_view_action_menu.c) and
@@ -45,7 +45,7 @@ bool bible_build_route_url(const BiblePassage* passage, char* out, size_t out_le
         snprintf(
             out,
             out_len,
-            "https://route.bible/%s.%u.%u-%s.%u.%u?v=BSB&src=kindled_spark",
+            "https://route.bible/%s.%u.%u-%s.%u.%u?v=BSB&src=bible_bsb",
             book_lower,
             (unsigned int)passage->chapter,
             (unsigned int)passage->start_verse,
@@ -57,7 +57,7 @@ bool bible_build_route_url(const BiblePassage* passage, char* out, size_t out_le
         snprintf(
             out,
             out_len,
-            "https://route.bible/%s.%u.%u?v=BSB&src=kindled_spark",
+            "https://route.bible/%s.%u.%u?v=BSB&src=bible_bsb",
             book_lower,
             (unsigned int)passage->chapter,
             (unsigned int)passage->start_verse);
@@ -66,7 +66,7 @@ bool bible_build_route_url(const BiblePassage* passage, char* out, size_t out_le
         snprintf(
             out,
             out_len,
-            "https://route.bible/%s.%u?v=BSB&src=kindled_spark",
+            "https://route.bible/%s.%u?v=BSB&src=bible_bsb",
             book_lower,
             (unsigned int)passage->chapter);
     }

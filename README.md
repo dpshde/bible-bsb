@@ -62,7 +62,7 @@ Flipper Zero apps for reading and saving Berean Standard Bible passages offline.
 
 Every saved passage generates a canonical `route.bible` URL using the BSB translation:
 ```
-https://route.bible/jhn.3.16?v=BSB&src=kindled_spark
+https://route.bible/jhn.3.16?v=BSB&src=bible_bsb
 ```
 
 ## Data Format
