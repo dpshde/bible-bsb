@@ -14,35 +14,23 @@
 #define CHAPTER_LIST_MAX_ROWS 3
 
 /* ============================================================================
- * Static string lookup for chapter numbers 1–150
- * ============================================================================ */
-static const char* CHAPTER_NUMS[151] = {
-    "0",   "1",   "2",   "3",   "4",   "5",   "6",   "7",   "8",   "9",   "10",  "11",  "12",
-    "13",  "14",  "15",  "16",  "17",  "18",  "19",  "20",  "21",  "22",  "23",  "24",  "25",
-    "26",  "27",  "28",  "29",  "30",  "31",  "32",  "33",  "34",  "35",  "36",  "37",  "38",
-    "39",  "40",  "41",  "42",  "43",  "44",  "45",  "46",  "47",  "48",  "49",  "50",  "51",
-    "52",  "53",  "54",  "55",  "56",  "57",  "58",  "59",  "60",  "61",  "62",  "63",  "64",
-    "65",  "66",  "67",  "68",  "69",  "70",  "71",  "72",  "73",  "74",  "75",  "76",  "77",
-    "78",  "79",  "80",  "81",  "82",  "83",  "84",  "85",  "86",  "87",  "88",  "89",  "90",
-    "91",  "92",  "93",  "94",  "95",  "96",  "97",  "98",  "99",  "100", "101", "102", "103",
-    "104", "105", "106", "107", "108", "109", "110", "111", "112", "113", "114", "115", "116",
-    "117", "118", "119", "120", "121", "122", "123", "124", "125", "126", "127", "128", "129",
-    "130", "131", "132", "133", "134", "135", "136", "137", "138", "139", "140", "141", "142",
-    "143", "144", "145", "146", "147", "148", "149", "150",
-};
-
-/* ============================================================================
  * ChapterList view — draw callback
  * ============================================================================ */
 void bible_bsb_view_chapter_list_draw(Canvas* canvas, void* ctx) {
-    BibleApp* app = ctx;
+    BibleApp* app = bible_app_from_draw(ctx);
+    if(!canvas) return;
+    canvas_reset(canvas);
+    canvas_clear(canvas);
+    canvas_set_color(canvas, ColorBlack);
+    canvas_set_font(canvas, FontPrimary);
+    if(!app || !app->state) {
+        canvas_draw_str(canvas, 2, 24, "Chapters");
+        return;
+    }
     BibleAppState* state = app->state;
 
-    canvas_clear(canvas);
-    canvas_set_font(canvas, FontPrimary);
-
-    /* Header: book name */
-    canvas_draw_str(canvas, BIBLE_MARGIN_X, 10, OSIS_BOOK_NAMES[state->selected_book]);
+    /* Name was copied on the book list. Do not index the rodata pointer table here. */
+    canvas_draw_str(canvas, BIBLE_MARGIN_X, 10, state->selected_book_name);
     canvas_draw_line(canvas, 0, CHAPTER_LIST_HEADER_H, BIBLE_SCREEN_WIDTH, CHAPTER_LIST_HEADER_H);
 
     uint8_t max_chapter = BOOK_CHAPTER_COUNTS[state->selected_book];
@@ -67,31 +55,31 @@ void bible_bsb_view_chapter_list_draw(Canvas* canvas, void* ctx) {
             uint8_t y = CHAPTER_LIST_HEADER_H + 4 + (display_row * CHAPTER_LIST_CELL_H);
             bool is_selected = (chapter_num == state->selected_chapter);
 
+            char num[4];
+            snprintf(num, sizeof(num), "%u", (unsigned int)chapter_num);
             if(is_selected) {
-                canvas_draw_box(canvas, x, y, CHAPTER_LIST_CELL_W - 2, CHAPTER_LIST_CELL_H - 2);
-                canvas_set_color(canvas, ColorWhite);
-            }
-
-            canvas_draw_str(canvas, x + 4, y + 10, CHAPTER_NUMS[chapter_num]);
-
-            if(is_selected) {
-                canvas_set_color(canvas, ColorBlack);
+                bible_draw_inverted_highlight(
+                    canvas,
+                    x,
+                    y,
+                    CHAPTER_LIST_CELL_W - 2,
+                    CHAPTER_LIST_CELL_H - 2,
+                    num,
+                    x + 4,
+                    y + 10);
+            } else {
+                canvas_draw_str(canvas, x + 4, y + 10, num);
             }
         }
     }
 
-    /* Scroll indicator */
     if(total_rows > CHAPTER_LIST_MAX_ROWS) {
-        int32_t thumb_height = ((CHAPTER_LIST_MAX_ROWS * 50) / total_rows);
-        if(thumb_height < 4) {
-            thumb_height = 4;
-        }
-        int32_t thumb_y = 14;
-        if(total_rows > CHAPTER_LIST_MAX_ROWS) {
-            thumb_y += (int32_t)start_row * (50 - thumb_height) /
-                       (int32_t)(total_rows - CHAPTER_LIST_MAX_ROWS);
-        }
-        canvas_draw_box(canvas, 126, thumb_y, 2, thumb_height);
+        int32_t thumb_height = (CHAPTER_LIST_MAX_ROWS * 50) / total_rows;
+        if(thumb_height < 4) thumb_height = 4;
+        int32_t thumb_y = 14 +
+                          (int32_t)start_row * (50 - thumb_height) /
+                              (int32_t)(total_rows - CHAPTER_LIST_MAX_ROWS);
+        canvas_draw_box(canvas, 126, thumb_y, 2, (uint8_t)thumb_height);
     }
 }
 
@@ -162,5 +150,6 @@ bool bible_bsb_view_chapter_list_input(InputEvent* event, void* ctx) {
         consumed = false;
     }
 
+    bible_app_request_redraw(app);
     return consumed;
 }

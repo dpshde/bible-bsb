@@ -28,10 +28,23 @@
  * this callback, which forwards to scene_manager_handle_back_event().
  * The active scene's on_event handler then receives SceneManagerEventTypeBack.
  */
+void bible_app_request_redraw(BibleApp* app) {
+    if(!app || !app->state) return;
+    uint8_t scene = app->state->current_scene;
+    if(scene >= BibleViewCount) return;
+    View* view = app->views[scene];
+    if(view) {
+        /* Lock-free model: commit with update=true queues view_port_update. */
+        view_commit_model(view, true);
+    }
+}
+
 static bool bible_bsb_navigation_event_callback(void* context) {
     furi_check(context);
     BibleApp* app = context;
-    return scene_manager_handle_back_event(app->scene_manager);
+    bool consumed = scene_manager_handle_back_event(app->scene_manager);
+    bible_app_request_redraw(app);
+    return consumed;
 }
 
 /* ============================================================================
@@ -301,30 +314,6 @@ static bool bible_bsb_wrapper_book_filter_input(InputEvent* event, void* ctx) {
     return bible_bsb_view_book_filter_input(event, ctx);
 }
 
-static void bible_bsb_wrapper_chapter_list_draw(Canvas* canvas, void* ctx) {
-    bible_bsb_view_chapter_list_draw(canvas, ctx);
-}
-
-static bool bible_bsb_wrapper_chapter_list_input(InputEvent* event, void* ctx) {
-    return bible_bsb_view_chapter_list_input(event, ctx);
-}
-
-static void bible_bsb_wrapper_verse_select_draw(Canvas* canvas, void* ctx) {
-    bible_bsb_view_verse_select_draw(canvas, ctx);
-}
-
-static bool bible_bsb_wrapper_verse_select_input(InputEvent* event, void* ctx) {
-    return bible_bsb_view_verse_select_input(event, ctx);
-}
-
-static void bible_bsb_wrapper_reader_draw(Canvas* canvas, void* ctx) {
-    bible_bsb_view_reader_draw(canvas, ctx);
-}
-
-static bool bible_bsb_wrapper_reader_input(InputEvent* event, void* ctx) {
-    return bible_bsb_view_reader_input(event, ctx);
-}
-
 static void bible_bsb_wrapper_action_menu_draw(Canvas* canvas, void* ctx) {
     bible_bsb_view_action_menu_draw(canvas, ctx);
 }
@@ -356,6 +345,8 @@ static void bible_bsb_tick_callback(void* context) {
     BibleApp* app = context;
     if(app && app->state) {
         bible_toast_tick(&app->state->toast);
+        /* Match the Rust loop, which calls view_port_update every iteration. */
+        bible_app_request_redraw(app);
     }
 }
 
@@ -372,6 +363,7 @@ void bible_app_free(BibleApp* app) {
             View* view = app->views[v];
             if(view != NULL) {
                 view_dispatcher_remove_view(app->view_dispatcher, v);
+                view_free_model(view);
                 view_free(view);
                 app->views[v] = NULL;
             }
@@ -435,6 +427,15 @@ static bool bible_app_register_view(
     view_set_draw_callback(view, draw_callback);
     view_set_input_callback(view, input_callback);
     view_set_context(view, app);
+    /* Draw is handed the model, not the context. Store the app pointer there. */
+    view_allocate_model(view, ViewModelTypeLockFree, sizeof(BibleApp*));
+    BibleApp** model = view_get_model(view);
+    if(!model) {
+        view_free(view);
+        return false;
+    }
+    *model = app;
+    view_commit_model(view, false);
     /* Store only after add so free() removes a view that was registered. */
     view_dispatcher_add_view(app->view_dispatcher, view_id, view);
     app->views[view_id] = view;
@@ -497,18 +498,18 @@ BibleApp* bible_app_alloc(void) {
        !bible_app_register_view(
            app,
            BibleViewChapterList,
-           bible_bsb_wrapper_chapter_list_draw,
-           bible_bsb_wrapper_chapter_list_input) ||
+           bible_bsb_view_chapter_list_draw,
+           bible_bsb_view_chapter_list_input) ||
        !bible_app_register_view(
            app,
            BibleViewVerseSelect,
-           bible_bsb_wrapper_verse_select_draw,
-           bible_bsb_wrapper_verse_select_input) ||
+           bible_bsb_view_verse_select_draw,
+           bible_bsb_view_verse_select_input) ||
        !bible_app_register_view(
            app,
            BibleViewReader,
-           bible_bsb_wrapper_reader_draw,
-           bible_bsb_wrapper_reader_input) ||
+           bible_bsb_view_reader_draw,
+           bible_bsb_view_reader_input) ||
        !bible_app_register_view(
            app,
            BibleViewActionMenu,
@@ -533,6 +534,16 @@ BibleApp* bible_app_alloc(void) {
 /* ============================================================================
  * Entry point
  * ============================================================================ */
+static bool bible_boot_signal(uint32_t signal, void* arg, void* context) {
+    UNUSED(arg);
+    BibleApp* app = context;
+    if(signal == FuriSignalExit && app && app->view_dispatcher) {
+        view_dispatcher_stop(app->view_dispatcher);
+        return true;
+    }
+    return false;
+}
+
 int32_t bible_bsb_main(void* p) {
     UNUSED(p);
 
@@ -541,6 +552,7 @@ int32_t bible_bsb_main(void* p) {
         return -1;
     }
 
+    furi_thread_set_signal_callback(furi_thread_get_current(), bible_boot_signal, app);
     scene_manager_next_scene(app->scene_manager, BibleSceneBookList);
     view_dispatcher_run(app->view_dispatcher);
 

@@ -14,7 +14,7 @@
 #define BIBLE_MAX_FILTER_OPTIONS  22
 #define BIBLE_MAX_COLLECTION      100
 #define BIBLE_MAX_VERSES          176 /* Psalms 119 = 176 verses */
-#define BIBLE_MAX_LINES           512
+#define BIBLE_MAX_LINES           800 /* Psalm 119 wraps to about 770 lines */
 #define BIBLE_MAX_FILE_SIZE       20000
 #define BIBLE_MAX_COLLECTION_SIZE 2048
 #define BIBLE_READ_CHUNK          1024
@@ -96,6 +96,7 @@ typedef struct BibleAppState {
     /* Navigation */
     uint8_t current_scene; /* matches BibleScene enum */
     uint8_t selected_book; /* 0-65 */
+    char selected_book_name[20];
     uint16_t selected_chapter; /* 1-150 */
     uint16_t selected_start_verse;
     uint16_t selected_end_verse;

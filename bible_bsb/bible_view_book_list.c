@@ -14,11 +14,23 @@
  * BookList view — draw callback
  * ============================================================================ */
 void bible_bsb_view_book_list_draw(Canvas* canvas, void* ctx) {
-    BibleApp* app = ctx;
-    BibleAppState* state = app->state;
-
+    BibleApp* app = bible_app_from_draw(ctx);
+    if(!canvas) return;
+    canvas_reset(canvas);
     canvas_clear(canvas);
+    canvas_set_color(canvas, ColorBlack);
     canvas_set_font(canvas, FontPrimary);
+    if(!app || !app->state) {
+        canvas_draw_str(canvas, 2, 24, "Book list");
+        return;
+    }
+    BibleAppState* state = app->state;
+    if(state->selected_book < BIBLE_BOOK_COUNT && OSIS_BOOK_NAMES[state->selected_book]) {
+        strlcpy(
+            state->selected_book_name,
+            OSIS_BOOK_NAMES[state->selected_book],
+            sizeof(state->selected_book_name));
+    }
 
     /* Header: active filter in < > brackets */
     char header[16];
@@ -50,30 +62,32 @@ void bible_bsb_view_book_list_draw(Canvas* canvas, void* ctx) {
         start_idx = filtered_count > max_visible ? filtered_count - max_visible : 0;
     }
 
-    /* Draw each visible book */
+    /* Draw each visible book. Rust uses a full-width inverted bar, not a caret. */
     for(uint8_t i = 0; i < max_visible; i++) {
         uint8_t list_idx = start_idx + i;
         if(list_idx >= filtered_count) break;
 
         uint8_t book_idx = filtered[list_idx];
-        uint8_t y = BOOK_LIST_HEADER_HEIGHT + 2 + (i * BOOK_LIST_LINE_HEIGHT) + BIBLE_CHAR_HEIGHT;
-
+        if(book_idx >= BIBLE_BOOK_COUNT) continue;
+        int16_t y =
+            BOOK_LIST_HEADER_HEIGHT + 2 + (i * BOOK_LIST_LINE_HEIGHT) + BIBLE_CHAR_HEIGHT;
+        const char* name = OSIS_BOOK_NAMES[book_idx];
+        if(!name) continue;
         if(book_idx == state->selected_book) {
             bible_draw_inverted_highlight(
                 canvas,
                 0,
-                y - 9,
+                (uint8_t)(y - 9),
                 BIBLE_SCREEN_WIDTH,
                 BOOK_LIST_LINE_HEIGHT,
-                OSIS_BOOK_NAMES[book_idx],
+                name,
                 BIBLE_MARGIN_X + 4,
-                y);
+                (uint8_t)y);
         } else {
-            canvas_draw_str(canvas, BIBLE_MARGIN_X + 4, y, OSIS_BOOK_NAMES[book_idx]);
+            canvas_draw_str(canvas, BIBLE_MARGIN_X + 4, y, name);
         }
     }
 
-    /* Scroll indicator */
     bible_draw_scroll_indicator(
         canvas, state->book_scroll, filtered_count, max_visible, BOOK_LIST_HEADER_HEIGHT);
 }
@@ -164,5 +178,6 @@ bool bible_bsb_view_book_list_input(InputEvent* event, void* ctx) {
         consumed = false;
     }
 
+    bible_app_request_redraw(app);
     return consumed;
 }

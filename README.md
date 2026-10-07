@@ -1,6 +1,6 @@
 # Bible [BSB]
 
-A Flipper Zero external app for browsing and saving BSB (Berean Standard Bible) scripture passages offline. Built in Rust using [flipperzero-rs](https://github.com/flipperzero-rs/flipperzero-rs).
+A Flipper Zero app for reading and saving Berean Standard Bible passages offline. The app that ships is the C build in `bible_bsb/`. An earlier Rust prototype remains in `src/`.
 
 ## Features
 
@@ -25,16 +25,9 @@ A Flipper Zero external app for browsing and saving BSB (Berean Standard Bible) 
    ```
    Copy the contents of `bsb_sd/` to `/ext/apps_data/kindled_spark/bsb/` on your Flipper's SD card.
 
-2. **Install the app** — Build and copy the `.fap` to your Flipper:
-   ```bash
-   cargo build --release
-   # Copy target/thumbv7em-none-eabihf/release/kindled_spark.fap to /ext/apps/Media/
-   ```
+2. **Install the app** — From `bible_bsb/`, build with [ufbt](https://github.com/flipperdevices/flipperzero-ufbt) and copy `dist/bible_bsb.fap` to `/ext/apps/Media/` on the Flipper. The app id is `bible_bsb`.
 
-   To validate the app locally without launching it on the device:
-   ```bash
-   sh scripts/validate.sh
-   ```
+   The Rust prototype in `src/` can still be built with `cargo build --release`. `scripts/validate.sh` checks that build without launching it.
 
 ## Navigation
 

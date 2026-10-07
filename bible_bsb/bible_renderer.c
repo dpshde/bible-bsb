@@ -16,136 +16,97 @@ void bible_word_wrap(
     furi_check(text);
     furi_check(out_lines);
     furi_check(out_count);
+    if(max_chars < 1) max_chars = 1;
+    if(max_chars > 60) max_chars = 60;
 
-    /* Prefix for the first line: "{n} " */
     char prefix[8];
     snprintf(prefix, sizeof(prefix), "%u ", (unsigned int)verse_number);
     uint8_t prefix_len = (uint8_t)strlen(prefix);
+    if(prefix_len >= sizeof(prefix)) prefix_len = sizeof(prefix) - 1;
 
-    /* Effective char budget for the first line (with prefix) and rest */
-    uint8_t first_max = (max_chars > prefix_len) ? (max_chars - prefix_len) : 0;
-    uint8_t rest_max = max_chars;
-
-    bool first_line = true;
-    char current[64];
+    bool first = true;
+    char current[60];
     uint8_t current_len = 0;
-    uint8_t budget = first_max;
+    uint8_t budget = (max_chars > prefix_len) ? (uint8_t)(max_chars - prefix_len) : 1;
 
     const char* p = text;
-    char word[64];
-    uint8_t word_len = 0;
+    while(*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
 
-    while(true) {
-        char c = *p;
-        bool is_whitespace = (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\0');
-
-        if(!is_whitespace) {
-            /* Accumulate word characters */
-            if(word_len < sizeof(word) - 1) {
-                word[word_len++] = c;
-            }
+    while(*p != '\0') {
+        const char* word = p;
+        uint8_t word_len = 0;
+        while(*p != '\0' && *p != ' ' && *p != '\t' && *p != '\n' && *p != '\r') {
+            if(word_len < 60) word_len++;
+            p++;
         }
-
-        if(is_whitespace && word_len > 0) {
-            /* Word complete — decide whether it fits */
-            uint8_t needed = word_len;
-            if(current_len > 0) {
-                needed += 1; /* space separator */
-            }
-
-            if(needed > budget && current_len > 0) {
-                /* Flush current line */
+        uint8_t taken = 0;
+        while(taken < word_len) {
+            uint8_t piece = (uint8_t)(word_len - taken);
+            if(piece > budget) piece = budget;
+            if(piece == 0) piece = 1;
+            if(current_len > 0 && (uint8_t)(current_len + 1 + piece) > budget) {
                 if(*out_count < max_lines) {
                     BibleLine* line = &out_lines[*out_count];
-                    line->text[current_len] = '\0';
+                    memset(line, 0, sizeof(*line));
+                    uint8_t n = current_len;
+                    if(n > 59) n = 59;
+                    if(first) {
+                        uint8_t room = 63;
+                        uint8_t pl = prefix_len < room ? prefix_len : room;
+                        memcpy(line->text, prefix, pl);
+                        uint8_t copy = n;
+                        if(pl + copy > 63) copy = (uint8_t)(63 - pl);
+                        memcpy(line->text + pl, current, copy);
+                        line->text[pl + copy] = '\0';
+                        first = false;
+                    } else {
+                        memcpy(line->text, current, n);
+                        line->text[n] = '\0';
+                    }
                     line->verse_number = verse_number;
-                    line->is_verse_number = first_line;
-                    if(first_line) {
-                        /* Prepend verse number prefix in-place */
-                        size_t text_len = strlen(line->text);
-                        size_t pfx_len = prefix_len;
-                        /* Shift existing text right, insert prefix */
-                        if(pfx_len + text_len < sizeof(line->text)) {
-                            memmove(line->text + pfx_len, line->text, text_len + 1);
-                            memcpy(line->text, prefix, pfx_len);
-                        }
-                        first_line = false;
+                    line->is_verse_number = false;
+                    if(line->text[0] && prefix_len && memcmp(line->text, prefix, prefix_len) == 0) {
+                        line->is_verse_number = true;
                     }
                     (*out_count)++;
                 }
-                /* Start fresh line with this word */
-                memcpy(current, word, word_len);
-                current_len = word_len;
-                budget = rest_max;
-            } else {
-                /* Append to current line */
-                if(current_len > 0) {
-                    current[current_len++] = ' ';
-                }
-                memcpy(current + current_len, word, word_len);
-                current_len += word_len;
+                current_len = 0;
+                budget = max_chars;
+                continue;
             }
-            word_len = 0;
-        }
-
-        if(c == '\0') {
-            break;
-        }
-        p++;
-    }
-
-    /* Flush any remaining word that wasn't followed by whitespace */
-    if(word_len > 0) {
-        uint8_t needed = word_len;
-        if(current_len > 0) {
-            needed += 1;
-        }
-        if(needed > budget && current_len > 0) {
-            if(*out_count < max_lines) {
-                BibleLine* line = &out_lines[*out_count];
-                line->text[current_len] = '\0';
-                line->verse_number = verse_number;
-                line->is_verse_number = first_line;
-                if(first_line) {
-                    /* Prepend verse number prefix in-place */
-                    size_t text_len = strlen(line->text);
-                    size_t pfx_len = prefix_len;
-                    if(pfx_len + text_len < sizeof(line->text)) {
-                        memmove(line->text + pfx_len, line->text, text_len + 1);
-                        memcpy(line->text, prefix, pfx_len);
-                    }
-                    first_line = false;
-                }
-                (*out_count)++;
-            }
-            memcpy(current, word, word_len);
-            current_len = word_len;
-            budget = rest_max;
-        } else {
-            if(current_len > 0) {
+            if(current_len > 0 && (size_t)current_len + 1 < sizeof(current)) {
                 current[current_len++] = ' ';
             }
-            memcpy(current + current_len, word, word_len);
-            current_len += word_len;
+            if(piece > sizeof(current) - 1 - current_len) {
+                piece = (uint8_t)(sizeof(current) - 1 - current_len);
+            }
+            if(piece == 0) break;
+            memcpy(current + current_len, word + taken, piece);
+            current_len = (uint8_t)(current_len + piece);
+            taken = (uint8_t)(taken + piece);
         }
+        while(*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') p++;
     }
 
-    /* Flush the final line */
     if(current_len > 0 && *out_count < max_lines) {
         BibleLine* line = &out_lines[*out_count];
-        memcpy(line->text, current, current_len);
-        line->text[current_len] = '\0';
-        line->verse_number = verse_number;
-        line->is_verse_number = first_line;
-        if(first_line) {
-            /* Prepend verse number prefix in-place */
-            size_t text_len = strlen(line->text);
-            size_t pfx_len = prefix_len;
-            if(pfx_len + text_len < sizeof(line->text)) {
-                memmove(line->text + pfx_len, line->text, text_len + 1);
-                memcpy(line->text, prefix, pfx_len);
-            }
+        memset(line, 0, sizeof(*line));
+        uint8_t n = current_len;
+        if(n > 59) n = 59;
+        if(first) {
+            uint8_t pl = prefix_len < 63 ? prefix_len : 63;
+            memcpy(line->text, prefix, pl);
+            uint8_t copy = n;
+            if(pl + copy > 63) copy = (uint8_t)(63 - pl);
+            memcpy(line->text + pl, current, copy);
+            line->text[pl + copy] = '\0';
+            line->is_verse_number = true;
+        } else {
+            memcpy(line->text, current, n);
+            line->text[n] = '\0';
+            line->is_verse_number = false;
         }
+        line->verse_number = verse_number;
         (*out_count)++;
     }
 }

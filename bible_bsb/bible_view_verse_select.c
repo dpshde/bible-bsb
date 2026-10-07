@@ -19,92 +19,57 @@
  * VerseSelect view — draw callback
  * ============================================================================ */
 void bible_bsb_view_verse_select_draw(Canvas* canvas, void* ctx) {
-    BibleApp* app = ctx;
+    BibleApp* app = bible_app_from_draw(ctx);
+    if(!canvas) return;
+    canvas_reset(canvas);
+    canvas_clear(canvas);
+    canvas_set_color(canvas, ColorBlack);
+    canvas_set_font(canvas, FontPrimary);
+    if(!app || !app->state) {
+        canvas_draw_str(canvas, 2, 24, "Verses");
+        return;
+    }
     BibleAppState* state = app->state;
 
-    canvas_clear(canvas);
-    canvas_set_font(canvas, FontPrimary);
-
-    /* Header: "{Book} {Chapter}" */
     char header[48];
     snprintf(
         header,
         sizeof(header),
         "%s %u",
-        OSIS_BOOK_NAMES[state->selected_book],
+        state->selected_book_name[0] ? state->selected_book_name : "Book",
         (unsigned int)state->selected_chapter);
-    canvas_draw_str(canvas, BIBLE_MARGIN_X, 10, header);
+    canvas_draw_str(canvas, 2, 10, header);
     canvas_draw_line(canvas, 0, VERSE_SELECT_HEADER_H, BIBLE_SCREEN_WIDTH, VERSE_SELECT_HEADER_H);
 
-    uint16_t actual_max = max_verse_for_chapter(state->selected_book, state->selected_chapter);
-    if(actual_max == 0) {
-        actual_max = 40;
-    }
-
-    /* --- Row 1: "All verses" --- */
-    bool all_selected = (state->verse_select_mode == 0);
-    if(all_selected) {
-        bible_draw_inverted_highlight(
-            canvas,
-            0,
-            VERSE_SELECT_ROW_1_Y - 10,
-            BIBLE_SCREEN_WIDTH,
-            VERSE_SELECT_LINE_H,
-            "All verses",
-            4,
-            VERSE_SELECT_ROW_1_Y);
-    } else {
-        canvas_draw_str(canvas, 4, VERSE_SELECT_ROW_1_Y, "All verses");
-    }
-
-    /* --- Row 2: "Start: {n}" --- */
-    bool start_selected = (state->verse_select_mode == 1);
-    char start_label[32];
-    snprintf(
-        start_label, sizeof(start_label), "Start: %u", (unsigned int)state->selected_start_verse);
-    if(start_selected) {
-        bible_draw_inverted_highlight(
-            canvas,
-            0,
-            VERSE_SELECT_ROW_2_Y - 10,
-            BIBLE_SCREEN_WIDTH,
-            VERSE_SELECT_LINE_H,
-            start_label,
-            4,
-            VERSE_SELECT_ROW_2_Y);
-    } else {
-        canvas_draw_str(canvas, 4, VERSE_SELECT_ROW_2_Y, start_label);
-    }
-
-    /* --- Row 3: "End: {n}" --- */
-    bool end_selected = (state->verse_select_mode == 2);
-    char end_label[32];
+    char start_label[24];
+    char end_label[24];
+    snprintf(start_label, sizeof(start_label), "Start: %u", (unsigned int)state->selected_start_verse);
     snprintf(end_label, sizeof(end_label), "End: %u", (unsigned int)state->selected_end_verse);
-    if(end_selected) {
-        bible_draw_inverted_highlight(
-            canvas,
-            0,
-            VERSE_SELECT_ROW_3_Y - 10,
-            BIBLE_SCREEN_WIDTH,
-            VERSE_SELECT_LINE_H,
-            end_label,
-            4,
-            VERSE_SELECT_ROW_3_Y);
-    } else {
-        canvas_draw_str(canvas, 4, VERSE_SELECT_ROW_3_Y, end_label);
+    const char* rows[3] = {"All verses", start_label, end_label};
+    const int16_t row_y[3] = {VERSE_SELECT_ROW_1_Y, VERSE_SELECT_ROW_2_Y, VERSE_SELECT_ROW_3_Y};
+    uint8_t mode = state->verse_select_mode;
+    if(mode > 2) mode = 0;
+    for(uint8_t i = 0; i < 3; i++) {
+        if(i == mode) {
+            bible_draw_inverted_highlight(
+                canvas,
+                0,
+                (uint8_t)(row_y[i] - 10),
+                BIBLE_SCREEN_WIDTH,
+                VERSE_SELECT_LINE_H,
+                rows[i],
+                4,
+                (uint8_t)row_y[i]);
+        } else {
+            canvas_draw_str(canvas, 4, row_y[i], rows[i]);
+        }
     }
-
-    /* --- Bottom hint (context-sensitive) --- */
     canvas_set_font(canvas, FontSecondary);
-    const char* hint;
-    if(state->verse_select_mode == 0) {
-        hint = "OK=read, Back=back";
-    } else {
-        hint = "U/D=nav L/R=vs OK=read";
-    }
-    canvas_draw_str(canvas, BIBLE_MARGIN_X, VERSE_SELECT_HINT_Y, hint);
-
-    bible_draw_toast(canvas, &state->toast);
+    canvas_draw_str(
+        canvas,
+        2,
+        VERSE_SELECT_HINT_Y,
+        mode == 0 ? "OK=read, Back=back" : "U/D=nav L/R=vs OK=read");
 }
 
 /* ============================================================================
@@ -208,5 +173,6 @@ bool bible_bsb_view_verse_select_input(InputEvent* event, void* ctx) {
         consumed = false;
     }
 
+    bible_app_request_redraw(app);
     return consumed;
 }

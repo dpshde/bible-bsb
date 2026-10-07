@@ -16,13 +16,15 @@
 /* ============================================================================
  * Display ref builder — mirrors Rust Passage::display_ref()
  * ============================================================================ */
-static void bible_passage_display_ref(const BiblePassage* passage, char* out, size_t out_len) {
+static void bible_passage_display_ref(const BibleAppState* state, char* out, size_t out_len) {
+    const BiblePassage* passage = state ? &state->passage : NULL;
     if(!passage || passage->verse_count == 0) {
         strlcpy(out, "No passage", out_len);
         return;
     }
 
-    const char* book_name = OSIS_BOOK_NAMES[passage->book_index];
+    const char* book_name =
+        state->selected_book_name[0] ? state->selected_book_name : "Book";
     if(passage->start_verse > 0) {
         if(passage->end_verse > passage->start_verse) {
             snprintf(
@@ -104,15 +106,25 @@ static uint16_t
  * Reader view — draw callback
  * ============================================================================ */
 void bible_bsb_view_reader_draw(Canvas* canvas, void* ctx) {
-    BibleApp* app = ctx;
+    BibleApp* app = bible_app_from_draw(ctx);
+    if(!canvas) return;
+    canvas_reset(canvas);
+    canvas_clear(canvas);
+    canvas_set_color(canvas, ColorBlack);
+    canvas_set_font(canvas, FontPrimary);
+    if(!app || !app->state) {
+        canvas_draw_str(canvas, 2, 24, "Reader");
+        return;
+    }
     BibleAppState* state = app->state;
 
     canvas_clear(canvas);
+    canvas_set_color(canvas, ColorBlack);
 
     /* Header with passage reference */
     if(state->passage.verse_count > 0) {
         char ref_buf[48];
-        bible_passage_display_ref(&state->passage, ref_buf, sizeof(ref_buf));
+        bible_passage_display_ref(state, ref_buf, sizeof(ref_buf));
         canvas_set_font(canvas, FontSecondary);
         canvas_draw_str(canvas, BIBLE_MARGIN_X, READER_HEADER_Y, ref_buf);
         canvas_draw_line(canvas, 0, READER_DIVIDER_Y, BIBLE_SCREEN_WIDTH, READER_DIVIDER_Y);
@@ -230,5 +242,6 @@ bool bible_bsb_view_reader_input(InputEvent* event, void* ctx) {
         consumed = true;
     }
 
+    bible_app_request_redraw(app);
     return consumed;
 }

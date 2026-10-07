@@ -26,7 +26,7 @@ static const char* ACTION_MENU_ITEMS[] = {
  * ActionMenu view — draw callback
  * ============================================================================ */
 void bible_bsb_view_action_menu_draw(Canvas* canvas, void* ctx) {
-    BibleApp* app = ctx;
+    BibleApp* app = bible_app_from_draw(ctx);
     BibleAppState* state = app->state;
 
     canvas_clear(canvas);
@@ -68,22 +68,17 @@ bool bible_bsb_view_action_menu_input(InputEvent* event, void* ctx) {
 
     if(event->key == InputKeyUp &&
        (event->type == InputTypePress || event->type == InputTypeRepeat)) {
-        /* Wrap selection up */
+        /* Clamp, matching Rust — do not wrap past the first item. */
         if(state->action_menu_selection > 0) {
             state->action_menu_selection -= 1;
-        } else {
-            state->action_menu_selection = ACTION_MENU_ITEM_COUNT - 1;
         }
         consumed = true;
 
     } else if(
         event->key == InputKeyDown &&
         (event->type == InputTypePress || event->type == InputTypeRepeat)) {
-        /* Wrap selection down */
         if(state->action_menu_selection < (ACTION_MENU_ITEM_COUNT - 1)) {
             state->action_menu_selection += 1;
-        } else {
-            state->action_menu_selection = 0;
         }
         consumed = true;
 
@@ -125,5 +120,6 @@ bool bible_bsb_view_action_menu_input(InputEvent* event, void* ctx) {
         consumed = true;
     }
 
+    bible_app_request_redraw(app);
     return consumed;
 }

@@ -17,7 +17,7 @@
  * NfcShare view — draw callback
  * ============================================================================ */
 void bible_bsb_view_nfc_share_draw(Canvas* canvas, void* ctx) {
-    BibleApp* app = ctx;
+    BibleApp* app = bible_app_from_draw(ctx);
     BibleAppState* state = app->state;
 
     canvas_clear(canvas);
@@ -99,5 +99,6 @@ bool bible_bsb_view_nfc_share_input(InputEvent* event, void* ctx) {
         consumed = true;
     }
 
+    bible_app_request_redraw(app);
     return consumed;
 }

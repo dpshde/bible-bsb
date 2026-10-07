@@ -18,7 +18,7 @@ static void bible_sanitize_text(char* text, size_t max_len) {
         text[max_len] = '\0';
         len = max_len;
     }
-    for(size_t i = 0; i < len; i++) {
+    for(size_t i = 0; i + 2 < len; i++) {
         /* Em dash -> hyphen */
         if((unsigned char)text[i] == 0xE2 && (unsigned char)text[i + 1] == 0x80 &&
            (unsigned char)text[i + 2] == 0x94) {
@@ -219,8 +219,8 @@ static bool bible_scan_verses_from_json(
                    *(p + 4) == '"') {
                     p += 5;
 
-                    /* Extract text into a stack buffer — ONE verse at a time */
-                    char text_buf[512];
+                    /* Static so chapter load does not eat the app stack. */
+                    static char text_buf[384];
                     size_t text_len = 0;
                     bool escaped = false;
 
@@ -246,11 +246,10 @@ static bool bible_scan_verses_from_json(
                         p++;
                     }
                     text_buf[text_len] = '\0';
-
                     /* Apply verse range filter */
                     if(start_verse == 0 ||
                        (verse_num >= start_verse && verse_num <= end_verse)) {
-                        bible_sanitize_text(text_buf, 511);
+                        bible_sanitize_text(text_buf, sizeof(text_buf) - 1);
                         count++;
                         if(!callback(verse_num, text_buf, ctx)) {
                             return true; /* caller requested early stop */
@@ -281,20 +280,11 @@ static bool bible_wrap_callback(uint16_t verse_num, const char* text, void* ctx)
     WrapContext* wctx = (WrapContext*)ctx;
     BibleAppState* state = wctx->state;
 
-    /* Grow before writing. A failed ensure leaves the previous buffer intact
-     * but too small — do not hand it to the wrapper. */
+    /* The line buffer is allocated once before parsing. Stop when it is full
+     * instead of growing it while the chapter file is still on the heap. */
     if(!state->lines || state->line_count >= state->lines_capacity) {
-        uint16_t need = (uint16_t)(state->line_count + 15);
-        if(need < state->line_count) {
-            need = BIBLE_MAX_LINES;
-        }
-        if(!bible_lines_ensure(state, need) || !state->lines) {
-            wctx->oom = true;
-            return false;
-        }
+        return false;
     }
-
-    /* Wrap this verse into lines, writing directly into state->lines */
     bible_word_wrap(
         text,
         verse_num,
@@ -302,7 +292,6 @@ static bool bible_wrap_callback(uint16_t verse_num, const char* text, void* ctx)
         state->lines,
         &state->line_count,
         state->lines_capacity);
-
     return true;
 }
 
@@ -320,6 +309,13 @@ bool bible_load_chapter(
 
     char path[128];
     if(!bible_build_path(book_index, chapter, path, sizeof(path))) {
+        return false;
+    }
+
+    /* One contiguous line buffer, before the chapter file is read. Growing it
+     * later, while that file is still allocated, HardFaults on long chapters. */
+    if(!bible_lines_ensure(state, BIBLE_MAX_LINES) || !state->lines) {
+        bible_toast_set(&state->toast, "OOM");
         return false;
     }
 

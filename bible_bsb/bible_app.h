@@ -54,3 +54,12 @@ int32_t bible_bsb_main(void* p);
 /* Allocation / free lifecycle */
 BibleApp* bible_app_alloc(void);
 void bible_app_free(BibleApp* app);
+
+/* Draw callbacks receive the view model, not view_set_context(). */
+static inline BibleApp* bible_app_from_draw(void* model) {
+    return model ? *(BibleApp**)model : NULL;
+}
+
+/* ViewDispatcher only redraws on view switch or view_commit_model().
+ * Rust updates the viewport every loop, so call this after state changes. */
+void bible_app_request_redraw(BibleApp* app);

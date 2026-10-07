@@ -8,7 +8,7 @@ App(
     fap_description="Browse and save BSB scripture passages with route.bible NFC sharing",
     fap_icon="icon.png",
     entry_point="bible_bsb_main",
-    stack_size=4 * 1024,
+    stack_size=8 * 1024,
     sources=["*.c"],
     requires=[
         "storage",
