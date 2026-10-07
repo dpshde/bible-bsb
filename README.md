@@ -1,12 +1,15 @@
-# Bible [BSB]
+# Bible BSB
 
-A Flipper Zero app for reading and saving Berean Standard Bible passages offline. The app that ships is the C build in `bible_bsb/`. An earlier Rust prototype remains in `src/`.
+Flipper Zero apps for reading and saving Berean Standard Bible passages offline.
+
+- `bible_bsb/` is the C app that ships. Build it with ufbt from that directory. The app id is `bible_bsb`.
+- `src/` is the Rust prototype. Build it with `cargo build --release`. `scripts/validate.sh` checks that build. The package name is `kindled_spark`.
 
 ## Features
 
 - **Offline BSB reading** — Browse all 66 books by chapter and verse range. BSB text lives on your SD card (no network required).
 - **Passage / verse-range support** — Read a full chapter or select a start/end verse range.
-- **Save to collection** — Save passages locally in a Kindled-compatible JSON format.
+- **Save to collection** — Save passages on the SD card.
 - **Share via NFC** — Generate a `route.bible` URL and write it to a Flipper `.nfc` file for easy NFC tag sharing.
 - **Paginated reader** — Word-wrapped text with Up/Down line scrolling and Left/Right page navigation.
 
@@ -48,7 +51,7 @@ https://route.bible/jhn.3.16?v=BSB&src=kindled_spark
 
 ## Data Format
 
-Saved passages are stored at `/ext/apps_data/kindled_spark/collection.json` using the Kindled web-app schema for future import compatibility.
+Saved passages are stored at `/ext/apps_data/kindled_spark/collection.json`.
 
 ## License
 

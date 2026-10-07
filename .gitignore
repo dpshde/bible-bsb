@@ -6,12 +6,12 @@ bsb_*_sd/
 *.jsonl
 *.fap
 *.fapmeta
+*.elf
+bible_bsb/dist/
+bible_bsb/.vscode/compile_commands.json
 .DS_Store
 
 # Python
 __pycache__/
 *.py[cod]
-
-# Generated Garmin resources
-garmin_bible/resources/source/
 

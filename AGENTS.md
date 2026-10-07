@@ -62,7 +62,7 @@ qFlipper --cli restore ./backup.tar.gz
 
 ## Project Build & Deploy
 
-This app is built in Rust using [flipperzero-rs](https://github.com/flipperzero-rs/flipperzero-rs). The `application.fam` defines an external build step via Cargo.
+This repo has two Flipper apps. The C app in `bible_bsb/` is the one that ships (`bible_bsb`, built with ufbt from that directory, installed at `/ext/apps/Media/bible_bsb.fap`). The Rust prototype in `src/` uses [flipperzero-rs](https://github.com/flipperzero-rs/flipperzero-rs). Its root `application.fam` defines an external build step via Cargo and still uses the package name `kindled_spark`.
 
 ### Prerequisites
 ```sh
@@ -72,36 +72,36 @@ rustup target add thumbv7em-none-eabihf
 
 ### Build
 ```sh
-# Via Cargo directly
-cargo build --release
+# C app. Run ufbt from bible_bsb/, not the repo root.
+cd bible_bsb && ufbt
 
-# Offline validation without touching the device
+# Rust prototype
+cargo build --release
 sh scripts/validate.sh
 ```
 
-`ufbt` is present at `./.venv/bin/ufbt`, but this Rust app's `application.fam`
-uses `sources=[]` plus `fap_extbuild`, and the current `ufbt` SCons pipeline
-rejects empty source lists before it can use the Rust-built `.fap`. Treat Cargo
-as the authoritative local build path for this repo.
+Do not run `ufbt` from the repo root. The root `application.fam` has `sources=[]`
+plus `fap_extbuild`, and ufbt rejects that before Cargo runs. Cargo is the build
+path for the Rust app. Its `.fap` is:
 
-The compiled `.fap` is output to:
 ```
 target/thumbv7em-none-eabihf/release/kindled_spark.fap
 ```
 
+The C app's `.fap` is `bible_bsb/dist/bible_bsb.fap`.
+
 ### Deploy
-Preferred method on this machine (installs via serial using the ufbt toolchain):
+Close the running app first (`loader close`), then install the C app:
+
 ```sh
 python3 /Users/user/.ufbt/current/scripts/storage.py \
   -p /dev/cu.usbmodemflip_Yxoybo1 \
-  send -f target/thumbv7em-none-eabihf/release/kindled_spark.fap \
-  /ext/apps/Media/kindled_spark.fap
+  send -f bible_bsb/dist/bible_bsb.fap \
+  /ext/apps/Media/bible_bsb.fap
 ```
 
-Alternative via qFlipper CLI:
-```sh
-qFlipper --cli install ./target/thumbv7em-none-eabihf/release/kindled_spark.fap
-```
+The Rust prototype installs to `/ext/apps/Media/kindled_spark.fap`. One serial
+connection at a time.
 
 ### Prepare BSB Data
 Before running the app, populate the SD card with Berean Standard Bible chapter files:
