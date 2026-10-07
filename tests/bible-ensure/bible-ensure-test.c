@@ -1,10 +1,10 @@
 /* Host-side checks for bible_lines_ensure / bible_collection_ensure.
- * These helpers are static inline in bible_state.h. A failing realloc must
+ * Growth goes through bible_heap_grow (malloc first). A failing malloc must
  * return false and leave the previous pointer and capacity alone — callers
  * abort instead of writing through a NULL or undersized buffer.
  *
- * stdlib.h is included before the realloc macro so the libc declaration is
- * not rewritten. bible_state.h then sees the hooked realloc.
+ * stdlib.h is included before the malloc macro so the libc declaration is
+ * not rewritten. bible_state.h then sees the hooked malloc.
  */
 #include <assert.h>
 #include <stdio.h>
@@ -12,57 +12,60 @@
 #include <string.h>
 
 static int fail_on_call = -1;
-static int realloc_calls = 0;
+static int malloc_calls = 0;
 
-static void* bible_test_realloc(void* ptr, size_t size);
+static void* bible_test_malloc(size_t size);
 
-#define realloc(ptr, size) bible_test_realloc((ptr), (size))
+#define malloc(size) bible_test_malloc(size)
 
 #include "bible_state.h"
 
-static void* bible_test_realloc(void* ptr, size_t size) {
-    if(fail_on_call >= 0 && realloc_calls >= fail_on_call) {
+static void* bible_test_malloc(size_t size) {
+    if(fail_on_call >= 0 && malloc_calls >= fail_on_call) {
         return NULL;
     }
-    realloc_calls++;
-    return (realloc)(ptr, size);
+    malloc_calls++;
+    return (malloc)(size);
 }
 
-static void reset_realloc(int fail_after) {
+static void reset_malloc(int fail_after) {
     fail_on_call = fail_after;
-    realloc_calls = 0;
+    malloc_calls = 0;
 }
 
 static void test_lines_ensure_zero_is_noop(void) {
     BibleAppState state;
     bible_app_state_init(&state);
-    reset_realloc(-1);
+    reset_malloc(-1);
 
     assert(bible_lines_ensure(&state, 0));
     assert(state.lines == NULL);
     assert(state.lines_capacity == 0);
-    assert(realloc_calls == 0);
+    assert(malloc_calls == 0);
 }
 
 static void test_lines_ensure_grows_in_chunks(void) {
     BibleAppState state;
     bible_app_state_init(&state);
-    reset_realloc(-1);
+    reset_malloc(-1);
 
     assert(bible_lines_ensure(&state, 1));
     assert(state.lines != NULL);
     assert(state.lines_capacity == 15);
-    assert(realloc_calls == 1);
+    assert(malloc_calls == 1);
 
     BibleLine* first = state.lines;
+    state.lines[0].verse_number = 7;
     assert(bible_lines_ensure(&state, 15));
     assert(state.lines == first);
-    assert(realloc_calls == 1);
+    assert(malloc_calls == 1);
 
     assert(bible_lines_ensure(&state, 16));
     assert(state.lines != NULL);
+    assert(state.lines != first);
     assert(state.lines_capacity == 30);
-    assert(realloc_calls == 2);
+    assert(state.lines[0].verse_number == 7);
+    assert(malloc_calls == 2);
 
     bible_lines_free(&state);
     assert(state.lines == NULL);
@@ -73,7 +76,7 @@ static void test_lines_ensure_grows_in_chunks(void) {
 static void test_lines_ensure_oom_preserves_buffer(void) {
     BibleAppState state;
     bible_app_state_init(&state);
-    reset_realloc(-1);
+    reset_malloc(-1);
 
     assert(bible_lines_ensure(&state, 1));
     state.lines[0].verse_number = 42;
@@ -81,7 +84,7 @@ static void test_lines_ensure_oom_preserves_buffer(void) {
     BibleLine* kept = state.lines;
     uint16_t kept_cap = state.lines_capacity;
 
-    reset_realloc(0);
+    reset_malloc(0);
     assert(!bible_lines_ensure(&state, kept_cap + 1));
     assert(state.lines == kept);
     assert(state.lines_capacity == kept_cap);
@@ -94,7 +97,7 @@ static void test_lines_ensure_oom_preserves_buffer(void) {
 static void test_lines_ensure_first_alloc_oom(void) {
     BibleAppState state;
     bible_app_state_init(&state);
-    reset_realloc(0);
+    reset_malloc(0);
 
     assert(!bible_lines_ensure(&state, 1));
     assert(state.lines == NULL);
@@ -104,7 +107,7 @@ static void test_lines_ensure_first_alloc_oom(void) {
 static void test_collection_ensure_oom_preserves_buffer(void) {
     BibleAppState state;
     bible_app_state_init(&state);
-    reset_realloc(-1);
+    reset_malloc(-1);
 
     assert(bible_collection_ensure(&state, 1));
     assert(state.collection != NULL);
@@ -113,7 +116,7 @@ static void test_collection_ensure_oom_preserves_buffer(void) {
     BibleCollectionEntry* kept = state.collection;
     uint8_t kept_cap = state.collection_capacity;
 
-    reset_realloc(0);
+    reset_malloc(0);
     assert(!bible_collection_ensure(&state, (uint16_t)(kept_cap + 1)));
     assert(state.collection == kept);
     assert(state.collection_capacity == kept_cap);
@@ -128,7 +131,7 @@ static void test_collection_ensure_oom_preserves_buffer(void) {
 static void test_collection_ensure_first_alloc_oom(void) {
     BibleAppState state;
     bible_app_state_init(&state);
-    reset_realloc(0);
+    reset_malloc(0);
 
     assert(!bible_collection_ensure(&state, 1));
     assert(state.collection == NULL);

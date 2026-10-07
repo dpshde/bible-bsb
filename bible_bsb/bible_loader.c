@@ -146,9 +146,10 @@ static BibleFileStatus bible_read_chapter_file(const char* path, uint8_t** out_b
             if(new_cap > BIBLE_MAX_FILE_SIZE) {
                 new_cap = BIBLE_MAX_FILE_SIZE;
             }
-            uint8_t* new_buf = realloc(buf, new_cap + 1);
+            size_t old_bytes = buf ? capacity + 1 : 0;
+            uint8_t* new_buf = bible_heap_grow(buf, old_bytes, new_cap + 1);
             if(!new_buf) {
-                /* realloc failure leaves `buf` valid. Drop it and abort. */
+                /* Grow failure leaves `buf` allocated. Drop it and abort. */
                 oom = true;
                 break;
             }

@@ -303,7 +303,8 @@ bool bible_storage_load_collection(BibleAppState* state) {
             if(new_cap > BIBLE_MAX_COLLECTION_SIZE) {
                 new_cap = BIBLE_MAX_COLLECTION_SIZE;
             }
-            uint8_t* new_buf = realloc(buf, new_cap + 1);
+            size_t old_bytes = buf ? capacity + 1 : 0;
+            uint8_t* new_buf = bible_heap_grow(buf, old_bytes, new_cap + 1);
             if(!new_buf) {
                 oom = true;
                 break;

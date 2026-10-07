@@ -134,7 +134,38 @@ typedef struct BibleAppState {
  * Dynamic memory helpers
  * ============================================================================ */
 
-/** Ensure lines array has at least `capacity` slots. Grows incrementally (max ~1KB per realloc).
+/** Grow a heap block.
+ *
+ * Flipper's realloc (SDK 1.4.3) mallocs the new block and then memcpy's into it
+ * before testing the pointer, so a failed growth HardFaults inside realloc and
+ * the old block is not safe to keep using. This allocates first and leaves `ptr`
+ * owned by the caller when malloc fails.
+ *
+ * On success the caller owns the returned pointer and `ptr` has been freed.
+ * `old_size` is the number of bytes to preserve (0 if `ptr` is NULL).
+ */
+static inline void* bible_heap_grow(void* ptr, size_t old_size, size_t new_size) {
+    if(new_size == 0) {
+        free(ptr);
+        return NULL;
+    }
+
+    void* next = malloc(new_size);
+    if(!next) {
+        return NULL;
+    }
+
+    if(ptr) {
+        if(old_size > 0) {
+            size_t copy = old_size < new_size ? old_size : new_size;
+            memcpy(next, ptr, copy);
+        }
+        free(ptr);
+    }
+    return next;
+}
+
+/** Ensure lines array has at least `capacity` slots. Grows incrementally (max ~1KB per alloc).
  *  Returns false on allocation failure. The previous buffer, if any, is left unchanged. */
 static inline bool bible_lines_ensure(BibleAppState* state, uint16_t capacity) {
     furi_check(state);
@@ -150,7 +181,9 @@ static inline bool bible_lines_ensure(BibleAppState* state, uint16_t capacity) {
     }
     if(new_cap > BIBLE_MAX_LINES) new_cap = BIBLE_MAX_LINES;
 
-    BibleLine* new_lines = realloc(state->lines, new_cap * sizeof(BibleLine));
+    size_t old_bytes = (size_t)state->lines_capacity * sizeof(BibleLine);
+    size_t new_bytes = (size_t)new_cap * sizeof(BibleLine);
+    BibleLine* new_lines = bible_heap_grow(state->lines, old_bytes, new_bytes);
     if(!new_lines) return false;
     /* Zero-initialize newly allocated slots */
     if(new_cap > state->lines_capacity) {
@@ -187,8 +220,9 @@ static inline bool bible_collection_ensure(BibleAppState* state, uint16_t capaci
         new_cap *= 2;
     if(new_cap > BIBLE_MAX_COLLECTION) new_cap = BIBLE_MAX_COLLECTION;
 
-    BibleCollectionEntry* new_col =
-        realloc(state->collection, new_cap * sizeof(BibleCollectionEntry));
+    size_t old_bytes = (size_t)state->collection_capacity * sizeof(BibleCollectionEntry);
+    size_t new_bytes = (size_t)new_cap * sizeof(BibleCollectionEntry);
+    BibleCollectionEntry* new_col = bible_heap_grow(state->collection, old_bytes, new_bytes);
     if(!new_col) return false;
     state->collection = new_col;
     state->collection_capacity = new_cap;
