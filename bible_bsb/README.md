@@ -1,10 +1,10 @@
-# Bible [BSB]
+# Bible BSB
 
 Read the Berean Standard Bible on Flipper Zero. The chapter files live on the SD card, so reading works with no network connection.
 
 ## How to read
 
-Open Bible [BSB] from Apps, then Media.
+Open the app from Apps, then Media.
 
 - Up and Down move through books, chapters, verses, and reader lines
 - Left and Right move across the chapter grid and turn reader pages
