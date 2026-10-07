@@ -53,7 +53,7 @@ static void bible_passage_display_ref(const BiblePassage* passage, char* out, si
 
 static uint16_t
     reader_next_verse_offset(const BibleLine* lines, uint16_t line_count, uint16_t current) {
-    if(current >= line_count) return current;
+    if(!lines || current >= line_count) return current;
 
     uint16_t current_verse = lines[current].verse_number;
     for(uint16_t i = current + 1; i < line_count; i++) {
@@ -66,7 +66,7 @@ static uint16_t
 
 static uint16_t
     reader_prev_verse_offset(const BibleLine* lines, uint16_t line_count, uint16_t current) {
-    if(current >= line_count || line_count == 0) return 0;
+    if(!lines || current >= line_count || line_count == 0) return 0;
 
     uint16_t current_verse = lines[current].verse_number;
     bool is_first = lines[current].is_verse_number;

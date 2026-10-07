@@ -26,11 +26,12 @@ void bible_bsb_view_collection_draw(Canvas* canvas, void* ctx) {
     canvas_draw_str(canvas, BIBLE_MARGIN_X, COLLECTION_HEADER_Y, "Collection >");
     canvas_draw_line(canvas, 0, COLLECTION_DIVIDER_Y, BIBLE_SCREEN_WIDTH, COLLECTION_DIVIDER_Y);
 
-    /* Empty state */
-    if(state->collection_count == 0) {
+    /* Empty state — also when the entry array failed to allocate */
+    if(state->collection_count == 0 || state->collection == NULL) {
         canvas_set_font(canvas, FontSecondary);
         canvas_draw_str(canvas, 4, 30, "No saved passages");
         canvas_draw_str(canvas, 4, 44, "Back to home");
+        bible_draw_toast(canvas, &state->toast);
         return;
     }
 
@@ -73,6 +74,8 @@ void bible_bsb_view_collection_draw(Canvas* canvas, void* ctx) {
     /* Bottom hint */
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str(canvas, BIBLE_MARGIN_X, 62, "L=export OK=read");
+
+    bible_draw_toast(canvas, &state->toast);
 }
 
 /* ============================================================================
@@ -133,7 +136,7 @@ bool bible_bsb_view_collection_input(InputEvent* event, void* ctx) {
                     state->nfc_is_export = false;
                     bible_toast_set(&state->toast, "Export too large");
                 }
-            } else {
+            } else if(!bible_toast_active(&state->toast)) {
                 bible_toast_set(&state->toast, "Export failed");
             }
         }
@@ -142,7 +145,7 @@ bool bible_bsb_view_collection_input(InputEvent* event, void* ctx) {
 
     /* OK (Long): delete selected passage */
     else if(event->key == InputKeyOk && event->type == InputTypeLong) {
-        if(state->collection_scroll < state->collection_count) {
+        if(state->collection != NULL && state->collection_scroll < state->collection_count) {
             /* Shift remaining entries down */
             for(uint8_t i = state->collection_scroll; i + 1 < state->collection_count; i++) {
                 state->collection[i] = state->collection[i + 1];
@@ -167,7 +170,7 @@ bool bible_bsb_view_collection_input(InputEvent* event, void* ctx) {
             bool loaded = bible_storage_load_verses_for_entry(state, state->collection_scroll);
             if(loaded) {
                 scene_manager_next_scene(app->scene_manager, BibleSceneReader);
-            } else {
+            } else if(!bible_toast_active(&state->toast)) {
                 bible_toast_set(&state->toast, "Load failed");
             }
         }

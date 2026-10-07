@@ -134,7 +134,8 @@ typedef struct BibleAppState {
  * Dynamic memory helpers
  * ============================================================================ */
 
-/** Ensure lines array has at least `capacity` slots. Grows incrementally (max ~1KB per realloc). */
+/** Ensure lines array has at least `capacity` slots. Grows incrementally (max ~1KB per realloc).
+ *  Returns false on allocation failure. The previous buffer, if any, is left unchanged. */
 static inline bool bible_lines_ensure(BibleAppState* state, uint16_t capacity) {
     furi_check(state);
     if(capacity == 0) return true;
@@ -174,7 +175,8 @@ static inline void bible_lines_free(BibleAppState* state) {
     state->lines_capacity = 0;
 }
 
-/** Ensure collection array has at least `capacity` slots. */
+/** Ensure collection array has at least `capacity` slots.
+ *  Returns false on allocation failure. The previous buffer, if any, is left unchanged. */
 static inline bool bible_collection_ensure(BibleAppState* state, uint16_t capacity) {
     furi_check(state);
     if(capacity == 0) return true;

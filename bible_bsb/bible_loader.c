@@ -82,25 +82,53 @@ static bool bible_build_path(uint8_t book_index, uint16_t chapter, char* path, s
     return true;
 }
 
-/* Read chapter JSON from SD into a dynamically-grown buffer.
- * Returns true on success; caller must free(*out_buf).
- * Returns false on error; *out_buf is freed automatically.
- */
-static bool bible_read_chapter_file(const char* path, uint8_t** out_buf, size_t* out_len) {
-    Storage* storage = furi_record_open(RECORD_STORAGE);
-    File* file = storage_file_alloc(storage);
-    bool ok = storage_file_open(file, path, FSAM_READ, FSOM_OPEN_EXISTING);
+typedef enum {
+    BibleFileOk,
+    BibleFileMissing,
+    BibleFileOom,
+} BibleFileStatus;
 
-    if(!ok) {
+/* Close and free a storage file, then release RECORD_STORAGE.
+ * `file` may be NULL (alloc failed after the record was opened). */
+static void bible_close_storage_file(File* file) {
+    if(file) {
         storage_file_close(file);
         storage_file_free(file);
+    }
+    furi_record_close(RECORD_STORAGE);
+}
+
+/* Read chapter JSON from SD into a dynamically-grown buffer.
+ * BibleFileOk: caller must free(*out_buf).
+ * Any other status: *out_buf is NULL and nothing is left allocated.
+ */
+static BibleFileStatus bible_read_chapter_file(const char* path, uint8_t** out_buf, size_t* out_len) {
+    furi_check(out_buf);
+    furi_check(out_len);
+    *out_buf = NULL;
+    *out_len = 0;
+
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+    if(!storage) {
+        return BibleFileOom;
+    }
+
+    File* file = storage_file_alloc(storage);
+    if(!file) {
         furi_record_close(RECORD_STORAGE);
-        return false;
+        return BibleFileOom;
+    }
+
+    bool ok = storage_file_open(file, path, FSAM_READ, FSOM_OPEN_EXISTING);
+    if(!ok) {
+        bible_close_storage_file(file);
+        return BibleFileMissing;
     }
 
     uint8_t* buf = NULL;
     size_t total = 0;
     size_t capacity = 0;
+    bool oom = false;
 
     /* Use a static chunk buffer to keep stack usage low */
     static uint8_t chunk[BIBLE_READ_CHUNK];
@@ -119,28 +147,35 @@ static bool bible_read_chapter_file(const char* path, uint8_t** out_buf, size_t*
                 new_cap = BIBLE_MAX_FILE_SIZE;
             }
             uint8_t* new_buf = realloc(buf, new_cap + 1);
-            if(!new_buf) break;
+            if(!new_buf) {
+                /* realloc failure leaves `buf` valid. Drop it and abort. */
+                oom = true;
+                break;
+            }
             buf = new_buf;
             capacity = new_cap;
+        }
+
+        if(!buf) {
+            oom = true;
+            break;
         }
 
         memcpy(buf + total, chunk, n);
         total += n;
     }
 
-    storage_file_close(file);
-    storage_file_free(file);
-    furi_record_close(RECORD_STORAGE);
+    bible_close_storage_file(file);
 
-    if(total == 0 || buf == NULL) {
+    if(oom || total == 0 || buf == NULL) {
         free(buf);
-        return false;
+        return oom ? BibleFileOom : BibleFileMissing;
     }
 
     buf[total] = '\0';
     *out_buf = buf;
     *out_len = total;
-    return true;
+    return BibleFileOk;
 }
 
 /* ============================================================================
@@ -238,17 +273,23 @@ static bool bible_scan_verses_from_json(
 
 typedef struct {
     BibleAppState* state;
-    uint16_t lines_before; /* snapshot of line_count before loading */
+    bool oom;
 } WrapContext;
 
 static bool bible_wrap_callback(uint16_t verse_num, const char* text, void* ctx) {
     WrapContext* wctx = (WrapContext*)ctx;
     BibleAppState* state = wctx->state;
 
-    /* Ensure lines array has enough capacity */
-    if(state->line_count >= state->lines_capacity) {
-        if(!bible_lines_ensure(state, state->line_count + 15)) {
-            return false; /* OOM — stop scanning */
+    /* Grow before writing. A failed ensure leaves the previous buffer intact
+     * but too small — do not hand it to the wrapper. */
+    if(!state->lines || state->line_count >= state->lines_capacity) {
+        uint16_t need = (uint16_t)(state->line_count + 15);
+        if(need < state->line_count) {
+            need = BIBLE_MAX_LINES;
+        }
+        if(!bible_lines_ensure(state, need) || !state->lines) {
+            wctx->oom = true;
+            return false;
         }
     }
 
@@ -284,21 +325,34 @@ bool bible_load_chapter(
     /* Read JSON file into a temporary buffer */
     uint8_t* buf = NULL;
     size_t total = 0;
-    if(!bible_read_chapter_file(path, &buf, &total)) {
+    BibleFileStatus file_status = bible_read_chapter_file(path, &buf, &total);
+    if(file_status == BibleFileOom) {
+        bible_toast_set(&state->toast, "OOM");
+        return false;
+    }
+    if(file_status != BibleFileOk) {
         return false;
     }
 
-    /* Clear previous lines and passage */
+    /* Clear previous lines and passage. The line buffer itself stays allocated
+     * so a retry does not need a fresh contiguous block. */
     state->line_count = 0;
     memset(&state->passage, 0, sizeof(BiblePassage));
 
-    WrapContext ctx = {.state = state, .lines_before = 0};
+    WrapContext ctx = {.state = state, .oom = false};
 
     /* Scan verses and wrap each one into lines immediately */
     bool ok = bible_scan_verses_from_json(
         (const char*)buf, total, start_verse, end_verse, bible_wrap_callback, &ctx);
 
     free(buf);
+
+    if(ctx.oom || (state->line_count > 0 && !state->lines)) {
+        state->line_count = 0;
+        memset(&state->passage, 0, sizeof(BiblePassage));
+        bible_toast_set(&state->toast, "OOM");
+        return false;
+    }
 
     if(!ok || state->line_count == 0) {
         state->line_count = 0;
@@ -341,7 +395,7 @@ bool bible_load_chapter_verse_scan(
 
     uint8_t* buf = NULL;
     size_t total = 0;
-    if(!bible_read_chapter_file(path, &buf, &total)) {
+    if(bible_read_chapter_file(path, &buf, &total) != BibleFileOk) {
         return false;
     }
 

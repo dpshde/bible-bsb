@@ -102,6 +102,16 @@ static bool json_writer_ok(const JsonWriter* w) {
     return !w->failed;
 }
 
+/* Close and free `file` when non-NULL, then release RECORD_STORAGE.
+ * Call only after furi_record_open(RECORD_STORAGE) succeeded. */
+static void bible_close_storage_file(File* file) {
+    if(file) {
+        storage_file_close(file);
+        storage_file_free(file);
+    }
+    furi_record_close(RECORD_STORAGE);
+}
+
 /* ============================================================================
  * Collection JSON write — streaming writer
  * ============================================================================ */
@@ -109,14 +119,24 @@ static bool json_writer_ok(const JsonWriter* w) {
 bool bible_storage_save_collection(const BibleAppState* state) {
     furi_check(state);
 
-    Storage* storage = furi_record_open(RECORD_STORAGE);
-    File* file = storage_file_alloc(storage);
-    bool opened = storage_file_open(file, COLLECTION_PATH, FSAM_WRITE, FSOM_OPEN_ALWAYS);
+    if(state->collection_count > 0 && state->collection == NULL) {
+        return false;
+    }
 
-    if(!opened) {
-        storage_file_close(file);
-        storage_file_free(file);
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+    if(!storage) {
+        return false;
+    }
+
+    File* file = storage_file_alloc(storage);
+    if(!file) {
         furi_record_close(RECORD_STORAGE);
+        return false;
+    }
+
+    bool opened = storage_file_open(file, COLLECTION_PATH, FSAM_WRITE, FSOM_OPEN_ALWAYS);
+    if(!opened) {
+        bible_close_storage_file(file);
         return false;
     }
 
@@ -156,9 +176,7 @@ bool bible_storage_save_collection(const BibleAppState* state) {
     uint32_t total = json_writer_finish(&w);
     bool ok = json_writer_ok(&w) && total > 0;
 
-    storage_file_close(file);
-    storage_file_free(file);
-    furi_record_close(RECORD_STORAGE);
+    bible_close_storage_file(file);
 
     return ok;
 }
@@ -243,13 +261,22 @@ bool bible_storage_load_collection(BibleAppState* state) {
     furi_check(state);
 
     Storage* storage = furi_record_open(RECORD_STORAGE);
+    if(!storage) {
+        bible_toast_set(&state->toast, "OOM");
+        return false;
+    }
+
     File* file = storage_file_alloc(storage);
+    if(!file) {
+        furi_record_close(RECORD_STORAGE);
+        bible_toast_set(&state->toast, "OOM");
+        return false;
+    }
+
     bool opened = storage_file_open(file, COLLECTION_PATH, FSAM_READ, FSOM_OPEN_EXISTING);
 
     if(!opened) {
-        storage_file_close(file);
-        storage_file_free(file);
-        furi_record_close(RECORD_STORAGE);
+        bible_close_storage_file(file);
         /* File doesn't exist yet — not an error, just empty collection */
         state->collection_count = 0;
         state->collection_loaded = true;
@@ -261,6 +288,7 @@ bool bible_storage_load_collection(BibleAppState* state) {
     uint8_t* buf = NULL;
     size_t total = 0;
     size_t capacity = 0;
+    bool oom = false;
 
     while(total < BIBLE_MAX_COLLECTION_SIZE) {
         size_t n = storage_file_read(file, chunk, sizeof(chunk));
@@ -276,18 +304,30 @@ bool bible_storage_load_collection(BibleAppState* state) {
                 new_cap = BIBLE_MAX_COLLECTION_SIZE;
             }
             uint8_t* new_buf = realloc(buf, new_cap + 1);
-            if(!new_buf) break;
+            if(!new_buf) {
+                oom = true;
+                break;
+            }
             buf = new_buf;
             capacity = new_cap;
+        }
+
+        if(!buf) {
+            oom = true;
+            break;
         }
 
         memcpy(buf + total, chunk, n);
         total += n;
     }
 
-    storage_file_close(file);
-    storage_file_free(file);
-    furi_record_close(RECORD_STORAGE);
+    bible_close_storage_file(file);
+
+    if(oom) {
+        free(buf);
+        bible_toast_set(&state->toast, "OOM");
+        return false;
+    }
 
     if(total == 0 || buf == NULL) {
         free(buf);
@@ -308,9 +348,11 @@ bool bible_storage_load_collection(BibleAppState* state) {
         int32_t ref_start = find_key_value(buf, total, i, "scripture_ref", &is_string);
         if(ref_start < 0) break;
 
-        /* Ensure collection array has room */
-        if(!bible_collection_ensure(state, state->collection_count + 1)) {
-            break;
+        /* Ensure collection array has room. Do not write through a NULL buffer. */
+        if(!bible_collection_ensure(state, state->collection_count + 1) || !state->collection) {
+            free(buf);
+            bible_toast_set(&state->toast, "OOM");
+            return false;
         }
 
         BibleCollectionEntry* e = &state->collection[state->collection_count];
@@ -444,6 +486,16 @@ static bool bible_reload_passage_lines(BibleAppState* state) {
         state);
 }
 
+/* Restore the reader after a save-path detour.
+ * If the reload already toasted "OOM", keep that instead of hiding it. */
+static void bible_finish_with_toast(BibleAppState* state, uint16_t saved_scroll, const char* msg) {
+    bool reloaded = bible_reload_passage_lines(state);
+    state->scroll_offset = saved_scroll;
+    if(reloaded || !bible_toast_active(&state->toast)) {
+        bible_toast_set(&state->toast, msg);
+    }
+}
+
 void bible_save_passage(BibleAppState* state) {
     furi_check(state);
 
@@ -460,7 +512,15 @@ void bible_save_passage(BibleAppState* state) {
 
     /* 3. Load collection from SD if not already loaded */
     if(!state->collection_loaded) {
-        bible_storage_load_collection(state);
+        if(!bible_storage_load_collection(state)) {
+            bible_finish_with_toast(state, saved_scroll, "OOM");
+            return;
+        }
+    }
+
+    if(state->collection_count > 0 && state->collection == NULL) {
+        bible_finish_with_toast(state, saved_scroll, "OOM");
+        return;
     }
 
     /* 4. Build canonical ref for duplicate check */
@@ -471,18 +531,14 @@ void bible_save_passage(BibleAppState* state) {
     for(uint8_t i = 0; i < state->collection_count; i++) {
         if(strcmp(state->collection[i].scripture_ref, new_ref) == 0) {
             /* Duplicate found — reload lines and show toast */
-            bible_reload_passage_lines(state);
-            state->scroll_offset = saved_scroll;
-            bible_toast_set(&state->toast, "Already saved");
+            bible_finish_with_toast(state, saved_scroll, "Already saved");
             return;
         }
     }
 
     /* 6. Check capacity */
     if(state->collection_count >= BIBLE_MAX_COLLECTION) {
-        bible_reload_passage_lines(state);
-        state->scroll_offset = saved_scroll;
-        bible_toast_set(&state->toast, "Collection full");
+        bible_finish_with_toast(state, saved_scroll, "Collection full");
         return;
     }
 
@@ -491,10 +547,8 @@ void bible_save_passage(BibleAppState* state) {
     build_display_ref(&state->passage, display_ref, sizeof(display_ref));
 
     /* 8. Ensure collection capacity and append new entry */
-    if(!bible_collection_ensure(state, state->collection_count + 1)) {
-        bible_reload_passage_lines(state);
-        state->scroll_offset = saved_scroll;
-        bible_toast_set(&state->toast, "Save failed");
+    if(!bible_collection_ensure(state, state->collection_count + 1) || !state->collection) {
+        bible_finish_with_toast(state, saved_scroll, "OOM");
         return;
     }
     BibleCollectionEntry* e = &state->collection[state->collection_count];
@@ -513,19 +567,14 @@ void bible_save_passage(BibleAppState* state) {
 
     /* 9. Write collection to SD */
     bool saved = bible_storage_save_collection(state);
-
-    /* 10. Reload lines (restore reader display) */
-    bible_reload_passage_lines(state);
-    state->scroll_offset = saved_scroll;
-
-    /* 11. Toast */
-    if(saved) {
-        bible_toast_set(&state->toast, "Saved!");
-    } else {
-        bible_toast_set(&state->toast, "Save failed");
+    if(!saved) {
         /* Rollback: remove the entry we just added */
         state->collection_count--;
     }
+
+    /* 10. Reload lines (restore reader display) and toast.
+     * An OOM toast from the reload wins over Saved / Save failed. */
+    bible_finish_with_toast(state, saved_scroll, saved ? "Saved!" : "Save failed");
 }
 
 /* ============================================================================
@@ -535,6 +584,10 @@ void bible_save_passage(BibleAppState* state) {
 bool bible_storage_load_verses_for_entry(BibleAppState* state, uint8_t entry_index) {
     furi_check(state);
     if(entry_index >= state->collection_count) return false;
+    if(state->collection == NULL) {
+        bible_toast_set(&state->toast, "OOM");
+        return false;
+    }
 
     const BibleCollectionEntry* e = &state->collection[entry_index];
 
@@ -638,8 +691,11 @@ bool bible_storage_build_kindled_json(BibleAppState* state, char* out_buf, size_
     furi_check(out_buf);
     furi_check(out_len > 0);
 
-    if(state->collection_count == 0) {
+    if(state->collection_count == 0 || state->collection == NULL) {
         out_buf[0] = '\0';
+        if(state->collection_count > 0 && state->collection == NULL) {
+            bible_toast_set(&state->toast, "OOM");
+        }
         return false;
     }
 

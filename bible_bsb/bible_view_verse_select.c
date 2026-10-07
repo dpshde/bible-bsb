@@ -103,6 +103,8 @@ void bible_bsb_view_verse_select_draw(Canvas* canvas, void* ctx) {
         hint = "U/D=nav L/R=vs OK=read";
     }
     canvas_draw_str(canvas, BIBLE_MARGIN_X, VERSE_SELECT_HINT_Y, hint);
+
+    bible_draw_toast(canvas, &state->toast);
 }
 
 /* ============================================================================
@@ -195,7 +197,8 @@ bool bible_bsb_view_verse_select_input(InputEvent* event, void* ctx) {
             state->scroll_offset = 0;
             state->reader_came_from_collection = false;
             scene_manager_next_scene(app->scene_manager, BibleSceneReader);
-        } else {
+        } else if(!bible_toast_active(&state->toast)) {
+            /* Loader sets "OOM" itself; don't hide that with a missing-file toast. */
             bible_toast_set(&state->toast, "No BSB data");
         }
         consumed = true;

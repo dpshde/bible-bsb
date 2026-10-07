@@ -360,21 +360,115 @@ static void bible_bsb_tick_callback(void* context) {
 }
 
 /* ============================================================================
+ * Free — mirror alloc order in reverse.
+ * Safe on a partially constructed app: NULL members are skipped.
+ * ============================================================================ */
+void bible_app_free(BibleApp* app) {
+    furi_check(app);
+
+    /* Remove views that were both allocated and registered. */
+    if(app->view_dispatcher) {
+        for(BibleView v = 0; v < BibleViewCount; v++) {
+            View* view = app->views[v];
+            if(view != NULL) {
+                view_dispatcher_remove_view(app->view_dispatcher, v);
+                view_free(view);
+                app->views[v] = NULL;
+            }
+        }
+    } else {
+        for(BibleView v = 0; v < BibleViewCount; v++) {
+            if(app->views[v] != NULL) {
+                view_free(app->views[v]);
+                app->views[v] = NULL;
+            }
+        }
+    }
+
+    /* GUI — only if this app opened the record */
+    if(app->gui) {
+        furi_record_close(RECORD_GUI);
+        app->gui = NULL;
+    }
+
+    /* Dispatcher + SceneManager */
+    if(app->view_dispatcher) {
+        view_dispatcher_set_tick_event_callback(app->view_dispatcher, NULL, 0);
+        view_dispatcher_free(app->view_dispatcher);
+        app->view_dispatcher = NULL;
+    }
+    if(app->scene_manager) {
+        scene_manager_free(app->scene_manager);
+        app->scene_manager = NULL;
+    }
+
+    /* State — free dynamic arrays first, then the state struct */
+    if(app->state) {
+        bible_app_state_deinit(app->state);
+        free(app->state);
+        app->state = NULL;
+    }
+    free(app);
+}
+
+/**
+ * Tear down whatever bible_app_alloc managed to create and return NULL.
+ * Callers must not use `app` after this returns.
+ */
+static BibleApp* bible_app_alloc_fail(BibleApp* app) {
+    if(app) {
+        bible_app_free(app);
+    }
+    return NULL;
+}
+
+static bool bible_app_register_view(
+    BibleApp* app,
+    BibleView view_id,
+    ViewDrawCallback draw_callback,
+    ViewInputCallback input_callback) {
+    View* view = view_alloc();
+    if(!view) {
+        return false;
+    }
+
+    view_set_draw_callback(view, draw_callback);
+    view_set_input_callback(view, input_callback);
+    view_set_context(view, app);
+    /* Store only after add so free() removes a view that was registered. */
+    view_dispatcher_add_view(app->view_dispatcher, view_id, view);
+    app->views[view_id] = view;
+    return true;
+}
+
+/* ============================================================================
  * Allocation
  * ============================================================================ */
 BibleApp* bible_app_alloc(void) {
     BibleApp* app = malloc(sizeof(BibleApp));
-    furi_check(app);
+    if(!app) {
+        return NULL;
+    }
     memset(app, 0, sizeof(BibleApp));
 
     /* App state */
     app->state = malloc(sizeof(BibleAppState));
-    furi_check(app->state);
+    if(!app->state) {
+        return bible_app_alloc_fail(app);
+    }
     bible_app_state_init(app->state);
 
     /* ViewDispatcher + SceneManager */
     app->view_dispatcher = view_dispatcher_alloc();
+    if(!app->view_dispatcher) {
+        return bible_app_alloc_fail(app);
+    }
+
     app->scene_manager = scene_manager_alloc(&bible_bsb_scene_handlers, app);
+    if(!app->scene_manager) {
+        return bible_app_alloc_fail(app);
+    }
+
     view_dispatcher_set_event_callback_context(app->view_dispatcher, app);
     view_dispatcher_set_custom_event_callback(app->view_dispatcher, NULL);
     view_dispatcher_set_navigation_event_callback(
@@ -384,97 +478,56 @@ BibleApp* bible_app_alloc(void) {
 
     /* GUI */
     app->gui = furi_record_open(RECORD_GUI);
+    if(!app->gui) {
+        return bible_app_alloc_fail(app);
+    }
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
     /* Custom views — all 8 views registered with ViewDispatcher */
-    View* view;
-
-    view = view_alloc();
-    view_set_draw_callback(view, bible_bsb_view_book_list_draw);
-    view_set_input_callback(view, bible_bsb_view_book_list_input);
-    view_set_context(view, app);
-    app->views[BibleViewBookList] = view;
-    view_dispatcher_add_view(app->view_dispatcher, BibleViewBookList, view);
-
-    view = view_alloc();
-    view_set_draw_callback(view, bible_bsb_wrapper_book_filter_draw);
-    view_set_input_callback(view, bible_bsb_wrapper_book_filter_input);
-    view_set_context(view, app);
-    app->views[BibleViewBookFilter] = view;
-    view_dispatcher_add_view(app->view_dispatcher, BibleViewBookFilter, view);
-
-    view = view_alloc();
-    view_set_draw_callback(view, bible_bsb_wrapper_chapter_list_draw);
-    view_set_input_callback(view, bible_bsb_wrapper_chapter_list_input);
-    view_set_context(view, app);
-    app->views[BibleViewChapterList] = view;
-    view_dispatcher_add_view(app->view_dispatcher, BibleViewChapterList, view);
-
-    view = view_alloc();
-    view_set_draw_callback(view, bible_bsb_wrapper_verse_select_draw);
-    view_set_input_callback(view, bible_bsb_wrapper_verse_select_input);
-    view_set_context(view, app);
-    app->views[BibleViewVerseSelect] = view;
-    view_dispatcher_add_view(app->view_dispatcher, BibleViewVerseSelect, view);
-
-    view = view_alloc();
-    view_set_draw_callback(view, bible_bsb_wrapper_reader_draw);
-    view_set_input_callback(view, bible_bsb_wrapper_reader_input);
-    view_set_context(view, app);
-    app->views[BibleViewReader] = view;
-    view_dispatcher_add_view(app->view_dispatcher, BibleViewReader, view);
-
-    view = view_alloc();
-    view_set_draw_callback(view, bible_bsb_wrapper_action_menu_draw);
-    view_set_input_callback(view, bible_bsb_wrapper_action_menu_input);
-    view_set_context(view, app);
-    app->views[BibleViewActionMenu] = view;
-    view_dispatcher_add_view(app->view_dispatcher, BibleViewActionMenu, view);
-
-    view = view_alloc();
-    view_set_draw_callback(view, bible_bsb_wrapper_collection_draw);
-    view_set_input_callback(view, bible_bsb_wrapper_collection_input);
-    view_set_context(view, app);
-    app->views[BibleViewCollection] = view;
-    view_dispatcher_add_view(app->view_dispatcher, BibleViewCollection, view);
-
-    view = view_alloc();
-    view_set_draw_callback(view, bible_bsb_wrapper_nfc_share_draw);
-    view_set_input_callback(view, bible_bsb_wrapper_nfc_share_input);
-    view_set_context(view, app);
-    app->views[BibleViewNfcShare] = view;
-    view_dispatcher_add_view(app->view_dispatcher, BibleViewNfcShare, view);
-
-    return app;
-}
-
-/* ============================================================================
- * Free — mirror alloc order in reverse
- * ============================================================================ */
-void bible_app_free(BibleApp* app) {
-    furi_check(app);
-
-    /* Remove all views from dispatcher before freeing them */
-    for(BibleView v = 0; v < BibleViewCount; v++) {
-        View* view = app->views[v];
-        if(view != NULL) {
-            view_dispatcher_remove_view(app->view_dispatcher, v);
-            view_free(view);
-        }
+    if(!bible_app_register_view(
+           app,
+           BibleViewBookList,
+           bible_bsb_view_book_list_draw,
+           bible_bsb_view_book_list_input) ||
+       !bible_app_register_view(
+           app,
+           BibleViewBookFilter,
+           bible_bsb_wrapper_book_filter_draw,
+           bible_bsb_wrapper_book_filter_input) ||
+       !bible_app_register_view(
+           app,
+           BibleViewChapterList,
+           bible_bsb_wrapper_chapter_list_draw,
+           bible_bsb_wrapper_chapter_list_input) ||
+       !bible_app_register_view(
+           app,
+           BibleViewVerseSelect,
+           bible_bsb_wrapper_verse_select_draw,
+           bible_bsb_wrapper_verse_select_input) ||
+       !bible_app_register_view(
+           app,
+           BibleViewReader,
+           bible_bsb_wrapper_reader_draw,
+           bible_bsb_wrapper_reader_input) ||
+       !bible_app_register_view(
+           app,
+           BibleViewActionMenu,
+           bible_bsb_wrapper_action_menu_draw,
+           bible_bsb_wrapper_action_menu_input) ||
+       !bible_app_register_view(
+           app,
+           BibleViewCollection,
+           bible_bsb_wrapper_collection_draw,
+           bible_bsb_wrapper_collection_input) ||
+       !bible_app_register_view(
+           app,
+           BibleViewNfcShare,
+           bible_bsb_wrapper_nfc_share_draw,
+           bible_bsb_wrapper_nfc_share_input)) {
+        return bible_app_alloc_fail(app);
     }
 
-    /* GUI */
-    furi_record_close(RECORD_GUI);
-
-    /* Dispatcher + SceneManager */
-    view_dispatcher_set_tick_event_callback(app->view_dispatcher, NULL, 0);
-    view_dispatcher_free(app->view_dispatcher);
-    scene_manager_free(app->scene_manager);
-
-    /* State — free dynamic arrays first, then the state struct */
-    bible_app_state_deinit(app->state);
-    free(app->state);
-    free(app);
+    return app;
 }
 
 /* ============================================================================
