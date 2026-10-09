@@ -20,7 +20,7 @@ Flipper Zero apps for reading and saving Berean Standard Bible passages offline.
 
 ## Features
 
-- **Offline BSB reading** — Browse all 66 books by chapter and verse range. BSB text lives on your SD card (no network required).
+- **Offline BSB reading** — Browse all 66 books by chapter and verse range. The chapter text is bundled with the app.
 - **Passage / verse-range support** — Read a full chapter or select a start/end verse range.
 - **Save to collection** — Save passages on the SD card.
 - **Share via NFC** — Generate a `route.bible` URL and write it to a Flipper `.nfc` file for easy NFC tag sharing.
@@ -28,25 +28,17 @@ Flipper Zero apps for reading and saving Berean Standard Bible passages offline.
 
 ## Installation
 
-1. **Build BSB SD-card data** — The source `bsb.jsonl` dataset is hosted on Arweave at:
-   `https://arweave.net/B6yeNb3lk_VkiIp-fTWVh13TlM94LjLK6kC63BPXa8s`
+From `bible_bsb/`, build with [ufbt](https://github.com/flipperdevices/flipperzero-ufbt) and install `dist/bible_bsb.fap`. The chapter text is bundled via `fap_file_assets` and is installed to `/ext/apps_assets/bible_bsb/`. The app id is `bible_bsb`.
 
-   Run the data script to download that dataset and build the Flipper chapter files:
-   ```bash
-   python3 scripts/fetch_bsb.py --output bsb_sd/
-   ```
-   If you already have the JSONL locally, pass it directly:
-   ```bash
-   python3 scripts/fetch_bsb.py --input /path/to/bsb.jsonl --output bsb_sd/
-   ```
-   Copy the contents of `bsb_sd/` to `/ext/apps_data/bible_bsb/bsb/` on your Flipper's SD card.
-   A ready-made zip of that folder is published as
-   [bsb-data-v1](https://github.com/dpshde/bible-bsb/releases/download/bsb-data-v1/bsb-data-v1.zip).
-   Unzip it so `bsb/` lands in `/ext/apps_data/bible_bsb/`.
+Saved passages are stored at `/ext/apps_data/bible_bsb/collection.json`.
 
-2. **Install the app** — From `bible_bsb/`, build with [ufbt](https://github.com/flipperdevices/flipperzero-ufbt) and copy `dist/bible_bsb.fap` to `/ext/apps/Media/` on the Flipper. The app id is `bible_bsb`.
+To rebuild the bundled pack from the public-domain dataset:
 
-   The Rust prototype in `src/` can still be built with `cargo build --release`. `scripts/validate.sh` checks that build without launching it.
+```bash
+python3 scripts/fetch_bsb.py --output bsb_sd/ --pack bible_bsb/assets/bsb.pack
+```
+
+The Rust prototype in `src/` can still be built with `cargo build --release`. `scripts/validate.sh` checks that build without launching it. It still reads `/ext/apps_data/kindled_spark/`.
 
 ## Navigation
 
@@ -67,7 +59,7 @@ https://route.bible/jhn.3.16?v=BSB&src=flipper_bible_bsb
 
 ## Data Format
 
-Saved passages are stored at `/ext/apps_data/bible_bsb/collection.json`.
+The bundled chapter pack is `bible_bsb/assets/bsb.pack`. Saved passages are stored at `/ext/apps_data/bible_bsb/collection.json`.
 
 ## License
 

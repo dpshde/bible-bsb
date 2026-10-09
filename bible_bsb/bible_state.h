@@ -113,7 +113,7 @@ typedef struct BibleAppState {
     uint8_t collection_count;
     uint8_t collection_capacity;
     bool collection_loaded;
-    bool bsb_data_present; /* true when bsb/gen/1.json is on the SD card */
+    bool bsb_data_present; /* true when the bundled bsb.pack is installed */
     bool show_data_help; /* true when a chapter file was missing */
 
     /* Rendering */

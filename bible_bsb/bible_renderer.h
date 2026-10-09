@@ -133,7 +133,7 @@ uint16_t bible_total_pages(const BibleLine* lines, uint16_t line_count, int16_t 
  * @param text_y  text baseline y position
  */
 /**
- * Full-screen instructions shown when the BSB chapter pack is not on the SD card.
+ * Full-screen notice shown when the bundled chapter pack is not installed.
  */
 void bible_draw_missing_data(Canvas* canvas);
 

@@ -221,15 +221,11 @@ void bible_draw_missing_data(Canvas* canvas) {
     canvas_set_color(canvas, ColorBlack);
 
     canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 2, 8, "BSB files missing");
+    canvas_draw_str(canvas, 2, 20, "BSB text missing");
 
     canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str(canvas, 2, 18, "Copy the bsb folder to");
-    canvas_draw_str(canvas, 2, 27, "/ext/apps_data/");
-    canvas_draw_str(canvas, 2, 36, "bible_bsb/bsb/");
-    canvas_draw_str(canvas, 2, 47, "Get bsb-data-v1 from");
-    canvas_draw_str(canvas, 2, 56, "github.com/dpshde/");
-    canvas_draw_str(canvas, 2, 63, "bible-bsb/releases");
+    canvas_draw_str(canvas, 2, 36, "Reinstall Bible [BSB]");
+    canvas_draw_str(canvas, 2, 46, "from the app catalog.");
 }
 
 void bible_draw_inverted_highlight(

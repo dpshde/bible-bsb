@@ -6,23 +6,24 @@
 #include "bible_state.h"
 
 /**
- * True when Genesis 1 is on the SD card.
- * The app treats that file as the signal that the chapter pack is installed.
+ * True when the bundled chapter pack is installed.
+ * The app treats assets/bsb.pack as that pack.
  */
 bool bible_chapter_data_present(void);
 
 /**
- * Load a chapter from SD card into display lines, optionally filtering to a verse range.
+ * Load a chapter into display lines, optionally filtering to a verse range.
  *
- * Reads APP_DATA_PATH("bsb/<osis>/<chapter>.json"), which is
- * /ext/apps_data/bible_bsb/bsb/<osis>/<chapter>.json on the SD card,
- * using 1KB chunked reads (max 20KB). Extracts verse number (n) and text (t) pairs
- * via a minimal byte-scanner. Parses ONE verse at a time: sanitizes its text,
- * wraps it into BibleLine entries appended to state->lines, then discards the text.
+ * Reads APP_ASSETS_PATH("bsb.pack"), which is
+ * /ext/apps_assets/bible_bsb/bsb.pack on the SD card. Seeks to one
+ * heatshrink-compressed chapter and decodes it into a buffer of at most 20KB.
+ * Extracts verse number (n) and text (t) pairs via a minimal byte-scanner.
+ * Parses ONE verse at a time: sanitizes its text, wraps it into BibleLine
+ * entries appended to state->lines, then discards the text.
  * No verse texts are retained in RAM. Only the wrapped display lines are kept.
  *
  * If start_verse > 0, only verses in [start_verse, end_verse] are retained.
- * A missing file sets state->show_data_help.
+ * A missing pack or chapter sets state->show_data_help.
  *
  * @param book_index   0-65 book index
  * @param chapter      1-150 chapter number
@@ -39,11 +40,10 @@ bool bible_load_chapter(
     BibleAppState* state);
 
 /**
- * Scan a chapter JSON file on SD and emit each verse via a callback.
+ * Scan one chapter from the bundled pack and emit each verse via a callback.
  *
  * Used by build_kindled_json to stream verse text without storing all verses in RAM.
- * Opens the file, reads it in 1KB chunks into a local buffer (max 20KB),
- * then scans for "n":N,"t":"..." pairs and invokes the callback for each.
+ * Decodes that chapter (max 20KB) and scans for "n":N,"t":"..." pairs.
  *
  * @param book_index   0-65 book index
  * @param chapter      1-150 chapter number
@@ -51,7 +51,7 @@ bool bible_load_chapter(
  * @param end_verse    0 = all verses, otherwise end of range (inclusive)
  * @param callback     called for each matching verse; return false to stop scanning
  * @param ctx          opaque pointer passed to callback
- * @return true if file was opened and scanned (false = file not found or OOM)
+ * @return true if the chapter was decoded and scanned (false = missing or OOM)
  */
 typedef bool (*BibleVerseCallback)(uint16_t verse_num, const char* text, void* ctx);
 

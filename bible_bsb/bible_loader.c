@@ -1,16 +1,24 @@
 #include "bible_loader.h"
 #include "bible_books.h"
+#include "bible_pack.h"
 #include "bible_renderer.h"
 
+#include <compress.h>
 #include <furi.h>
 #include <storage/storage.h>
 #include <string.h>
 
 /* ============================================================================
  * Chapter loader — single-pass incremental parsing, NO verse array in RAM
+ *
+ * Chapter text ships in assets/bsb.pack and is installed to
+ * /ext/apps_assets/bible_bsb/bsb.pack. APP_ASSETS_PATH() is the firmware
+ * alias for that directory. One chapter is decoded at a time into a buffer
+ * no larger than BIBLE_MAX_FILE_SIZE.
  * ============================================================================ */
 
-#define BSB_PATH_PREFIX APP_DATA_PATH("bsb/")
+#define BSB_PACK_PATH          APP_ASSETS_PATH("bsb.pack")
+#define BIBLE_PACK_MAX_CHAPTERS 2048
 
 static void bible_sanitize_text(char* text, size_t max_len) {
     size_t len = strlen(text);
@@ -61,33 +69,12 @@ static void bible_sanitize_text(char* text, size_t max_len) {
     }
 }
 
-/* ============================================================================
- * Shared helpers: build path and read file into a heap buffer
- * ============================================================================ */
-
-static bool bible_build_path(uint8_t book_index, uint16_t chapter, char* path, size_t path_len) {
-    const char* osis = OSIS_BOOK_CODES[book_index];
-    if(osis == NULL || chapter == 0) {
-        return false;
-    }
-
-    snprintf(path, path_len, BSB_PATH_PREFIX "%s/%u.json", osis, (unsigned int)chapter);
-
-    /* Convert OSIS code to lowercase in-place */
-    for(size_t i = strlen(BSB_PATH_PREFIX); path[i] != '/' && path[i] != '\0'; i++) {
-        if(path[i] >= 'A' && path[i] <= 'Z') {
-            path[i] = path[i] - 'A' + 'a';
-        }
-    }
-    return true;
-}
-
 bool bible_chapter_data_present(void) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
     if(!storage) {
         return false;
     }
-    bool present = storage_file_exists(storage, APP_DATA_PATH("bsb/gen/1.json"));
+    bool present = storage_file_exists(storage, BSB_PACK_PATH);
     furi_record_close(RECORD_STORAGE);
     return present;
 }
@@ -108,20 +95,71 @@ static void bible_close_storage_file(File* file) {
     furi_record_close(RECORD_STORAGE);
 }
 
-/* Read chapter JSON from SD into a dynamically-grown buffer.
+/* Stream one compressed chapter out of the asset pack.
+ * The heatshrink decoder reads the payload in small chunks. The only large
+ * buffer is the decoded chapter, capped at BIBLE_MAX_FILE_SIZE.
  * BibleFileOk: caller must free(*out_buf).
  * Any other status: *out_buf is NULL and nothing is left allocated.
  */
-static BibleFileStatus bible_read_chapter_file(const char* path, uint8_t** out_buf, size_t* out_len) {
+typedef struct {
+    File* file;
+    uint32_t left;
+    uint8_t* out;
+    size_t out_cap;
+    size_t out_len;
+    bool failed;
+} BiblePackStream;
+
+static int32_t bible_pack_read_cb(void* context, uint8_t* buffer, size_t size) {
+    BiblePackStream* stream = context;
+    if(stream->failed || stream->left == 0 || size == 0) return 0;
+    if(size > stream->left) size = stream->left;
+
+    size_t n = storage_file_read(stream->file, buffer, size);
+    if(n == 0) {
+        stream->failed = true;
+        return 0;
+    }
+    stream->left -= (uint32_t)n;
+    return (int32_t)n;
+}
+
+static int32_t bible_pack_write_cb(void* context, uint8_t* buffer, size_t size) {
+    BiblePackStream* stream = context;
+    if(stream->out_len + size > stream->out_cap) {
+        stream->failed = true;
+        return 0;
+    }
+    if(size == 0) return 0;
+    memcpy(stream->out + stream->out_len, buffer, size);
+    stream->out_len += size;
+    return (int32_t)size;
+}
+
+static bool bible_read_fully(File* file, uint8_t* dst, size_t n) {
+    size_t got = 0;
+    while(got < n) {
+        size_t k = storage_file_read(file, dst + got, n - got);
+        if(k == 0) return false;
+        got += k;
+    }
+    return true;
+}
+
+static BibleFileStatus bible_read_chapter_file(
+    uint8_t book_index,
+    uint16_t chapter,
+    uint8_t** out_buf,
+    size_t* out_len) {
     furi_check(out_buf);
     furi_check(out_len);
     *out_buf = NULL;
     *out_len = 0;
 
+    if(chapter == 0 || chapter > 255) return BibleFileMissing;
+
     Storage* storage = furi_record_open(RECORD_STORAGE);
-    if(!storage) {
-        return BibleFileOom;
-    }
+    if(!storage) return BibleFileOom;
 
     File* file = storage_file_alloc(storage);
     if(!file) {
@@ -129,63 +167,99 @@ static BibleFileStatus bible_read_chapter_file(const char* path, uint8_t** out_b
         return BibleFileOom;
     }
 
-    bool ok = storage_file_open(file, path, FSAM_READ, FSOM_OPEN_EXISTING);
-    if(!ok) {
+    if(!storage_file_open(file, BSB_PACK_PATH, FSAM_READ, FSOM_OPEN_EXISTING)) {
         bible_close_storage_file(file);
         return BibleFileMissing;
     }
 
-    uint8_t* buf = NULL;
-    size_t total = 0;
-    size_t capacity = 0;
-    bool oom = false;
-
-    /* Use a static chunk buffer to keep stack usage low */
-    static uint8_t chunk[BIBLE_READ_CHUNK];
-
-    while(total < BIBLE_MAX_FILE_SIZE) {
-        size_t n = storage_file_read(file, chunk, sizeof(chunk));
-        if(n == 0) break;
-
-        if(total + n > BIBLE_MAX_FILE_SIZE) {
-            n = BIBLE_MAX_FILE_SIZE - total;
-        }
-
-        if(total + n > capacity) {
-            size_t new_cap = capacity + BIBLE_READ_CHUNK;
-            if(new_cap > BIBLE_MAX_FILE_SIZE) {
-                new_cap = BIBLE_MAX_FILE_SIZE;
-            }
-            size_t old_bytes = buf ? capacity + 1 : 0;
-            uint8_t* new_buf = bible_heap_grow(buf, old_bytes, new_cap + 1);
-            if(!new_buf) {
-                /* Grow failure leaves `buf` allocated. Drop it and abort. */
-                oom = true;
-                break;
-            }
-            buf = new_buf;
-            capacity = new_cap;
-        }
-
-        if(!buf) {
-            oom = true;
-            break;
-        }
-
-        memcpy(buf + total, chunk, n);
-        total += n;
+    uint8_t header[BIBLE_PACK_HEADER_SIZE];
+    if(!bible_read_fully(file, header, sizeof(header))) {
+        bible_close_storage_file(file);
+        return BibleFileMissing;
     }
 
+    uint16_t count = (uint16_t)header[4] | ((uint16_t)header[5] << 8);
+    if(count == 0 || count > BIBLE_PACK_MAX_CHAPTERS) {
+        bible_close_storage_file(file);
+        return BibleFileMissing;
+    }
+
+    size_t dir_len = BIBLE_PACK_HEADER_SIZE + (size_t)count * BIBLE_PACK_RECORD_SIZE;
+    uint8_t* directory = malloc(dir_len);
+    if(!directory) {
+        bible_close_storage_file(file);
+        return BibleFileOom;
+    }
+    memcpy(directory, header, sizeof(header));
+    bool got_directory =
+        bible_read_fully(file, directory + sizeof(header), dir_len - sizeof(header));
+
+    BiblePackEntry entry = {0};
+    bool found = false;
+    if(got_directory) {
+        found = bible_pack_find(directory, dir_len, book_index, (uint8_t)chapter, &entry);
+    }
+    uint8_t window = directory[8];
+    uint8_t lookahead = directory[9];
+    free(directory);
+
+    if(!found || entry.raw_size > BIBLE_MAX_FILE_SIZE || entry.data_offset < dir_len) {
+        bible_close_storage_file(file);
+        return BibleFileMissing;
+    }
+
+    uint64_t file_size = storage_file_size(file);
+    if((uint64_t)entry.data_offset + entry.comp_size > file_size) {
+        bible_close_storage_file(file);
+        return BibleFileMissing;
+    }
+
+    /* Drop the directory before the chapter buffer so the two never coexist. */
+    uint8_t* buf = malloc((size_t)entry.raw_size + 1);
+    if(!buf) {
+        bible_close_storage_file(file);
+        return BibleFileOom;
+    }
+
+    if(!storage_file_seek(file, entry.data_offset, true)) {
+        free(buf);
+        bible_close_storage_file(file);
+        return BibleFileMissing;
+    }
+
+    BiblePackStream stream = {
+        .file = file,
+        .left = entry.comp_size,
+        .out = buf,
+        .out_cap = entry.raw_size,
+        .out_len = 0,
+        .failed = false,
+    };
+    CompressConfigHeatshrink heatshrink_config = {
+        .window_sz2 = window,
+        .lookahead_sz2 = lookahead,
+        .input_buffer_sz = BIBLE_PACK_HS_INPUT,
+    };
+    Compress* compress = compress_alloc(CompressTypeHeatshrink, &heatshrink_config);
+    if(!compress) {
+        free(buf);
+        bible_close_storage_file(file);
+        return BibleFileOom;
+    }
+
+    bool decoded = compress_decode_streamed(
+        compress, bible_pack_read_cb, &stream, bible_pack_write_cb, &stream);
+    compress_free(compress);
     bible_close_storage_file(file);
 
-    if(oom || total == 0 || buf == NULL) {
+    if(!decoded || stream.failed || stream.left != 0 || stream.out_len != entry.raw_size) {
         free(buf);
-        return oom ? BibleFileOom : BibleFileMissing;
+        return BibleFileMissing;
     }
 
-    buf[total] = '\0';
+    buf[entry.raw_size] = '\0';
     *out_buf = buf;
-    *out_len = total;
+    *out_len = entry.raw_size;
     return BibleFileOk;
 }
 
@@ -317,9 +391,8 @@ bool bible_load_chapter(
     BibleAppState* state) {
     furi_check(state);
 
-    char path[128];
     state->show_data_help = false;
-    if(!bible_build_path(book_index, chapter, path, sizeof(path))) {
+    if(book_index >= BIBLE_BOOK_COUNT || chapter == 0) {
         return false;
     }
 
@@ -333,7 +406,7 @@ bool bible_load_chapter(
     /* Read JSON file into a temporary buffer */
     uint8_t* buf = NULL;
     size_t total = 0;
-    BibleFileStatus file_status = bible_read_chapter_file(path, &buf, &total);
+    BibleFileStatus file_status = bible_read_chapter_file(book_index, chapter, &buf, &total);
     if(file_status == BibleFileOom) {
         bible_toast_set(&state->toast, "OOM");
         return false;
@@ -400,14 +473,9 @@ bool bible_load_chapter_verse_scan(
     uint16_t end_verse,
     BibleVerseCallback callback,
     void* ctx) {
-    char path[128];
-    if(!bible_build_path(book_index, chapter, path, sizeof(path))) {
-        return false;
-    }
-
     uint8_t* buf = NULL;
     size_t total = 0;
-    if(bible_read_chapter_file(path, &buf, &total) != BibleFileOk) {
+    if(bible_read_chapter_file(book_index, chapter, &buf, &total) != BibleFileOk) {
         return false;
     }
 

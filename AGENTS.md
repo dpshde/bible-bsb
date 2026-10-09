@@ -104,16 +104,12 @@ The Rust prototype installs to `/ext/apps/Media/kindled_spark.fap`. One serial
 connection at a time.
 
 ### Prepare BSB Data
-Before running the app, populate the SD card with Berean Standard Bible chapter files:
+The shipping C app bundles the chapter text. `fap_file_assets="assets"` installs
+`bible_bsb/assets/bsb.pack` to `/ext/apps_assets/bible_bsb/bsb.pack`. Rebuild that
+pack with:
 ```sh
-python3 scripts/fetch_bsb.py --output bsb_sd/
+python3 scripts/fetch_bsb.py --output bsb_sd/ --pack bible_bsb/assets/bsb.pack
 ```
-Then copy `bsb_sd/` contents to the Flipper for the shipping C app:
-```
-/ext/apps_data/bible_bsb/bsb/
-```
-
-`scripts/fetch_bsb.py --zip bsb-data-v1.zip` writes that same tree under a `bsb/` prefix. Unzip the archive into `/ext/apps_data/bible_bsb/`.
 
 Saved passages for the C app are stored at:
 ```
