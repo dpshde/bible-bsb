@@ -4,20 +4,33 @@ using Toybox.Math;
 using Toybox.System;
 
 //! Round/square safe geometry for Enduro 3 and budget lines.
-//! Chord math: usable width at row y is 2*(sqrt(r^2-(y-cy)^2) - margin).
 module RoundLayout {
 
-    // POKE: chord margin as fraction of radius after Enduro 3 reshoot (try 0.06..0.08).
+    // POKE: READER_LAYOUT — RECT = straight left column (default); CENTERED_CHORD = each line centered on its chord.
+    enum {
+        READER_LAYOUT_RECT = 0,
+        READER_LAYOUT_CENTERED_CHORD = 1
+    }
+    const READER_LAYOUT = READER_LAYOUT_RECT;
+
+    // POKE: target column width as fraction of screen width (~0.80 per Dylan).
+    const COLUMN_WIDTH_FRAC = 0.80;
+
+    // POKE: chord margin as fraction of radius (CENTERED_CHORD / safe capping).
     const CHORD_MARGIN_FRAC = 0.07;
 
     // POKE: edge margin fraction of min(w,h) for square screens and as a floor on round.
     const EDGE_MARGIN_FRAC = 0.06;
 
-    // POKE: blank spacer lines above/below continuation divider (Flipper had no continuation).
+    // POKE: blank spacer lines above/below continuation divider.
     const DIVIDER_PAD_LINES = 1;
 
-    // POKE: toast auto-dismiss milliseconds (Dylan: ~1s).
+    // POKE: toast / mode-banner auto-dismiss milliseconds (~1s).
     const TOAST_MS = 1000;
+
+    // POKE: mode change feedback — transient centered label only (no permanent V/L chip).
+    // Alternatives later: tiny icon in header safe area.
+    const MODE_BANNER_ONLY = true;
 
     function isRound() as Lang.Boolean {
         var shape = System.getDeviceSettings().screenShape;
@@ -33,7 +46,6 @@ module RoundLayout {
     }
 
     //! Usable text width in pixels for a line whose vertical center is at y.
-    //! Square: full width minus edge margins. Round: circle chord minus chord margin.
     function chordWidth(y as Lang.Number, width as Lang.Number, height as Lang.Number) as Lang.Number {
         var margin = edgeMargin(width, height);
         var maxW = width - 2 * margin;
@@ -52,7 +64,6 @@ module RoundLayout {
         if (dy2 >= r2) {
             return 1;
         }
-        // POKE: chord margin constant — tighten if still clipped on FR165/VA5.
         var half = Math.sqrt(r2 - dy2) - (r * CHORD_MARGIN_FRAC);
         if (half < 1.0) {
             half = 1.0;
@@ -71,8 +82,6 @@ module RoundLayout {
         return (width - chordWidth(y, width, height)) / 2;
     }
 
-    //! Minimum chord inside [y0, y1] sampled at ends + mid (stable reader wrap).
-    //! POKE: replace with screen-y reflow if mid-band density matters more than scroll-stable lines.
     function minChordInBand(y0 as Lang.Number, y1 as Lang.Number, width as Lang.Number, height as Lang.Number) as Lang.Number {
         var a = chordWidth(y0, width, height);
         var b = chordWidth((y0 + y1) / 2, width, height);
@@ -87,7 +96,69 @@ module RoundLayout {
         return m;
     }
 
-    //! Draw text centered on the row, shrinking font one step if needed to fit the chord.
+    //! Inscribed reader column: straight left/right edges, horizontally centered.
+    //! Returns { :left, :width, :top, :bottom }.
+    //! Round: ~COLUMN_WIDTH_FRAC of screen width, capped so the rect stays inside the
+    //! circle for the whole [contentTop, contentBottom] band.
+    //! Square: full width minus edge margins.
+    function columnRect(width as Lang.Number, height as Lang.Number,
+                        contentTop as Lang.Number, contentBottom as Lang.Number) as Lang.Dictionary {
+        var top = contentTop;
+        var bottom = contentBottom;
+        if (bottom <= top + 1) {
+            bottom = top + 1;
+        }
+
+        if (!isRound()) {
+            var m = edgeMargin(width, height);
+            var sqW = width - 2 * m;
+            if (sqW < 1) {
+                sqW = 1;
+            }
+            return { :left => m, :width => sqW, :top => top, :bottom => bottom };
+        }
+
+        var target = (width * COLUMN_WIDTH_FRAC).toNumber();
+        // Cap by the narrowest safe chord in the content band (minus a small pad).
+        var safe = minChordInBand(top, bottom, width, height) - 4;
+        if (safe < 1) {
+            safe = 1;
+        }
+        var colW = target;
+        if (colW > safe) {
+            colW = safe;
+        }
+        var left = (width - colW) / 2;
+        return { :left => left, :width => colW, :top => top, :bottom => bottom };
+    }
+
+    //! Pure math helper for tests (no screenShape): largest centered width fitting a circle band.
+    function maxCenteredColumnWidth(screenW as Lang.Number, screenH as Lang.Number,
+                                     contentTop as Lang.Number, contentBottom as Lang.Number,
+                                     chordMarginFrac as Lang.Float) as Lang.Number {
+        var r = (screenW < screenH ? screenW : screenH) / 2.0;
+        var cy = screenH / 2.0;
+        var samples = [contentTop, (contentTop + contentBottom) / 2, contentBottom] as Lang.Array;
+        var minHalf = r;
+        var i;
+        for (i = 0; i < samples.size(); i++) {
+            var y = (samples[i] as Lang.Number).toFloat();
+            var dy = y - cy;
+            var inside = r * r - dy * dy;
+            if (inside <= 0) {
+                return 1;
+            }
+            var half = Math.sqrt(inside) - (r * chordMarginFrac);
+            if (half < minHalf) {
+                minHalf = half;
+            }
+        }
+        if (minHalf < 1.0) {
+            minHalf = 1.0;
+        }
+        return (minHalf * 2.0).toNumber();
+    }
+
     function drawCenteredInChord(dc as Graphics.Dc, y as Lang.Number, text as Lang.String, font as Lang.Number) as Void {
         var w = dc.getWidth();
         var h = dc.getHeight();
@@ -97,7 +168,6 @@ module RoundLayout {
         if (dc.getTextWidthInPixels(text, useFont) > cw) {
             useFont = shrinkFont(useFont);
         }
-        // If still too wide, clip by chord — never abbreviate book names in callers.
         var left = chordLeft(midY, w, h);
         dc.setClip(left, y - 1, cw, dc.getFontHeight(useFont) + 2);
         dc.drawText(w / 2, y, useFont, text, Graphics.TEXT_JUSTIFY_CENTER);
@@ -117,18 +187,18 @@ module RoundLayout {
         return font;
     }
 
-    //! Dim backdrop + centered rounded pill toast with optional leading mark.
+    //! Dim backdrop + centered rounded pill; width follows column when RECT layout.
     function drawToastPill(dc as Graphics.Dc, message as Lang.String) as Void {
         var w = dc.getWidth();
         var h = dc.getHeight();
         var cy = h / 2;
-        var cw = chordWidth(cy, w, h);
-        var left = chordLeft(cy, w, h);
+        var col = columnRect(w, h, cy - 30, cy + 30);
+        var maxW = col[:width] as Lang.Number;
+        var bandLeft = col[:left] as Lang.Number;
 
-        // Obscure underlying text in the toast band.
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_LT_GRAY);
-        dc.setClip(left, cy - 22, cw, 44);
-        dc.fillRectangle(left, cy - 22, cw, 44);
+        dc.setClip(bandLeft, cy - 22, maxW, 44);
+        dc.fillRectangle(bandLeft, cy - 22, maxW, 44);
         dc.clearClip();
 
         var label = "★ " + message;
@@ -137,15 +207,14 @@ module RoundLayout {
         var padX = 14;
         var padY = 8;
         var boxW = tw + 2 * padX;
-        if (boxW > cw - 8) {
-            boxW = cw - 8;
+        if (boxW > maxW - 8) {
+            boxW = maxW - 8;
         }
         var boxH = dc.getFontHeight(font) + 2 * padY;
         var boxX = (w - boxW) / 2;
         var boxY = cy - boxH / 2;
 
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
-        // Soft rounded look: filled rect + side circles (CIQ has no fillRoundedRectangle on older API).
         dc.fillRectangle(boxX + boxH / 2, boxY, boxW - boxH, boxH);
         dc.fillCircle(boxX + boxH / 2, cy, boxH / 2);
         dc.fillCircle(boxX + boxW - boxH / 2, cy, boxH / 2);

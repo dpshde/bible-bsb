@@ -9,6 +9,8 @@ class ReaderView extends WatchUi.View {
     var _toastTimer as Timer.Timer or Null = null;
     var _laidOut as Lang.Boolean = false;
     var _bodyFont as Lang.Number = Graphics.FONT_XTINY;
+    var _colLeft as Lang.Number = 0;
+    var _colWidth as Lang.Number = 0;
 
     function initialize() {
         View.initialize();
@@ -34,11 +36,18 @@ class ReaderView extends WatchUi.View {
         var h = dc.getHeight();
         var headerFont = Graphics.FONT_TINY;
         var headerH = dc.getFontHeight(headerFont) + 8;
-        var lineH = dc.getFontHeight(_bodyFont) + 2;
         var contentTop = RoundLayout.edgeMargin(w, h) + headerH;
         var contentBottom = h - RoundLayout.edgeMargin(w, h);
-        // POKE: screen-y variable reflow for denser mid-circle lines (needs pixel scroll model).
-        var wrapW = RoundLayout.minChordInBand(contentTop + lineH / 2, contentBottom - lineH / 2, w, h);
+        var col = RoundLayout.columnRect(w, h, contentTop, contentBottom);
+        _colLeft = col[:left] as Lang.Number;
+        _colWidth = col[:width] as Lang.Number;
+
+        // Wrap width: RECT uses fixed column; CENTERED_CHORD uses min chord in band.
+        // POKE: RoundLayout.READER_LAYOUT switch.
+        var wrapW = _colWidth;
+        if (RoundLayout.READER_LAYOUT == RoundLayout.READER_LAYOUT_CENTERED_CHORD) {
+            wrapW = RoundLayout.minChordInBand(contentTop + 4, contentBottom - 4, w, h);
+        }
 
         var lines = [] as Lang.Array;
         appendChapterLines(dc, lines, book, chapter, wrapW);
@@ -59,7 +68,7 @@ class ReaderView extends WatchUi.View {
     function appendDivider(lines as Lang.Array, book as Lang.Number, chapter as Lang.Number) as Void {
         var divText = Books.name(book) + " " + chapter;
         var pad = RoundLayout.DIVIDER_PAD_LINES;
-        // POKE: DIVIDER_PAD_LINES — try 2 on large AMOLED if still cramped.
+        // POKE: DIVIDER_PAD_LINES
         var i;
         for (i = 0; i < pad; i++) {
             lines.add(new ScrollModel.Line(ScrollModel.KIND_SPACER, book, chapter, 0, "", false));
@@ -120,31 +129,28 @@ class ReaderView extends WatchUi.View {
         var h = dc.getHeight();
         var focus = AppState.scroll.focusVerse();
         var title = Books.name(focus[:book] as Lang.Number) + " " + focus[:chapter] + ":" + focus[:verse];
-        var chip = AppState.scroll.modeLabel();
         var headerFont = Graphics.FONT_TINY;
         var headerY = RoundLayout.edgeMargin(w, h);
-        var headerMid = headerY + dc.getFontHeight(headerFont) / 2;
-        var headerChord = RoundLayout.chordWidth(headerMid, w, h);
-        var headerLeft = RoundLayout.chordLeft(headerMid, w, h);
 
+        // Header only — no permanent V/L chip (POKE: tiny icon in safe area as alternate).
         RoundLayout.drawCenteredInChord(dc, headerY, title, headerFont);
-        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(headerLeft + headerChord - 2, headerY, headerFont, chip, Graphics.TEXT_JUSTIFY_RIGHT);
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
 
         var y = headerY + dc.getFontHeight(headerFont) + 4;
-        var ruleLeft = RoundLayout.chordLeft(y, w, h);
-        var ruleW = RoundLayout.chordWidth(y, w, h);
-        dc.drawLine(ruleLeft, y, ruleLeft + ruleW, y);
+        // Rule and body share the straight column when RECT.
+        var col = RoundLayout.columnRect(w, h, y + 4, h - RoundLayout.edgeMargin(w, h));
+        _colLeft = col[:left] as Lang.Number;
+        _colWidth = col[:width] as Lang.Number;
+        dc.drawLine(_colLeft, y, _colLeft + _colWidth, y);
         y += 4;
 
         var lineH = dc.getFontHeight(_bodyFont) + 2;
-        var bottom = h - RoundLayout.edgeMargin(w, h);
+        var bottom = col[:bottom] as Lang.Number;
         AppState.scroll.visibleCount = (bottom - y) / lineH;
         if (AppState.scroll.visibleCount < 1) {
             AppState.scroll.visibleCount = 1;
         }
 
+        var useChord = RoundLayout.READER_LAYOUT == RoundLayout.READER_LAYOUT_CENTERED_CHORD;
         var lines = AppState.scroll.lines;
         var i;
         for (i = 0; i < AppState.scroll.visibleCount; i++) {
@@ -154,8 +160,12 @@ class ReaderView extends WatchUi.View {
             }
             var ln = lines[idx] as ScrollModel.Line;
             var midY = y + lineH / 2;
-            var left = RoundLayout.chordLeft(midY, w, h);
-            var cw = RoundLayout.chordWidth(midY, w, h);
+            var left = _colLeft;
+            var cw = _colWidth;
+            if (useChord) {
+                left = RoundLayout.chordLeft(midY, w, h);
+                cw = RoundLayout.chordWidth(midY, w, h);
+            }
 
             if (ln.kind == ScrollModel.KIND_SPACER) {
                 y += lineH;
@@ -171,10 +181,16 @@ class ReaderView extends WatchUi.View {
                 dc.drawText(w / 2, y + 3, Graphics.FONT_TINY, ln.text, Graphics.TEXT_JUSTIFY_CENTER);
                 dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
             } else if (ln.kind == ScrollModel.KIND_END) {
-                RoundLayout.drawCenteredInChord(dc, y, ln.text, Graphics.FONT_TINY);
-            } else {
+                dc.drawText(w / 2, y, Graphics.FONT_TINY, ln.text, Graphics.TEXT_JUSTIFY_CENTER);
+            } else if (useChord) {
+                // CENTERED_CHORD: both edges taper — center the glyphs on the row.
                 dc.setClip(left, y, cw, lineH);
-                dc.drawText(left, y, _bodyFont, ln.text, Graphics.TEXT_JUSTIFY_LEFT);
+                dc.drawText(w / 2, y, _bodyFont, ln.text, Graphics.TEXT_JUSTIFY_CENTER);
+                dc.clearClip();
+            } else {
+                // RECT default: straight left edge inside the column.
+                dc.setClip(_colLeft, y, _colWidth, lineH);
+                dc.drawText(_colLeft, y, _bodyFont, ln.text, Graphics.TEXT_JUSTIFY_LEFT);
                 dc.clearClip();
             }
             y += lineH;
@@ -189,9 +205,16 @@ class ReaderView extends WatchUi.View {
         toast = message;
         clearToastTimer();
         _toastTimer = new Timer.Timer();
-        // POKE: RoundLayout.TOAST_MS — try 800..1500 after vibe tuning.
+        // POKE: RoundLayout.TOAST_MS
         _toastTimer.start(method(:onToastExpired), RoundLayout.TOAST_MS, false);
         WatchUi.requestUpdate();
+    }
+
+    //! Brief centered "Line scroll" / "Verse scroll" when mode changes — no corner letter.
+    function showModeBanner() as Void {
+        // POKE: MODE_BANNER_ONLY vs small persistent icon.
+        var label = AppState.scroll.mode == ScrollModel.MODE_VERSE ? "Verse scroll" : "Line scroll";
+        showToast(label);
     }
 
     function onToastExpired() as Void {
@@ -227,7 +250,6 @@ class ReaderView extends WatchUi.View {
     }
 
     function onEnterSleep() as Void {
-        // POKE: strip toast / reduce chrome on AMOLED to limit burn-in.
         toast = null;
         clearToastTimer();
     }
@@ -287,8 +309,7 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onHold(evt) as Lang.Boolean {
-        // Touch long-press and Select-hold share this path on many devices.
-        TouchGuard.markSelect(); // if a select follows the hold, suppress it
+        TouchGuard.markSelect();
         _view.bookmarkFocusedVerse();
         return true;
     }
@@ -316,7 +337,7 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
             return true;
         }
         if (dir == WatchUi.SWIPE_RIGHT) {
-            // POKE: swipe-right = back (iOS-ish); try swipe-left = back on Venu if muscle memory differs.
+            // POKE: swipe-right = back
             TouchGuard.markBack();
             syncCurrentFromFocus();
             WatchUi.popView(WatchUi.SLIDE_RIGHT);

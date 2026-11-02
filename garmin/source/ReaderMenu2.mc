@@ -21,13 +21,15 @@ module ReaderMenu2 {
         var bookmarked = isBookmarked(book, chapter, verse);
 
         var modeLabel = AppState.scroll.mode == ScrollModel.MODE_VERSE ? "Verse" : "Line";
-        // POKE: sublabel vs title-only — try "Tap to switch" subtitle on large AMOLED.
+        var ref = Books.name(book) + " " + chapter + ":" + verse;
+        // No MenuItem sublabels on round screens — they clip under the bottom arc (Enduro 3 review).
+        // POKE: restore short sublabels on rectangular devices only (venusq2).
         var menu = new WatchUi.Menu2({:title => "Menu"});
-        menu.addItem(new WatchUi.MenuItem("Scroll: " + modeLabel, "Verse / Line", ID_SCROLL_MODE, {}));
-        // Flipper "Save to collection" → bookmark toggle (wording per SPEC).
+        menu.addItem(new WatchUi.MenuItem("Scroll: " + modeLabel, null, ID_SCROLL_MODE, {}));
+        // Flipper "Save to collection" → bookmark toggle; fold ref into title to avoid clip.
         menu.addItem(new WatchUi.MenuItem(
-            bookmarked ? "Remove bookmark" : "Bookmark verse",
-            Books.name(book) + " " + chapter + ":" + verse,
+            bookmarked ? ("Remove · " + ref) : ("Bookmark · " + ref),
+            null,
             ID_BOOKMARK_VERSE,
             {}));
         menu.addItem(new WatchUi.MenuItem("Bookmarks", null, ID_BOOKMARKS_LIST, {}));
@@ -64,7 +66,7 @@ class ReaderMenu2Delegate extends WatchUi.Menu2InputDelegate {
         if (id == ReaderMenu2.ID_SCROLL_MODE) {
             AppState.scroll.toggleMode();
             WatchUi.popView(WatchUi.SLIDE_RIGHT);
-            _reader.showToast(AppState.scroll.mode == ScrollModel.MODE_VERSE ? "Verse scroll" : "Line scroll");
+            _reader.showModeBanner();
             return;
         }
         if (id == ReaderMenu2.ID_BOOKMARK_VERSE) {

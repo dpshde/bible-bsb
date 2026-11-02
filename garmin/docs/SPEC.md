@@ -329,8 +329,10 @@ Everything **not** listed here should match Flipper behavior/spirit from `flippe
 | NFC share / Kindled export | Omitted in spike | No Flipper NFC; CIQ comms different | — |
 | Toast software frames @30fps | Toast + `Attention.vibrate` | Haptics exist on Garmin | Devices with Attention |
 | SceneManager stack | `WatchUi.pushView`/`popView` | CIQ navigation model | All |
-| Fixed 128px column / 2px margins | **Per-row circle chord width** (`RoundLayout.chordWidth`) with ~7%‑of‑r margin; square = full width − edge margin. Reader wraps to **min chord in content band** (scroll-stable). | Round faces clip left-aligned chrome; mid-circle is wider than Flipper’s fixed column | Round: Enduro 3, FR165/265/965, Venu, VA5/6; square: Venu Sq uses edge margins only |
+| Fixed 128px column / 2px margins | Default **inscribed rectangular column** (`RoundLayout.columnRect`, ~80% width, straight left edge, centered). Alt **CENTERED_CHORD** behind `// POKE: READER_LAYOUT`. | Round faces clip chrome; curved left-anchored chords looked ragged on Enduro 3 | All; RECT default after a20df65 review |
 | Left-aligned headers / bottom hints | Centered in the row’s chord; full book name with font shrink — **no** `"Malac"` truncation | Circle radius clips left/bottom glyphs on 280px | Round primarily |
+| N/A (Flipper had no mode chip) | No permanent `V`/`L` corner letter; ~1s centered **“Verse scroll” / “Line scroll”** banner on change (`showModeBanner`) | Corner letter was unclear on Enduro 3 | All |
+| Custom menu item sublabels OK on 128×64 | Menu2 items use **title only** (no sublabel) so round arc doesn’t clip refs | Enduro 3 Menu2 clipped `John 3:1` under the bottom curve | Round primarily |
 | No chapter divider (single passage) | Continuation divider with **~1 line-height pad** above/below, centered, thin rules + accent label | Garmin continuation feature needs clear breathing room on dense round layouts | All |
 | Black toast box over text | Centered **pill** toast with dim band + ★ mark, auto-dismiss ~1s (`RoundLayout.TOAST_MS`) | Watch chrome expects transient banners; Flipper toast was a filled rect on 128×64 | All |
 | Custom ActionMenu canvas (3 items) | Native **`WatchUi.Menu2`**: Scroll mode, Bookmark toggle, Bookmarks, Jump to chapter, Back to reading | System menu look + touch/button for free; Flipper had no scroll-mode item | All |
