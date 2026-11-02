@@ -52,13 +52,15 @@ Each milestone is verifiable. Dylan drives; agent supports. Every milestone ends
 - **Screenshots:** `reader`, `reader-verse-snapped`
 - **Teach-back:** Why load one chapter JSON at a time instead of the whole pack?
 
-## M6 — Scroll model (incremental + verse) + toggle
+## M6 — Scroll model (incremental + verse) + Menu2 + touch
 
 - Implement scroll state machine; Storage persistence; header `V`/`L` chip.
-- `// POKE:` toggle binding (menu vs extra key), focus-verse rules, long-verse intra steps.
+- Native **Menu2** (scroll mode, bookmark, bookmarks, jump chapter, back); drop Flipper NFC.
+- Touch: `onTap`/`onSwipe`/`onHold` + `TouchGuard` on book list, grid, reader, bookmarks.
+- `// POKE:` tap→menu vs tap→verse; swipe ±row on grid; focus-verse rules; long-verse steps.
 - Unit tests: line↔verse focus, snap, mode next/prev offsets.
-- **Screenshots:** `reader-incremental-mid-verse`, `reader-mode-indicator`, `reader-long-verse-mode`
-- **Teach-back:** If `scrollOffset` is mid-verse line 3 of 5, what verse does hold-bookmark use in incremental mode?
+- **Screenshots:** `reader-incremental-mid-verse`, `reader-mode-indicator`, `reader-long-verse-mode`, `reader-menu2`, `reader-menu2-scroll-mode`, `touch-*`
+- **Teach-back:** If `scrollOffset` is mid-verse line 3 of 5, what verse does hold-bookmark use in incremental mode? Why does Menu2 omit NFC?
 
 ## M7 — Chapter continuation
 

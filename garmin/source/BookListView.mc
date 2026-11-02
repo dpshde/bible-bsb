@@ -4,6 +4,10 @@ using Toybox.WatchUi;
 
 class BookListView extends WatchUi.View {
     var focus as Lang.Number = 0; // index into Books.SPIKE_BOOK_INDEXES
+    // Hit-test cache from last onUpdate
+    var _rowTop as Lang.Number = 0;
+    var _rowH as Lang.Number = 0;
+    var _rowCount as Lang.Number = 0;
 
     function initialize() {
         View.initialize();
@@ -24,8 +28,12 @@ class BookListView extends WatchUi.View {
         y += 8;
 
         var rowH = dc.getFontHeight(rowFont) + 8;
+        _rowTop = y;
+        _rowH = rowH;
+        _rowCount = Books.SPIKE_BOOK_INDEXES.size();
+
         var i;
-        for (i = 0; i < Books.SPIKE_BOOK_INDEXES.size(); i++) {
+        for (i = 0; i < _rowCount; i++) {
             var bi = Books.SPIKE_BOOK_INDEXES[i];
             var label = Books.name(bi);
             var midY = y + rowH / 2;
@@ -42,16 +50,36 @@ class BookListView extends WatchUi.View {
             y += rowH;
         }
 
-        // Footer hint: sit on a chord well above the bottom bevel (was clipped).
         var hint = "Menu = Bookmarks";
         var hintFont = Graphics.FONT_XTINY;
         var hintH = dc.getFontHeight(hintFont);
         var hintY = h - RoundLayout.edgeMargin(w, h) - hintH - 4;
-        // Ensure hintY chord is wide enough; nudge up if near the edge.
         if (RoundLayout.chordWidth(hintY + hintH / 2, w, h) < dc.getTextWidthInPixels(hint, hintFont) + 8) {
             hintY -= hintH;
         }
         RoundLayout.drawCenteredInChord(dc, hintY, hint, hintFont);
+    }
+
+    function rowAtY(y as Lang.Number) as Lang.Number {
+        if (_rowH <= 0) {
+            return -1;
+        }
+        var idx = ((y - _rowTop) / _rowH).toNumber();
+        if (idx < 0 || idx >= _rowCount) {
+            return -1;
+        }
+        return idx;
+    }
+
+    function openFocusedBook() as Void {
+        AppState.selectedBook = Books.SPIKE_BOOK_INDEXES[focus];
+        AppState.selectedChapter = 1;
+        if (AppState.selectedBook == 42) {
+            AppState.selectedChapter = 3;
+        } else if (AppState.selectedBook == 38) {
+            AppState.selectedChapter = 4;
+        }
+        WatchUi.pushView(new ChapterGridView(), new ChapterGridDelegate(), WatchUi.SLIDE_LEFT);
     }
 }
 
@@ -65,6 +93,9 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onNextPage() as Lang.Boolean {
+        if (TouchGuard.consumePage()) {
+            return true;
+        }
         var v = view();
         v.focus = (v.focus + 1) % Books.SPIKE_BOOK_INDEXES.size();
         WatchUi.requestUpdate();
@@ -72,6 +103,9 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onPreviousPage() as Lang.Boolean {
+        if (TouchGuard.consumePage()) {
+            return true;
+        }
         var v = view();
         v.focus = (v.focus + Books.SPIKE_BOOK_INDEXES.size() - 1) % Books.SPIKE_BOOK_INDEXES.size();
         WatchUi.requestUpdate();
@@ -79,16 +113,48 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onSelect() as Lang.Boolean {
-        var v = view();
-        AppState.selectedBook = Books.SPIKE_BOOK_INDEXES[v.focus];
-        AppState.selectedChapter = 1;
-        if (AppState.selectedBook == 42) {
-            AppState.selectedChapter = 3;
-        } else if (AppState.selectedBook == 38) {
-            AppState.selectedChapter = 4;
+        if (TouchGuard.consumeSelect()) {
+            return true;
         }
-        WatchUi.pushView(new ChapterGridView(), new ChapterGridDelegate(), WatchUi.SLIDE_LEFT);
+        view().openFocusedBook();
         return true;
+    }
+
+    function onTap(evt) as Lang.Boolean {
+        var coords = evt.getCoordinates();
+        var v = view();
+        var idx = v.rowAtY(coords[1]);
+        if (idx >= 0) {
+            v.focus = idx;
+            TouchGuard.markSelect();
+            v.openFocusedBook();
+            return true;
+        }
+        return false;
+    }
+
+    function onSwipe(evt) as Lang.Boolean {
+        var dir = evt.getDirection();
+        if (dir == WatchUi.SWIPE_UP) {
+            TouchGuard.markPage();
+            var v = view();
+            v.focus = (v.focus + 1) % Books.SPIKE_BOOK_INDEXES.size();
+            WatchUi.requestUpdate();
+            return true;
+        }
+        if (dir == WatchUi.SWIPE_DOWN) {
+            TouchGuard.markPage();
+            var v2 = view();
+            v2.focus = (v2.focus + Books.SPIKE_BOOK_INDEXES.size() - 1) % Books.SPIKE_BOOK_INDEXES.size();
+            WatchUi.requestUpdate();
+            return true;
+        }
+        if (dir == WatchUi.SWIPE_RIGHT) {
+            TouchGuard.markBack();
+            WatchUi.popView(WatchUi.SLIDE_RIGHT);
+            return true;
+        }
+        return false;
     }
 
     function onMenu() as Lang.Boolean {
@@ -97,6 +163,9 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onBack() as Lang.Boolean {
+        if (TouchGuard.consumeBack()) {
+            return true;
+        }
         WatchUi.popView(WatchUi.SLIDE_RIGHT);
         return true;
     }

@@ -27,7 +27,6 @@ class ReaderView extends WatchUi.View {
         clearToastTimer();
     }
 
-    //! Build flattened lines with chord-aware pixel wrap + divider breathing room.
     function rebuildLines(dc as Graphics.Dc) as Void {
         var book = AppState.selectedBook;
         var chapter = AppState.selectedChapter;
@@ -38,7 +37,6 @@ class ReaderView extends WatchUi.View {
         var lineH = dc.getFontHeight(_bodyFont) + 2;
         var contentTop = RoundLayout.edgeMargin(w, h) + headerH;
         var contentBottom = h - RoundLayout.edgeMargin(w, h);
-        // Stable wrap width = minimum chord in the content band (scroll-stable line index).
         // POKE: screen-y variable reflow for denser mid-circle lines (needs pixel scroll model).
         var wrapW = RoundLayout.minChordInBand(contentTop + lineH / 2, contentBottom - lineH / 2, w, h);
 
@@ -121,7 +119,6 @@ class ReaderView extends WatchUi.View {
         var w = dc.getWidth();
         var h = dc.getHeight();
         var focus = AppState.scroll.focusVerse();
-        // Full book name — never "Malac". Shrink font inside chord if needed.
         var title = Books.name(focus[:book] as Lang.Number) + " " + focus[:chapter] + ":" + focus[:verse];
         var chip = AppState.scroll.modeLabel();
         var headerFont = Graphics.FONT_TINY;
@@ -131,7 +128,6 @@ class ReaderView extends WatchUi.View {
         var headerLeft = RoundLayout.chordLeft(headerMid, w, h);
 
         RoundLayout.drawCenteredInChord(dc, headerY, title, headerFont);
-        // Mode chip inside right side of header chord (not past the circle).
         dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
         dc.drawText(headerLeft + headerChord - 2, headerY, headerFont, chip, Graphics.TEXT_JUSTIFY_RIGHT);
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
@@ -166,7 +162,6 @@ class ReaderView extends WatchUi.View {
                 continue;
             }
             if (ln.kind == ScrollModel.KIND_DIVIDER) {
-                // Distinct continuation header: thin rules + centered label, padded by KIND_SPACER.
                 var ruleY1 = y + 2;
                 var ruleY2 = y + lineH - 3;
                 dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
@@ -212,6 +207,25 @@ class ReaderView extends WatchUi.View {
         }
     }
 
+    function bookmarkFocusedVerse() as Void {
+        var f = AppState.scroll.focusVerse();
+        var result = Bookmarks.toggle(f[:book] as Lang.Number, f[:chapter] as Lang.Number, f[:verse] as Lang.Number);
+        if (result == :added) {
+            showToast("Bookmarked");
+        } else if (result == :removed) {
+            showToast("Bookmark removed");
+        } else {
+            showToast("Bookmarks full");
+        }
+        if (Attention has :vibrate) {
+            Attention.vibrate([new Attention.VibeProfile(50, 100)]);
+        }
+    }
+
+    function openMenu() as Void {
+        ReaderMenu2.open(me);
+    }
+
     function onEnterSleep() as Void {
         // POKE: strip toast / reduce chrome on AMOLED to limit burn-in.
         toast = null;
@@ -238,6 +252,9 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onNextPage() as Lang.Boolean {
+        if (TouchGuard.consumePage()) {
+            return true;
+        }
         AppState.scroll.next();
         syncCurrentFromFocus();
         WatchUi.requestUpdate();
@@ -245,6 +262,9 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onPreviousPage() as Lang.Boolean {
+        if (TouchGuard.consumePage()) {
+            return true;
+        }
         AppState.scroll.prev();
         syncCurrentFromFocus();
         WatchUi.requestUpdate();
@@ -258,33 +278,62 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onSelect() as Lang.Boolean {
-        WatchUi.pushView(new ReaderMenuView(), new ReaderMenuDelegate(_view), WatchUi.SLIDE_IMMEDIATE);
+        if (TouchGuard.consumeSelect()) {
+            return true;
+        }
+        // POKE: tap opens Menu2; try tap-to-advance-verse as alternate.
+        _view.openMenu();
         return true;
     }
 
     function onHold(evt) as Lang.Boolean {
-        // POKE: also wire Select-key hold timing for button-only devices without touch onHold.
-        var f = AppState.scroll.focusVerse();
-        var result = Bookmarks.toggle(f[:book] as Lang.Number, f[:chapter] as Lang.Number, f[:verse] as Lang.Number);
-        if (result == :added) {
-            _view.showToast("Bookmarked");
-        } else if (result == :removed) {
-            _view.showToast("Bookmark removed");
-        } else {
-            _view.showToast("Bookmarks full");
-        }
-        if (Attention has :vibrate) {
-            Attention.vibrate([new Attention.VibeProfile(50, 100)]);
-        }
+        // Touch long-press and Select-hold share this path on many devices.
+        TouchGuard.markSelect(); // if a select follows the hold, suppress it
+        _view.bookmarkFocusedVerse();
         return true;
     }
 
+    function onTap(evt) as Lang.Boolean {
+        TouchGuard.markSelect();
+        _view.openMenu();
+        return true;
+    }
+
+    function onSwipe(evt) as Lang.Boolean {
+        var dir = evt.getDirection();
+        if (dir == WatchUi.SWIPE_UP) {
+            TouchGuard.markPage();
+            AppState.scroll.next();
+            syncCurrentFromFocus();
+            WatchUi.requestUpdate();
+            return true;
+        }
+        if (dir == WatchUi.SWIPE_DOWN) {
+            TouchGuard.markPage();
+            AppState.scroll.prev();
+            syncCurrentFromFocus();
+            WatchUi.requestUpdate();
+            return true;
+        }
+        if (dir == WatchUi.SWIPE_RIGHT) {
+            // POKE: swipe-right = back (iOS-ish); try swipe-left = back on Venu if muscle memory differs.
+            TouchGuard.markBack();
+            syncCurrentFromFocus();
+            WatchUi.popView(WatchUi.SLIDE_RIGHT);
+            return true;
+        }
+        return false;
+    }
+
     function onMenu() as Lang.Boolean {
-        WatchUi.pushView(new ReaderMenuView(), new ReaderMenuDelegate(_view), WatchUi.SLIDE_IMMEDIATE);
+        _view.openMenu();
         return true;
     }
 
     function onBack() as Lang.Boolean {
+        if (TouchGuard.consumeBack()) {
+            return true;
+        }
         syncCurrentFromFocus();
         WatchUi.popView(WatchUi.SLIDE_RIGHT);
         return true;

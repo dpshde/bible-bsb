@@ -8,6 +8,11 @@ class ChapterGridView extends WatchUi.View {
     var grid as SnakeGrid.Model;
     var holdTimer as Timer.Timer or Null = null;
     var holding as Lang.Boolean = false;
+    // Hit-test cache
+    var _gridTop as Lang.Number = 0;
+    var _cellH as Lang.Number = 0;
+    var _screenW as Lang.Number = 0;
+    var _screenH as Lang.Number = 0;
 
     function initialize() {
         View.initialize();
@@ -26,9 +31,10 @@ class ChapterGridView extends WatchUi.View {
         dc.clear();
         var w = dc.getWidth();
         var h = dc.getHeight();
+        _screenW = w;
+        _screenH = h;
         var titleFont = Graphics.FONT_TINY;
         var titleY = RoundLayout.edgeMargin(w, h);
-        // Full book name, centered in header chord (shrink font if needed).
         RoundLayout.drawCenteredInChord(dc, titleY, Books.name(AppState.selectedBook), titleFont);
 
         var top = titleY + dc.getFontHeight(titleFont) + 6;
@@ -40,13 +46,14 @@ class ChapterGridView extends WatchUi.View {
         if (cellH < 18) {
             cellH = 18;
         }
+        _gridTop = top;
+        _cellH = cellH;
 
         var r;
         var c;
         for (r = 0; r < grid.visibleRows; r++) {
             var row = grid.startRow + r;
             var rowMidY = top + r * cellH + cellH / 2;
-            // Constrain this grid row to its chord so corner cells (e.g. 21) stay inside.
             var rowLeft = RoundLayout.chordLeft(rowMidY, w, h);
             var rowW = RoundLayout.chordWidth(rowMidY, w, h);
             var cellW = rowW / grid.columns;
@@ -72,6 +79,40 @@ class ChapterGridView extends WatchUi.View {
             }
         }
     }
+
+    //! Map screen coords to chapter index, or -1.
+    function chapterAt(x as Lang.Number, y as Lang.Number) as Lang.Number {
+        if (_cellH <= 0) {
+            return -1;
+        }
+        var displayRow = ((y - _gridTop) / _cellH).toNumber();
+        if (displayRow < 0 || displayRow >= grid.visibleRows) {
+            return -1;
+        }
+        var row = grid.startRow + displayRow;
+        var rowMidY = _gridTop + displayRow * _cellH + _cellH / 2;
+        var rowLeft = RoundLayout.chordLeft(rowMidY, _screenW, _screenH);
+        var rowW = RoundLayout.chordWidth(rowMidY, _screenW, _screenH);
+        if (x < rowLeft || x > rowLeft + rowW) {
+            return -1;
+        }
+        var cellW = rowW / grid.columns;
+        var col = ((x - rowLeft) / cellW).toNumber();
+        if (col < 0 || col >= grid.columns) {
+            return -1;
+        }
+        var idx = grid.indexAt(row, col);
+        if (idx < 0 || idx >= grid.itemCount) {
+            return -1;
+        }
+        return idx;
+    }
+
+    function openChapterIndex(idx as Lang.Number) as Void {
+        grid.setFocusIndex(idx);
+        AppState.selectedChapter = grid.focusedChapter();
+        ReaderView.openFor(AppState.selectedBook, AppState.selectedChapter);
+    }
 }
 
 class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
@@ -86,18 +127,27 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onNextPage() as Lang.Boolean {
+        if (TouchGuard.consumePage()) {
+            return true;
+        }
         gridView().grid.next();
         WatchUi.requestUpdate();
         return true;
     }
 
     function onPreviousPage() as Lang.Boolean {
+        if (TouchGuard.consumePage()) {
+            return true;
+        }
         gridView().grid.prev();
         WatchUi.requestUpdate();
         return true;
     }
 
     function onSelect() as Lang.Boolean {
+        if (TouchGuard.consumeSelect()) {
+            return true;
+        }
         var g = gridView().grid;
         AppState.selectedChapter = g.focusedChapter();
         ReaderView.openFor(AppState.selectedBook, AppState.selectedChapter);
@@ -110,15 +160,60 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onHold(evt) as Lang.Boolean {
-        var g = gridView().grid;
-        var ch = g.focusedChapter();
+        TouchGuard.markSelect();
+        var coords = evt.getCoordinates();
+        var v = gridView();
+        var idx = v.chapterAt(coords[0], coords[1]);
+        if (idx >= 0) {
+            v.grid.setFocusIndex(idx);
+        }
+        var ch = v.grid.focusedChapter();
         var result = Bookmarks.toggle(AppState.selectedBook, ch, 0);
         System.println("bookmark chapter " + result);
         WatchUi.requestUpdate();
         return true;
     }
 
+    function onTap(evt) as Lang.Boolean {
+        var coords = evt.getCoordinates();
+        var v = gridView();
+        var idx = v.chapterAt(coords[0], coords[1]);
+        if (idx >= 0) {
+            TouchGuard.markSelect();
+            v.openChapterIndex(idx);
+            return true;
+        }
+        return false;
+    }
+
+    function onSwipe(evt) as Lang.Boolean {
+        var dir = evt.getDirection();
+        // POKE: swipe moves one snake step; try whole-row (±columns) if it feels slow on Psalms.
+        if (dir == WatchUi.SWIPE_UP) {
+            TouchGuard.markPage();
+            gridView().grid.next();
+            WatchUi.requestUpdate();
+            return true;
+        }
+        if (dir == WatchUi.SWIPE_DOWN) {
+            TouchGuard.markPage();
+            gridView().grid.prev();
+            WatchUi.requestUpdate();
+            return true;
+        }
+        if (dir == WatchUi.SWIPE_RIGHT) {
+            TouchGuard.markBack();
+            AppState.selectedChapter = gridView().grid.focusedChapter();
+            WatchUi.popView(WatchUi.SLIDE_RIGHT);
+            return true;
+        }
+        return false;
+    }
+
     function onBack() as Lang.Boolean {
+        if (TouchGuard.consumeBack()) {
+            return true;
+        }
         AppState.selectedChapter = gridView().grid.focusedChapter();
         WatchUi.popView(WatchUi.SLIDE_RIGHT);
         return true;

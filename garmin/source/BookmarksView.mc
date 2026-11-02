@@ -5,6 +5,8 @@ using Toybox.WatchUi;
 class BookmarksView extends WatchUi.View {
     var focus as Lang.Number = 0;
     var items as Lang.Array = [];
+    var _rowTop as Lang.Number = 0;
+    var _rowH as Lang.Number = 0;
 
     function initialize() {
         View.initialize();
@@ -33,10 +35,14 @@ class BookmarksView extends WatchUi.View {
 
         if (items.size() == 0) {
             RoundLayout.drawCenteredInChord(dc, h / 2, "No bookmarks", Graphics.FONT_SMALL);
+            _rowTop = 0;
+            _rowH = 0;
             return;
         }
 
         var rowH = dc.getFontHeight(rowFont) + 8;
+        _rowTop = y;
+        _rowH = rowH;
         var bottom = h - RoundLayout.edgeMargin(w, h);
         var i;
         for (i = 0; i < items.size(); i++) {
@@ -58,6 +64,28 @@ class BookmarksView extends WatchUi.View {
             y += rowH;
         }
     }
+
+    function rowAtY(y as Lang.Number) as Lang.Number {
+        if (_rowH <= 0 || items.size() == 0) {
+            return -1;
+        }
+        var idx = ((y - _rowTop) / _rowH).toNumber();
+        if (idx < 0 || idx >= items.size()) {
+            return -1;
+        }
+        return idx;
+    }
+
+    function openFocused() as Void {
+        if (items.size() == 0) {
+            return;
+        }
+        var id = items[focus] as Lang.Number;
+        var book = Bookmarks.unpackBook(id);
+        var chapter = Bookmarks.unpackChapter(id);
+        ReaderView.openFor(book, chapter);
+        // POKE: snap scrollOffset to verse if verse!=0 after open.
+    }
 }
 
 class BookmarksDelegate extends WatchUi.BehaviorDelegate {
@@ -70,6 +98,9 @@ class BookmarksDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onNextPage() as Lang.Boolean {
+        if (TouchGuard.consumePage()) {
+            return true;
+        }
         var v = bv();
         if (v.items.size() == 0) {
             return true;
@@ -80,6 +111,9 @@ class BookmarksDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onPreviousPage() as Lang.Boolean {
+        if (TouchGuard.consumePage()) {
+            return true;
+        }
         var v = bv();
         if (v.items.size() == 0) {
             return true;
@@ -90,25 +124,63 @@ class BookmarksDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onSelect() as Lang.Boolean {
-        var v = bv();
-        if (v.items.size() == 0) {
+        if (TouchGuard.consumeSelect()) {
             return true;
         }
-        var id = v.items[v.focus] as Lang.Number;
-        var book = Bookmarks.unpackBook(id);
-        var chapter = Bookmarks.unpackChapter(id);
-        var verse = Bookmarks.unpackVerse(id);
-        ReaderView.openFor(book, chapter);
-        // POKE: after open, scrollOffset snap to verse if verse!=0.
-        if (verse != 0) {
-        }
+        bv().openFocused();
         return true;
     }
 
+    function onTap(evt) as Lang.Boolean {
+        var coords = evt.getCoordinates();
+        var v = bv();
+        var idx = v.rowAtY(coords[1]);
+        if (idx >= 0) {
+            v.focus = idx;
+            TouchGuard.markSelect();
+            v.openFocused();
+            return true;
+        }
+        return false;
+    }
+
+    function onSwipe(evt) as Lang.Boolean {
+        var dir = evt.getDirection();
+        var v = bv();
+        if (dir == WatchUi.SWIPE_UP) {
+            TouchGuard.markPage();
+            if (v.items.size() > 0) {
+                v.focus = (v.focus + 1) % v.items.size();
+                WatchUi.requestUpdate();
+            }
+            return true;
+        }
+        if (dir == WatchUi.SWIPE_DOWN) {
+            TouchGuard.markPage();
+            if (v.items.size() > 0) {
+                v.focus = (v.focus + v.items.size() - 1) % v.items.size();
+                WatchUi.requestUpdate();
+            }
+            return true;
+        }
+        if (dir == WatchUi.SWIPE_RIGHT) {
+            TouchGuard.markBack();
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            return true;
+        }
+        return false;
+    }
+
     function onHold(evt) as Lang.Boolean {
+        TouchGuard.markSelect();
         var v = bv();
         if (v.items.size() == 0) {
             return true;
+        }
+        var coords = evt.getCoordinates();
+        var idx = v.rowAtY(coords[1]);
+        if (idx >= 0) {
+            v.focus = idx;
         }
         var id = v.items[v.focus] as Lang.Number;
         Bookmarks.toggle(Bookmarks.unpackBook(id), Bookmarks.unpackChapter(id), Bookmarks.unpackVerse(id));
@@ -118,6 +190,9 @@ class BookmarksDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onBack() as Lang.Boolean {
+        if (TouchGuard.consumeBack()) {
+            return true;
+        }
         WatchUi.popView(WatchUi.SLIDE_DOWN);
         return true;
     }

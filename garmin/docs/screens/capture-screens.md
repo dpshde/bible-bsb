@@ -30,5 +30,15 @@ Drive each state with the physical/sim buttons (PLAN M4–M8). Use the simulator
 | continuation-cross-book | Malachi 4 → forward |
 | bookmarks-* | Menu → Bookmarks; hold in reader to populate |
 | rev-22-end / genesis-1-start | When stubs exist; else leave MISSING |
+| reader-menu2 | Reader → Select/tap → Menu2 |
+| reader-menu2-scroll-mode | Menu2 → Scroll: … → toast/chip |
+| touch-book-list-tap | Tap a book row (sim touch) |
+| touch-grid-tap | Tap a chapter cell |
+| touch-reader-swipe | Swipe up/down in reader |
+| touch-reader-hold-bookmark | Long-press reader → pill |
 
 Never commit mocked PNGs. If a device cannot run, append a row to `MISSING.md`.
+
+## Touch + button
+
+On Enduro 3 (and other touch targets), walk both the button column and the touch column of SPEC §1 for each screen. Confirm a single tap does **not** open the chapter twice (TouchGuard).

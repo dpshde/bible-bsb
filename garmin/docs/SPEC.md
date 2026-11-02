@@ -17,15 +17,41 @@ Primary device: **Enduro 3** (5-button + touch, round MIP ~280×280). Budget lin
 | Left / Right | Secondary axis / enter side screens | Map per screen (table below); often unused under snake | Touch: swipe L/R when useful |
 | — | Menu | `onMenu` | Opens top-level: Books / Bookmarks / About |
 
-### Per-screen mapping (Garmin)
+### Per-screen mapping — buttons (Garmin)
 
-| Screen | Select | Hold | Back | NextPage | PreviousPage | Menu | Touch extras |
-|--------|--------|------|------|----------|--------------|------|--------------|
-| Book list | Open chapter snake grid | — | Exit app (or clear OT/NT filter first, Flipper-like) | Next book | Prev book | Bookmarks | Tap row; swipe scroll |
-| Chapter snake grid | Open reader (full chapter; verse picker deferred — POKE) | Bookmark **chapter** | Book list | Next cell (snake) | Prev cell (snake) | — | Tap cell; long-press cell = bookmark chapter |
-| Reader | (optional menu) | Bookmark **focused verse** | Return to grid **for current chapter** (after continuation) | Scroll down / next verse block | Scroll up / prev | Bookmarks | Swipe scroll; hold verse |
-| Bookmarks list | Jump to passage | Remove bookmark | Book list | Next item | Prev item | — | Tap / long-press |
-| Toast/feedback | — | — | Dismiss | — | — | — | Auto-clear ~1s pill + vibe if available |
+| Screen | Select | Hold | Back | NextPage | PreviousPage | Menu |
+|--------|--------|------|------|----------|--------------|------|
+| Book list | Open chapter snake grid | — | Exit app (or clear OT/NT filter first, Flipper-like) | Next book | Prev book | Bookmarks list |
+| Chapter snake grid | Open reader (full chapter; verse picker deferred — POKE) | Bookmark **chapter** | Book list | Next cell (snake) | Prev cell (snake) | — |
+| Reader | Open native **Menu2** | Bookmark **focused verse** | Return to grid **for current chapter** | Scroll per mode | Scroll per mode | Open Menu2 |
+| Bookmarks list | Jump to passage | Remove bookmark | Previous | Next item | Prev item | — |
+| Toast/feedback | — | — | Dismiss | — | — | — |
+
+### Per-screen mapping — touch (`BehaviorDelegate`)
+
+Coexists with buttons on Enduro 3, FR165/265/965, Venu/Venu Sq, VA5/6. `TouchGuard` suppresses the matching button callback when a gesture already handled the action (no double-fire).
+
+| Screen | `onTap` | `onSwipe` Up/Down | `onSwipe` Right | `onHold` |
+|--------|---------|-------------------|-----------------|----------|
+| Book list | Hit-test row → focus + open grid | Move focus ±1 | Back / pop | — |
+| Chapter snake grid | Hit-test cell → open that chapter | Snake ±1 (POKE: ±row) | Back to book list | Hit-test cell → bookmark **chapter** |
+| Reader | Open Menu2 (POKE: tap = next verse) | Scroll per current mode (line/verse) | Back to grid | Bookmark focused verse (same as button hold) |
+| Bookmarks list | Hit-test row → jump | Move focus ±1 | Back | Remove bookmark at row |
+
+Menu2 itself uses native touch/button scrolling (`WatchUi.Menu2` / `Menu2InputDelegate`).
+
+### Reader Menu2 items (Flipper ActionMenu mirror)
+
+Flipper (`bible_view_action_menu.c:17-21`) order: **Save to collection**, **Share via NFC**, **Back to reading**.
+
+| # | Garmin Menu2 label | Flipper counterpart | Notes |
+|---|--------------------|---------------------|-------|
+| 1 | Scroll: Verse\|Line | *(Garmin-only)* | Toggle; replaces custom V/L overlay |
+| 2 | Bookmark verse / Remove bookmark | Save to collection | Toggle; uses **bookmark** wording |
+| 3 | Bookmarks | *(Collection via Left on book list)* | Surfaced in-menu for touch-first devices |
+| 4 | Jump to chapter | *(no Flipper item — Back then grid)* | Pops reader → chapter grid |
+| 5 | Back to reading | Back to reading | Dismiss menu |
+| — | ~~Share via NFC~~ | Share via NFC | **Dropped** — see divergences |
 
 ### Long-press rules & platform constraints
 
@@ -307,6 +333,9 @@ Everything **not** listed here should match Flipper behavior/spirit from `flippe
 | Left-aligned headers / bottom hints | Centered in the row’s chord; full book name with font shrink — **no** `"Malac"` truncation | Circle radius clips left/bottom glyphs on 280px | Round primarily |
 | No chapter divider (single passage) | Continuation divider with **~1 line-height pad** above/below, centered, thin rules + accent label | Garmin continuation feature needs clear breathing room on dense round layouts | All |
 | Black toast box over text | Centered **pill** toast with dim band + ★ mark, auto-dismiss ~1s (`RoundLayout.TOAST_MS`) | Watch chrome expects transient banners; Flipper toast was a filled rect on 128×64 | All |
+| Custom ActionMenu canvas (3 items) | Native **`WatchUi.Menu2`**: Scroll mode, Bookmark toggle, Bookmarks, Jump to chapter, Back to reading | System menu look + touch/button for free; Flipper had no scroll-mode item | All |
+| Share via NFC in ActionMenu | **Omitted** from Menu2 | No Flipper NFC stack on CIQ; route.bible share is a later POKE | All |
+| D-pad only (no touch) | Full **touch map** (`onTap`/`onSwipe`/`onHold`) + `TouchGuard` anti-double-fire with buttons | Enduro 3 / Venu / VA / FR touchscreens | Touch-capable products |
 
 ### Flipper ↔ Garmin layout references
 
@@ -347,10 +376,16 @@ Device folder names: `enduro3`, `fr165`, `fr265`, `fr965`, `venu3` (or `venu2`),
 | `bookmarks-empty` | Empty bookmarks |
 | `bookmarks-populated` | ≥1 bookmark |
 | `bookmark-hold-feedback` | Toast/vibe feedback UI after hold |
+| `reader-menu2` | Native Menu2 open (all items visible / scrolled if needed) |
+| `reader-menu2-scroll-mode` | After toggling Verse/Line from Menu2 (chip + toast) |
+| `touch-book-list-tap` | Book opened via tap (same as select) |
+| `touch-grid-tap` | Chapter opened via cell tap |
+| `touch-reader-swipe` | Reader mid-scroll after swipe (note mode in filename suffix `-verse` / `-line` if useful) |
+| `touch-reader-hold-bookmark` | Bookmark pill after touch long-press |
 | `genesis-1-start` | Genesis 1 start (when content available; spike may stub) |
 | `rev-22-end` | Revelation 22 end marker (stub OK) |
 
-**Minimum device coverage for a complete validation:** Enduro 3 (**all** states) + at least one Forerunner 165/265-class + one Venu/Venu Sq + one Vivoactive 5/6 for every major state (subset allowed on budget lines if matrix notes “parity with enduro3”, but **reader**, **reader-mode-indicator**, **continuation-divider**, **continuation-verse-boundary**, **chapter-grid-mid-wrap**, **bookmarks-populated** are mandatory on each class).
+**Minimum device coverage for a complete validation:** Enduro 3 (**all** states) + at least one Forerunner 165/265-class + one Venu/Venu Sq + one Vivoactive 5/6 for every major state (subset allowed on budget lines if matrix notes “parity with enduro3”, but **reader**, **reader-mode-indicator**, **reader-menu2**, **continuation-divider**, **continuation-verse-boundary**, **chapter-grid-mid-wrap**, **bookmarks-populated**, and at least one **touch-*** state on each touch device are mandatory on each class).
 
 ### Pass criteria (every shot)
 
