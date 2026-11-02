@@ -1,51 +1,129 @@
 using Toybox.Graphics;
 using Toybox.Lang;
+using Toybox.System;
 using Toybox.WatchUi;
 
-//! Glance: last-read ref + its first line, then the offline verse of the day.
+//! Glance: last-read ref + its words, else the offline verse of the day.
+//! Every row is centered inside SAFE_FRAC of the glance width (round bezels clip the slot's
+//! corners); the verse word-wraps over the rows that fit and is only ever shortened at a
+//! word boundary with an ellipsis (edge pass: "Whatever you do, work ." fixed).
 (:glance)
 class BsbGlanceView extends WatchUi.GlanceView {
+    // POKE: GLANCE_SAFE_FRAC — usable width share of the glance slot.
+    const SAFE_FRAC = 0.82;
+
     function initialize() {
         GlanceView.initialize();
     }
 
+    var _logged as Lang.Boolean = false;
+
     function onUpdate(dc as Graphics.Dc) as Void {
         var w = dc.getWidth();
         var h = dc.getHeight();
+        if (!_logged) {
+            _logged = true; // safe-area audit: the system places this DC right of the app icon
+            System.println("GLANCE dc " + w + "x" + h);
+        }
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
         dc.clear();
         var f = Graphics.FONT_GLANCE;
         var fh = dc.getFontHeight(f);
         var ref = LastRead.ref();
-        var line1;
-        var line2;
+        var head;
+        var body;
         if (ref != null) {
-            line1 = "BSB  " + ref;
+            head = ref as Lang.String;
             var t = LastRead.text();
-            line2 = t != null ? t as Lang.String : "";
+            body = t != null ? t as Lang.String : "";
         } else {
             var i = Votd.index();
-            line1 = "VOTD  " + Votd.REFS[i];
-            line2 = Votd.TEXTS[i] as Lang.String;
+            head = Votd.REFS[i] as Lang.String;
+            body = Votd.TEXTS[i] as Lang.String;
         }
-        var y = (h - 2 * fh) / 2;
+        var room = (w * SAFE_FRAC).toNumber();
+        var maxRows = h / fh - 1;
+        if (maxRows < 1) {
+            maxRows = 1;
+        }
+        if (maxRows > 3) {
+            maxRows = 3;
+        }
+        var rows = wrap(dc, body, f, room, maxRows);
+        var total = fh * (1 + rows.size());
+        var y = (h - total) / 2;
         if (y < 0) {
             y = 0;
         }
         dc.setColor(0xFFAA55, Graphics.COLOR_TRANSPARENT); // gold (MIP-safe)
-        dc.drawText(0, y, f, line1, Graphics.TEXT_JUSTIFY_LEFT);
+        dc.drawText(w / 2, y, f, head, Graphics.TEXT_JUSTIFY_CENTER);
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(0, y + fh, f, fit(dc, line2, f, w), Graphics.TEXT_JUSTIFY_LEFT);
+        var r;
+        for (r = 0; r < rows.size(); r++) {
+            dc.drawText(w / 2, y + fh * (r + 1), f, rows[r] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+        }
     }
 
-    function fit(dc as Graphics.Dc, s as Lang.String, f as Graphics.FontDefinition, maxW as Lang.Number) as Lang.String {
-        if (dc.getTextWidthInPixels(s, f) <= maxW) {
-            return s;
+    //! Greedy word wrap into <= maxRows rows of width <= room. If words remain, the last row
+    //! drops whole words until "row…" fits (never cuts inside a word).
+    function wrap(dc as Graphics.Dc, s as Lang.String, f as Graphics.FontDefinition,
+                  room as Lang.Number, maxRows as Lang.Number) as Lang.Array {
+        var words = [] as Lang.Array;
+        var rest = s;
+        while (rest.length() > 0) {
+            var sp = rest.find(" ");
+            if (sp == null) {
+                words.add(rest);
+                break;
+            }
+            if (sp > 0) {
+                words.add(rest.substring(0, sp));
+            }
+            rest = rest.substring(sp + 1, rest.length());
         }
-        var t = s;
-        while (t.length() > 1 && dc.getTextWidthInPixels(t + "..", f) > maxW) {
-            t = t.substring(0, t.length() - 1);
+        var rows = [] as Lang.Array;
+        var cur = "";
+        var i = 0;
+        while (i < words.size()) {
+            var wd = words[i] as Lang.String;
+            var cand = cur.length() == 0 ? wd : cur + " " + wd;
+            if (dc.getTextWidthInPixels(cand, f) <= room || cur.length() == 0) {
+                cur = cand;
+                i++;
+            } else {
+                rows.add(cur);
+                cur = "";
+                if (rows.size() == maxRows) {
+                    break;
+                }
+            }
         }
-        return t + "..";
+        if (cur.length() > 0 && rows.size() < maxRows) {
+            rows.add(cur);
+        }
+        if (i < words.size() && rows.size() > 0) {
+            // Truncated: last row ends at a word + ellipsis.
+            var last = rows[rows.size() - 1] as Lang.String;
+            while (dc.getTextWidthInPixels(last + "…", f) > room) {
+                var cut = lastSpace(last);
+                if (cut <= 0) {
+                    break;
+                }
+                last = last.substring(0, cut);
+            }
+            rows[rows.size() - 1] = last + "…";
+        }
+        return rows;
+    }
+
+    function lastSpace(s as Lang.String) as Lang.Number {
+        var k = s.length() - 1;
+        while (k > 0) {
+            if (s.substring(k, k + 1).equals(" ")) {
+                return k;
+            }
+            k--;
+        }
+        return 0;
     }
 }

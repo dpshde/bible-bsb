@@ -1,3 +1,4 @@
+using Toybox.Application;
 using Toybox.Attention;
 using Toybox.Lang;
 using Toybox.System;
@@ -11,8 +12,20 @@ module Feedback {
     // POKE: TAP_FLASH_MS — gold flash on the tapped cell before it opens (80-120 ms).
     const FLASH_MS = 100;
 
+    // Settings > Tap vibration (default on). The watch's own vibration setting still wins.
+    const STORAGE_KEY = "vibe";
+
+    function enabled() as Lang.Boolean {
+        var v = Application.Storage.getValue(STORAGE_KEY);
+        return !(v instanceof Lang.Boolean) || v;
+    }
+
+    function setEnabled(on as Lang.Boolean) as Void {
+        Application.Storage.setValue(STORAGE_KEY, on);
+    }
+
     function tick() as Void {
-        if (!(Attention has :vibrate)) {
+        if (!enabled() || !(Attention has :vibrate)) {
             return;
         }
         var s = System.getDeviceSettings();

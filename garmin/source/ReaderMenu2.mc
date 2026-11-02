@@ -24,22 +24,21 @@ module ReaderMenu2 {
         var verse = focus[:verse] as Lang.Number;
         var bookmarked = isBookmarked(book, chapter, verse);
 
-        var modeLabel = AppState.scroll.mode == ScrollModel.MODE_VERSE ? "Verse" : "Line";
         var ref = Books.refLabel(book, chapter, verse);
-        var menu = new ThemedMenu("Menu");
-        menu.addItem(new ThemedMenuItem("Scroll: " + modeLabel, null, ID_SCROLL_MODE));
-        menu.addItem(new ThemedMenuItem(
+        var menu = UiMenu.create("Menu");
+        menu.addItem(NativeLists.scrollItem(ID_SCROLL_MODE)); // POKE: SCROLL_LABEL
+        menu.addItem(UiMenu.item(
             bookmarked ? ("Remove " + ref) : ("Bookmark " + ref),
             null,
             ID_BOOKMARK_VERSE));
-        menu.addItem(new ThemedMenuItem("Bookmarks", null, ID_BOOKMARKS_LIST));
+        menu.addItem(UiMenu.item("Bookmarks", null, ID_BOOKMARKS_LIST));
         // Flipper 51d0ce4: Go to verse (NFC omitted — see SPEC divergences).
-        menu.addItem(new ThemedMenuItem("Go to verse", null, ID_GOTO_VERSE));
-        menu.addItem(new ThemedMenuItem("Jump to chapter", null, ID_JUMP_CHAPTER));
+        menu.addItem(UiMenu.item("Go to verse", null, ID_GOTO_VERSE));
+        menu.addItem(UiMenu.item("Jump to chapter", null, ID_JUMP_CHAPTER));
         // Alternate entry path — POKE: default vs snake book list.
-        menu.addItem(new ThemedMenuItem("By Testament", null, ID_BROWSE_TESTAMENT));
-        menu.addItem(new ThemedMenuItem("Theme: " + Palette.themeLabel(), null, ID_THEME));
-        menu.addItem(new ThemedMenuItem("Back to reading", null, ID_BACK_READING));
+        menu.addItem(UiMenu.item("By Testament", null, ID_BROWSE_TESTAMENT));
+        menu.addItem(UiMenu.item("Settings", "Scrolling, theme, vibration", ID_THEME));
+        menu.addItem(UiMenu.item("Back to reading", null, ID_BACK_READING));
 
         WatchUi.pushView(menu, new ReaderMenu2Delegate(reader), WatchUi.SLIDE_LEFT);
     }
@@ -72,9 +71,19 @@ module ReaderMenu2 {
             var sa = secs as Lang.Array;
             var items = [] as Lang.Array;
             var i;
+            // First heading after verse 1: verses before it stay reachable as their own row.
+            var first = (sa[0] as Lang.Dictionary)[:startVerse] as Lang.Number;
+            if (first > 1) {
+                items.add(["Start of chapter", first == 2 ? " (1)" : " (1–" + (first - 1) + ")", 1]);
+            }
+            var present = ContentLoader.verseNumbers(book, chapter);
             for (i = 0; i < sa.size(); i++) {
                 var st = (sa[i] as Lang.Dictionary)[:startVerse] as Lang.Number;
                 var en = i + 1 < sa.size() ? ((sa[i + 1] as Lang.Dictionary)[:startVerse] as Lang.Number) - 1 : count;
+                // End on a verse that exists (Matt 17:21 is not in the BSB: "19–20", not "19–21").
+                while (en > st && present.indexOf(en) < 0) {
+                    en--;
+                }
                 if (en < st) {
                     en = st;
                 }
@@ -83,8 +92,7 @@ module ReaderMenu2 {
             }
             // POKE: GOTO_VERSE_FALLBACK — direct verse picking stays one row away.
             items.add(["Verse…", "", -1]);
-            var gv = new GotoSectionsView(reader, items, count);
-            WatchUi.pushView(gv, new GotoSectionsDelegate(gv), WatchUi.SLIDE_LEFT);
+            NativeLists.openSections(reader, items);
             return;
         }
         // POKE: GOTO_VERSE_FALLBACK — no headings: straight to the verse picker.
@@ -98,14 +106,14 @@ module ReaderMenu2 {
         // POKE: GOTO_RANGE — chapters over GOTO_FLAT_MAX verses (Psalm 119 = 176) get a
         // range level first ("Verses 161-176"), so every verse is reachable in <= 2 lists.
         if (count > GOTO_FLAT_MAX) {
-            var rm = new ThemedMenu("Go to verse");
+            var rm = UiMenu.create("Go to verse");
             var s = 1;
             while (s <= count) {
                 var e = s + GOTO_RANGE - 1;
                 if (e > count) {
                     e = count;
                 }
-                rm.addItem(new ThemedMenuItem("Verses " + s + "-" + e, null, s));
+                rm.addItem(UiMenu.item("Verses " + s + "-" + e, null, s));
                 s = e + 1;
             }
             WatchUi.pushView(rm, new VerseRangeDelegate(reader, count, extraPops), WatchUi.SLIDE_LEFT);
@@ -119,7 +127,7 @@ module ReaderMenu2 {
 
     function pushVerseList(reader as ReaderView, from as Lang.Number, to as Lang.Number,
                            pops as Lang.Number) as Void {
-        var menu = new ThemedMenu("Go to verse");
+        var menu = UiMenu.create("Go to verse");
         // Only verses present in the BSB text (Matt 17 skips 21: ..., 20, 22, ...).
         var f = reader.resolveFocus();
         var nums = ContentLoader.verseNumbers(f[:book] as Lang.Number, f[:chapter] as Lang.Number);
@@ -127,7 +135,7 @@ module ReaderMenu2 {
         for (i = 0; i < nums.size(); i++) {
             var vn = nums[i] as Lang.Number;
             if (vn >= from && vn <= to) {
-                menu.addItem(new ThemedMenuItem("Verse " + vn, null, vn));
+                menu.addItem(UiMenu.item("Verse " + vn, null, vn));
             }
         }
         WatchUi.pushView(menu, new VersePickerDelegate(reader, pops), WatchUi.SLIDE_LEFT);
@@ -145,7 +153,7 @@ class ReaderMenu2Delegate extends WatchUi.Menu2InputDelegate {
     function onSelect(item as WatchUi.MenuItem) as Void {
         var id = item.getId() as Lang.Number;
         if (id == ReaderMenu2.ID_SCROLL_MODE) {
-            AppState.scroll.toggleMode();
+            NativeLists.applySetting(:scroll, UiMenu.toggledState(item));
             WatchUi.popView(WatchUi.SLIDE_RIGHT);
             _reader.showModeBanner();
             return;
@@ -157,7 +165,7 @@ class ReaderMenu2Delegate extends WatchUi.Menu2InputDelegate {
         }
         if (id == ReaderMenu2.ID_BOOKMARKS_LIST) {
             WatchUi.popView(WatchUi.SLIDE_RIGHT);
-            WatchUi.pushView(new BookmarksView(), new BookmarksDelegate(), WatchUi.SLIDE_UP);
+            NativeLists.openBookmarks();
             return;
         }
         if (id == ReaderMenu2.ID_GOTO_VERSE) {
@@ -171,14 +179,12 @@ class ReaderMenu2Delegate extends WatchUi.Menu2InputDelegate {
             return;
         }
         if (id == ReaderMenu2.ID_THEME) {
-            Palette.toggleTheme();
-            WatchUi.popView(WatchUi.SLIDE_RIGHT);
-            WatchUi.requestUpdate();
+            NativeLists.openSettings(); // menu stays underneath: back returns here
             return;
         }
         if (id == ReaderMenu2.ID_BROWSE_TESTAMENT) {
             WatchUi.popView(WatchUi.SLIDE_RIGHT);
-            WatchUi.pushView(new TestamentListView(), new TestamentListDelegate(), WatchUi.SLIDE_LEFT);
+            NativeLists.openBrowse();
             return;
         }
         WatchUi.popView(WatchUi.SLIDE_RIGHT);

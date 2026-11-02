@@ -33,7 +33,7 @@ class BookListView extends WatchUi.View {
             _labels = labels;
         }
         _rowCount = Books.BOOK_COUNT;
-        focus = PickList.takeFocus(focus);
+        focus = PickList.takeFocus(focus, _labels as Lang.Array);
         PickList.draw(dc, "Bible BSB", _labels as Lang.Array, focus);
     }
 
@@ -122,8 +122,7 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
         }
         if (dir == WatchUi.SWIPE_LEFT) {
             // Flipper home Right = Filter: swipe left opens all 22 filters.
-            var fv = new FilterGridView();
-            WatchUi.pushView(fv, new FilterGridDelegate(fv), WatchUi.SLIDE_LEFT);
+            NativeLists.openFilter();
             return true;
         }
         if (dir == WatchUi.SWIPE_UP) {

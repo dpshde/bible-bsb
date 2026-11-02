@@ -11,9 +11,9 @@ scripts/fetch_bsb.py; **no filter changes**) and `/workspace/dpshde-scan/bible-b
 | 1 | Filter labels: All, A, C, D, E, G, H, I, J, K, L, M, N, O, P, R, S, T, Z, 1, 2, 3 (22) | `PickList.FILTER_LABELS`, same 22 in the same order | match | unit test `testFilterLabelsMatchFlipper` |
 | 2 | "All" = all 66 books | "All" → "All books" list (66) | match | |
 | 3 | Letter = books whose name starts with that letter | same rule on full BSB names | match | |
-| 4 | 1 / 2 / 3 = **every** numbered book (first char '1'–'3') | same: each digit lists all 17 numbered books | **fixed in v3** | v2 matched only the exact digit. Title "Numbered books" says what you get. Test `testFilterNumericMatchesAllNumbered` |
+| 4 | 1 / 2 / 3 = **every** numbered book (first char '1'–'3') | same: each digit lists all 17 numbered books | **fixed in v3** | v2 matched only the exact digit. Title "Books: 1–3" says what you get. Test `testFilterNumericMatchesAllNumbered` |
 | 5 | "< Select Filter" 5-column grid, 3 rows visible, scrolls | "Filter books" grid with **all 22 visible at once**: All on top, letters and numbers spread over the rows by circle chord | divergence (layout) | Round screen: rows reflow to the circle so nothing is clipped or hidden off screen |
-| 6 | OK applies the filter → book list headed "< X >" | Select or tap → book list headed "Books: X" (or "All books" / "Numbered books") | match (wording) | Full words, no "< >" glyph headers (Dylan's no-abbreviation rule) |
+| 6 | OK applies the filter → book list headed "< X >" | Select or tap → book list headed "Books: X" (or "All books" / "Books: 1–3") | match (wording) | Full words, no "< >" glyph headers (Dylan's no-abbreviation rule) |
 | 7 | Home "< All >": Right opens the filter | Home: **swipe left** opens the filter grid; Menu → Browse → "Filter books" | match (gesture) | Watch has no Right key; swipe left is the touch equivalent, the menu entry is the button path |
 | 8 | Home Left = Collection, or exit genre mode | Menu → Browse → Bookmarks | match (path) | Bookmarks = Flipper collection |
 | 9 | Testament → Genre → Book (genre mode, header "< Maj Prophets >") | By Testament → genre list → books, header uses full genre names ("Major Prophets") | match (wording) | No abbreviations |

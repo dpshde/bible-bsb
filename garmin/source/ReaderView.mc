@@ -1,6 +1,7 @@
 using Toybox.Attention;
 using Toybox.Graphics;
 using Toybox.Lang;
+using Toybox.System;
 using Toybox.Timer;
 using Toybox.WatchUi;
 
@@ -39,6 +40,7 @@ class ReaderView extends WatchUi.View {
     var _needChunk as Lang.Boolean = false;
     var _pendingJump as Lang.Number = 0;
     var _verseCount as Lang.Number = 0;
+    var shownAt as Lang.Number = 0; // InputGate: when this reader appeared
 
     function initialize() {
         View.initialize();
@@ -50,6 +52,7 @@ class ReaderView extends WatchUi.View {
     }
 
     function onShow() as Void {
+        shownAt = System.getTimer();
         AppState.scroll.mode = AppState.scroll.loadMode();
         clearLineCache(); // theme may have toggled while the menu was up
         _headKey = null;
@@ -62,6 +65,10 @@ class ReaderView extends WatchUi.View {
     function onHide() as Void {
         clearToastTimer();
         clearDeferTimer();
+        if (_preTimer != null) {
+            (_preTimer as Timer.Timer).stop();
+        }
+        _preIdx = [] as Lang.Array;
         LastReadApp.flush();
     }
 
@@ -104,6 +111,7 @@ class ReaderView extends WatchUi.View {
         clearLineCache();
         AppState.sections = [];
         AppState.scroll.lines = lines;
+        AppState.scroll.scrollOffset = 0;
         _continuationPending = false;
         _pendingJump = 0;
         ContentLoader.clearWordCache();
@@ -128,7 +136,8 @@ class ReaderView extends WatchUi.View {
         // POKE: font-grow re-wraps the whole chapter a 2nd time on open -> trips the stock
         // 240k watchdog on Enduro 3 (John 3). Disabled until grow is lazy/per-verse.
         // maybeGrowFontForFocus(dc, AppState.scroll.lines);
-        AppState.scroll.scrollOffset = 0;
+        // (scrollOffset is reset BEFORE the wrap + resume jump above; resetting it here wiped
+        // the last-read resume — edge pass B17.)
         var lineH = dc.getFontHeight(_bodyFont) + 2;
         var bandH = _bandBottom - _bandTop;
         AppState.scroll.visibleCount = bandH / lineH;
@@ -159,9 +168,13 @@ class ReaderView extends WatchUi.View {
         }
     }
 
+    //! One reused Timer per reader (CIQ caps live timers: "Too Many Timers Error").
     function scheduleChunk() as Void {
-        clearDeferTimer();
-        _deferTimer = new Timer.Timer();
+        if (_deferTimer == null) {
+            _deferTimer = new Timer.Timer();
+        } else {
+            _deferTimer.stop();
+        }
         _deferTimer.start(method(:onDeferContinuation), 50, false);
     }
 
@@ -662,6 +675,10 @@ class ReaderView extends WatchUi.View {
     var _lineHC as Lang.Number = 0;
 
     function schedulePrerender() as Void {
+        // Chunked wrap still running: its timer repaints anyway; prerender after it (timer cap).
+        if (_pendVerses != null || _continuationPending) {
+            return;
+        }
         if (toast != null || _lineHC == 0 || AppState.scroll.mode != ScrollModel.MODE_VERSE
             || !(Graphics has :createBufferedBitmap)) {
             return;
@@ -986,7 +1003,9 @@ class ReaderView extends WatchUi.View {
     function showToast(message as Lang.String) as Void {
         toast = message;
         clearToastTimer();
-        _toastTimer = new Timer.Timer();
+        if (_toastTimer == null) {
+            _toastTimer = new Timer.Timer();
+        }
         // POKE: RoundLayout.TOAST_MS (~1s visible)
         _toastTimer.start(method(:onToastExpired), RoundLayout.TOAST_MS, false);
         WatchUi.requestUpdate();
@@ -1014,7 +1033,6 @@ class ReaderView extends WatchUi.View {
     function clearDeferTimer() as Void {
         if (_deferTimer != null) {
             _deferTimer.stop();
-            _deferTimer = null;
         }
     }
 
@@ -1102,7 +1120,9 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
     function onKey(evt as WatchUi.KeyEvent) as Lang.Boolean {
         var k = evt.getKey();
         if (k == WatchUi.KEY_ENTER) {
-            _view.openMenu();
+            if (InputGate.accept(_view.shownAt, System.getTimer())) {
+                _view.openMenu();
+            }
             return true;
         }
         if (k == WatchUi.KEY_DOWN) {
@@ -1115,12 +1135,17 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onHold(evt) as Lang.Boolean {
-        _view.bookmarkFocusedVerse();
+        if (InputGate.accept(_view.shownAt, System.getTimer())) {
+            _view.bookmarkFocusedVerse();
+        }
         return true;
     }
 
     function onTap(evt) as Lang.Boolean {
-        _view.openMenu();
+        // Taps meant for the grid (mash during the open flash) must not open this menu.
+        if (InputGate.accept(_view.shownAt, System.getTimer())) {
+            _view.openMenu();
+        }
         return true;
     }
 

@@ -6,7 +6,8 @@ using Toybox.System;
 module Perf {
     var loads as Lang.Number = 0;
     var measures as Lang.Number = 0;
-    var texts as Lang.Number = 0; // drawText calls this frame (device-cost proxy: TTF raster)
+    var texts as Lang.Number = 0;
+    var peak as Lang.Number = 0; // drawText calls this frame (device-cost proxy: TTF raster)
 
     (:debug)
     function start() as Lang.Number {
@@ -18,7 +19,13 @@ module Perf {
 
     (:debug)
     function end(tag as Lang.String, t0 as Lang.Number) as Void {
-        System.println("PERF " + tag + " ms=" + (System.getTimer() - t0) + " loads=" + loads + " measures=" + measures + " texts=" + texts);
+        var st = System.getSystemStats();
+        if (st.usedMemory > peak) {
+            peak = st.usedMemory;
+        }
+        System.println("PERF " + tag + " ms=" + (System.getTimer() - t0) + " loads=" + loads + " measures=" + measures
+            + " texts=" + texts + " memKB=" + (st.usedMemory / 1024) + " peakKB=" + (peak / 1024)
+            + " totalKB=" + (st.totalMemory / 1024));
     }
 
     var _seg as Lang.String = "";
@@ -61,5 +68,15 @@ module Perf {
 
     (:release)
     function end(tag as Lang.String, t0 as Lang.Number) as Void {
+    }
+
+    //! Fallback log (abbreviations etc.): println in every build so a device log shows it.
+    var _noted as Lang.Dictionary = {};
+
+    function note(msg as Lang.String) as Void {
+        if (_noted[msg] == null) {
+            _noted[msg] = true;
+            System.println("NOTE " + msg);
+        }
     }
 }

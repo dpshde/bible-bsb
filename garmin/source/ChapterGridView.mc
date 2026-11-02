@@ -145,7 +145,6 @@ class ChapterGridView extends WatchUi.View {
             _bodyKey = -1;
         }
         var titleFont = Graphics.FONT_TINY;
-        var titleY = RoundLayout.edgeMargin(w, h);
         var sf = Graphics.FONT_XTINY;
         var sh = dc.getFontHeight(sf);
         var focusCh = grid.focusedChapter();
@@ -153,11 +152,13 @@ class ChapterGridView extends WatchUi.View {
             // Fixed grid top per book: always reserve the 2-row subtitle when the book has
             // headings, so a 1-row vs 2-row heading never shifts (and re-renders) the grid.
             firstSectionTitle(_gridBook, 1);
-            _subY = titleY + dc.getFontHeight(titleFont) + 1;
+            layoutTitle(dc, w, h, titleFont);
+            _subY = _titleY + dc.getFontHeight(titleFont) + 1;
             _top = _subY + (_heads != null ? 2 * sh : 0) + 4;
             _bottom = h - RoundLayout.edgeMargin(w, h);
         }
         var top = _top;
+        var titleY = _titleY;
         var cellH = (_bottom - top) / grid.visibleRows;
         if (cellH < 18) {
             cellH = 18;
@@ -176,16 +177,13 @@ class ChapterGridView extends WatchUi.View {
             if (firstSec != null) {
                 var st = firstSec as Lang.String;
                 // POKE: GRID_SUBTITLE_WRAP — never clip: one line if it fits the chord, else pyramid two lines.
-                var c1 = RoundLayout.chordWidth(_subY, w, h) - 12;
+                var c1 = RoundLayout.chordWidth(_subY, w, h) - 6;
                 if (dc.getTextWidthInPixels(st, sf) <= c1) {
                     _subParts = [st];
                 } else {
-                    var c2 = RoundLayout.chordWidth(_subY + sh - 2, w, h) - 12;
-                    var parts = RoundLayout.pyramidSplit(dc, st, sf, c1, c2);
-                    if (parts == null) {
-                        parts = RoundLayout.pyramidSplitEllipsize(dc, st, sf, c1, c2);
-                    }
-                    _subParts = parts;
+                    var c2 = RoundLayout.chordWidth(_subY + sh - 2, w, h) - 6;
+                    // POKE: GRID_SUBTITLE_WRAP — pyramid 2 lines; ellipsis only after line 2, at a word.
+                    _subParts = RoundLayout.pyramidSplitEllipsize(dc, st, sf, c1, c2);
                 }
             }
         }
@@ -280,12 +278,34 @@ class ChapterGridView extends WatchUi.View {
         }
     }
 
+    // Dylan 4:39 PM: the book name keeps the header font on every book (no step-down).
+    // Too wide at the top of the dial -> the header moves down (<= 1 line) where the
+    // circle is wider; only then the logged abbreviation. POKE: GRID_TITLE_SHIFT
+    var _titleY as Lang.Number = 0;
+    var _titleText as Lang.String = "";
+
+    function layoutTitle(dc as Graphics.Dc, w as Lang.Number, h as Lang.Number, f as Graphics.FontDefinition) as Void {
+        var name = Books.name(_gridBook);
+        var y = RoundLayout.edgeMargin(w, h);
+        var maxY = y + dc.getFontHeight(f);
+        var tw = dc.getTextWidthInPixels(name, f);
+        while (y < maxY && RoundLayout.chordWidth(y, w, h) - 8 < tw) {
+            y += 2;
+        }
+        _titleY = y;
+        _titleText = name;
+        if (RoundLayout.chordWidth(y, w, h) - 8 < tw) {
+            _titleText = Books.abbrevLabel(name);
+            Perf.note("ABBR grid title '" + name + "' -> '" + _titleText + "'");
+        }
+    }
+
     function drawHeader(dc as Graphics.Dc, w as Lang.Number, h as Lang.Number, titleY as Lang.Number,
                         titleFont as Graphics.FontDefinition, sf as Graphics.FontDefinition,
                         sh as Lang.Number, top as Lang.Number) as Void {
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         Perf.texts++;
-        RoundLayout.drawCenteredInChord(dc, titleY, Books.name(AppState.selectedBook), titleFont);
+        dc.drawText(w / 2, titleY, titleFont, _titleText, Graphics.TEXT_JUSTIFY_CENTER);
         if (_subParts != null) {
             var sp = _subParts as Lang.Array;
             dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
@@ -459,6 +479,9 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onNextPage() as Lang.Boolean {
+        if (gridView().flashIdx >= 0) {
+            return true; // input during the tap flash is ignored, not queued
+        }
         if (TouchGuard.consumePage()) {
             return true;
         }
@@ -468,6 +491,9 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onPreviousPage() as Lang.Boolean {
+        if (gridView().flashIdx >= 0) {
+            return true; // input during the tap flash is ignored, not queued
+        }
         if (TouchGuard.consumePage()) {
             return true;
         }
@@ -492,6 +518,9 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
 
     function activate() as Lang.Boolean {
         var v = gridView();
+        if (v.flashIdx >= 0) {
+            return true; // a tap is already opening a chapter: never open twice
+        }
         v.openChapterIndex(v.grid.focusIndex);
         return true;
     }
@@ -499,6 +528,9 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
     function onHold(evt) as Lang.Boolean {
         var coords = evt.getCoordinates();
         var v = gridView();
+        if (v.flashIdx >= 0) {
+            return true;
+        }
         var idx = v.chapterAt(coords[0], coords[1]);
         if (idx >= 0) {
             v.grid.setFocusIndex(idx);
@@ -515,7 +547,7 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
         var coords = evt.getCoordinates();
         var v = gridView();
         var idx = v.chapterAt(coords[0], coords[1]);
-        if (idx >= 0) {
+        if (idx >= 0 && v.flashIdx < 0) {
             v.flashAndOpen(idx); // gold flash next frame + haptic, opens after FLASH_MS
         }
         return true;

@@ -40,6 +40,22 @@ module Books {
     //! Spike: books that have bundled JSON (see ContentLoader).
     const SPIKE_BOOK_INDEXES = [38, 39, 42]; // Malachi, Matthew, John
 
+    //! Last-resort abbreviations (Dylan 4:39 PM: only when a full name truly cannot fit
+    //! the circle at that row's y; callers log every use). POKE: BOOK_ABBREV
+    const ABBREV = {
+        "1 Thessalonians" => "1 Thess.", "2 Thessalonians" => "2 Thess.",
+        "Song of Solomon" => "Song", "1 Chronicles" => "1 Chron.", "2 Chronicles" => "2 Chron.",
+        "Lamentations" => "Lam.", "Deuteronomy" => "Deut.", "Ecclesiastes" => "Eccl.",
+        "1 Corinthians" => "1 Cor.", "2 Corinthians" => "2 Cor.", "Philippians" => "Phil.",
+        "Colossians" => "Col.", "Zephaniah" => "Zeph.", "Zechariah" => "Zech.",
+        "Revelation" => "Rev.", "Leviticus" => "Lev.", "Galatians" => "Gal.", "Ephesians" => "Eph."
+    };
+
+    function abbrevLabel(label as Lang.String) as Lang.String {
+        var a = ABBREV[label];
+        return a != null ? a as Lang.String : label;
+    }
+
     function name(bookIndex as Lang.Number) as Lang.String {
         if (bookIndex < 0 || bookIndex >= BOOK_COUNT) {
             return "?";

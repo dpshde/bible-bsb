@@ -48,19 +48,13 @@ class ThemedMenuItem extends WatchUi.CustomMenuItem {
         dc.clear();
         var f = focused ? Graphics.FONT_SMALL : Graphics.FONT_TINY;
         var fh = dc.getFontHeight(f);
-        var sub = focused ? _sub : null;
+        var sub = _sub;
         var sf = Graphics.FONT_XTINY;
         var sh = sub != null ? dc.getFontHeight(sf) : 0;
         var y = (h - fh - sh) / 2;
         var label = RoundLayout.ellipsize(dc, _label, f, w - 24);
         if (focused) {
-            var tw = dc.getTextWidthInPixels(label, f) + 20;
-            if (tw > w - 8) {
-                tw = w - 8;
-            }
-            dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_BG);
-            dc.fillRoundedRectangle((w - tw) / 2, y - 1, tw, fh + 2, 6);
-            dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
+            dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT); // no cards/pills
         } else {
             dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
         }
@@ -166,5 +160,69 @@ class ThemedWrapItem extends WatchUi.CustomMenuItem {
         for (i = 0; i < rows.size(); i++) {
             dc.drawText(w / 2, y + i * lh, f, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
         }
+    }
+}
+
+//! v4 (Dylan 4:39 PM): app menus are native WatchUi.Menu2, so title, scroll, focus, wrap and
+//! back are the system's own. POKE: MENU_STYLE — targets with Menu2 themes (API 4.1.8+) get
+//! MENU_THEME_ORANGE (closest system accent to gold #C89D54); older targets fall back to the
+//! minimal CustomMenu above (gold text focus, no cards/pills) with the same delegate API.
+//! Native menus follow the system palette, so the app's Light theme does not tint them.
+module UiMenu {
+    function isNative() as Lang.Boolean {
+        return WatchUi has :MENU_THEME_ORANGE;
+    }
+
+    function create(title as Lang.String) {
+        if (isNative()) {
+            return new WatchUi.Menu2({:title => title, :theme => WatchUi.MENU_THEME_ORANGE});
+        }
+        return new ThemedMenu(title);
+    }
+
+    function item(label as Lang.String, sub as Lang.String or Null, id as Lang.Object) {
+        if (isNative()) {
+            return new WatchUi.MenuItem(label, sub, id, null);
+        }
+        return new ThemedMenuItem(label, sub, id);
+    }
+
+    //! On/off setting with a plain-language sublabel for each state.
+    //! Native: ToggleMenuItem (system switch). Fallback: ThemedToggleItem (sublabel flips).
+    function toggle(label as Lang.String, subOn as Lang.String, subOff as Lang.String,
+                    on as Lang.Boolean, id as Lang.Object) {
+        if (isNative()) {
+            return new WatchUi.ToggleMenuItem(label, {:enabled => subOn, :disabled => subOff}, id, on, null);
+        }
+        return new ThemedToggleItem(label, subOn, subOff, on, id);
+    }
+
+    //! State after the user selected a toggle item (native flips it itself).
+    function toggledState(item) as Lang.Boolean {
+        if (item instanceof ThemedToggleItem) {
+            return (item as ThemedToggleItem).flip();
+        }
+        return (item as WatchUi.ToggleMenuItem).isEnabled();
+    }
+}
+
+class ThemedToggleItem extends ThemedMenuItem {
+    var _on as Lang.Boolean;
+    var _subOn as Lang.String;
+    var _subOff as Lang.String;
+
+    function initialize(label as Lang.String, subOn as Lang.String, subOff as Lang.String,
+                        on as Lang.Boolean, id as Lang.Object) {
+        ThemedMenuItem.initialize(label, on ? subOn : subOff, id);
+        _on = on;
+        _subOn = subOn;
+        _subOff = subOff;
+    }
+
+    function flip() as Lang.Boolean {
+        _on = !_on;
+        _sub = _on ? _subOn : _subOff;
+        WatchUi.requestUpdate();
+        return _on;
     }
 }

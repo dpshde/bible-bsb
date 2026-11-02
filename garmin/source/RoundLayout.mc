@@ -239,15 +239,56 @@ module RoundLayout {
         return best;
     }
 
-    //! Last-resort two lines: pyramid-split with line 2 unbounded, then ellipsize line 2 only.
+    //! Last-resort two lines (nothing fits whole): line 1 = a word prefix inside w1, line 2 =
+    //! the following words cut at a WORD boundary + "…" inside w2. Picks the split that
+    //! shows the most words, pyramid (line 1 <= line 2) on ties. Ellipsis only on line 2.
     function pyramidSplitEllipsize(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontDefinition,
                                    w1 as Lang.Number, w2 as Lang.Number) as Lang.Array {
-        var parts = pyramidSplit(dc, text, font, w1, 100000);
-        if (parts == null) {
-            parts = ["", text];
+        var whole = pyramidSplit(dc, text, font, w1, w2);
+        if (whole != null) {
+            return whole as Lang.Array;
         }
-        parts[1] = ellipsize(dc, parts[1] as Lang.String, font, w2);
-        return parts;
+        var words = ContentLoader.splitWords(text);
+        var best = null;
+        var bestScore = -1;
+        var a = "";
+        var k;
+        for (k = 1; k < words.size(); k++) {
+            a = a.length() == 0 ? words[k - 1] as Lang.String : a + " " + words[k - 1];
+            var wa = dc.getTextWidthInPixels(a, font);
+            if (wa > w1) {
+                break;
+            }
+            var m = words.size();
+            var b = "";
+            while (m > k) {
+                b = "";
+                var i;
+                for (i = k; i < m; i++) {
+                    b = b.length() == 0 ? words[i] as Lang.String : b + " " + words[i];
+                }
+                if (dc.getTextWidthInPixels(b + "…", font) <= w2) {
+                    break;
+                }
+                m--;
+            }
+            if (m == k) {
+                b = ellipsize(dc, words[k] as Lang.String, font, w2); // one over-long word
+                m = k + 1;
+            } else {
+                b = b + "…";
+            }
+            var wb = dc.getTextWidthInPixels(b, font);
+            var score = m * 10000 + (wa <= wb ? 5000 : 0) + wa;
+            if (score > bestScore) {
+                best = [a, b];
+                bestScore = score;
+            }
+        }
+        if (best == null) {
+            return ["", ellipsize(dc, text, font, w2)];
+        }
+        return best as Lang.Array;
     }
 
     //! Three rows, row 1 <= row 2 (pyramid), each inside its chord. Null if no fit.
@@ -288,30 +329,64 @@ module RoundLayout {
         if (dc.getTextWidthInPixels(text, font) <= maxW) {
             return text;
         }
+        // Prefer whole words: drop trailing words while at least one word remains.
         var s = text;
+        var sp = lastSpaceAt(s);
+        while (sp > 0) {
+            s = s.substring(0, sp);
+            if (dc.getTextWidthInPixels(s + "…", font) <= maxW) {
+                return s + "…";
+            }
+            sp = lastSpaceAt(s);
+        }
+        // Single over-long word: cut by character.
+        s = text;
         while (s.length() > 1) {
             s = s.substring(0, s.length() - 1);
-            if (dc.getTextWidthInPixels(s + "..", font) <= maxW) {
-                return s + "..";
+            if (dc.getTextWidthInPixels(s + "…", font) <= maxW) {
+                return s + "…";
             }
         }
-        return "..";
+        return "…";
     }
 
+    function lastSpaceAt(s as Lang.String) as Lang.Number {
+        var k = s.length() - 1;
+        while (k > 0) {
+            if (s.substring(k, k + 1).equals(" ")) {
+                return k;
+            }
+            k--;
+        }
+        return 0;
+    }
+
+    //! Circle = the device SCREEN (not dc size): headers are drawn into bitmaps blitted at
+    //! the screen origin, whose own size is not the circle. Steps the font down until the
+    //! text fits its chord; ellipsis only as the last resort (never a mid-glyph clip).
     function drawCenteredInChord(dc as Graphics.Dc, y as Lang.Number, text as Lang.String,
                                  font as Graphics.FontDefinition) as Void {
-        var w = dc.getWidth();
-        var h = dc.getHeight();
-        var midY = y + dc.getFontHeight(font) / 2;
-        var cw = chordWidth(midY, w, h);
-        var useFont = font;
-        if (dc.getTextWidthInPixels(text, useFont) > cw) {
-            useFont = shrinkFont(useFont);
+        var ds = System.getDeviceSettings();
+        var w = ds.screenWidth;
+        var h = ds.screenHeight;
+        var useFont = font; // Dylan 4:39 PM: never step the font down; shift, then ellipsize
+        // Still too wide near the top of the dial: slide down (<= 1/2 line, chord widens)
+        // before ever ellipsizing (edge pass: "Song of Sol..", "1 Thessalo.." headers).
+        var tw = dc.getTextWidthInPixels(text, useFont);
+        var maxDy = dc.getFontHeight(useFont) / 2;
+        var dy = 0;
+        while (dy < maxDy && y + dy < h / 2) {
+            var a = chordWidth(y + dy, w, h) - 8;
+            if (tw <= a) {
+                break;
+            }
+            dy += 2;
         }
-        var left = chordLeft(midY, w, h);
-        dc.setClip(left, y - 1, cw, dc.getFontHeight(useFont) + 2);
-        dc.drawText(w / 2, y, useFont, text, Graphics.TEXT_JUSTIFY_CENTER);
-        dc.clearClip();
+        y += dy;
+        var c0 = chordWidth(y + dc.getFontHeight(useFont), w, h) - 8;
+        var c1 = chordWidth(y, w, h) - 8;
+        var t = ellipsize(dc, text, useFont, c0 < c1 ? c0 : c1);
+        dc.drawText(w / 2, y, useFont, t, Graphics.TEXT_JUSTIFY_CENTER);
     }
 
     function shrinkFont(font as Graphics.FontDefinition) as Graphics.FontDefinition {

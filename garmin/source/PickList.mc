@@ -143,6 +143,7 @@ module PickList {
     var _cVis as Lang.Number = 1;
     var _cRoom as Lang.Number = 0;   // text room = narrowest list chord - 2*ROW_PAD
     var _cPillW as Lang.Number = 0;
+    var _cMaxW as Lang.Number = 0;    // widest row (window middle) - ROW_PAD: bitmap width
     var _rowBmp as Lang.Dictionary = {}; // idx*2 + focused -> BufferedBitmapReference
     var _fit as Lang.Dictionary = {};    // idx -> [font, text, fontH]
     const ROW_CACHE_MAX = 16;
@@ -187,6 +188,9 @@ module PickList {
         var cMin = cTop < cBot ? cTop : cBot;
         _cRoom = cMin - 2 * ROW_PAD;
         _cPillW = cMin - ROW_PAD;
+        var cMid = RoundLayout.chordWidth((y + bottom) / 2, w, h);
+        _cMaxW = cMid - ROW_PAD;
+        _fullW = {};
         _rowBmp = {};
         _fit = {};
         _titleBmp = null;
@@ -223,22 +227,45 @@ module PickList {
         return y + dc.getFontHeight(ff);
     }
 
-    function fitFor(dc as Graphics.Dc, idx as Lang.Number, label as Lang.String) as Lang.Array {
-        var f = _fit[idx];
+    // Dylan 4:39 PM: every row uses ONE font (siblings match; no step-down for long names).
+    // POKE: LIST_FONT
+    const LIST_FONT = Graphics.FONT_SMALL;
+    var _fullW as Lang.Dictionary = {};
+
+    function fullWidth(dc as Graphics.Dc, idx as Lang.Number, label as Lang.String) as Lang.Number {
+        var v = _fullW[idx];
+        if (v == null) {
+            v = dc.getTextWidthInPixels(label, LIST_FONT);
+            _fullW[idx] = v;
+        }
+        return v as Lang.Number;
+    }
+
+    //! Text room for a row whose top is at y: the narrower of its top/bottom chords.
+    function roomAt(y as Lang.Number) as Lang.Number {
+        var ds = System.getDeviceSettings();
+        var a = RoundLayout.chordWidth(y, ds.screenWidth, ds.screenHeight);
+        var b = RoundLayout.chordWidth(y + _cRowH, ds.screenWidth, ds.screenHeight);
+        return (a < b ? a : b) - 2 * ROW_PAD;
+    }
+
+    //! short = this row sits where the circle is too narrow for the full name: use the
+    //! book abbreviation (last resort, logged), never a smaller font.
+    function fitFor(dc as Graphics.Dc, idx as Lang.Number, label as Lang.String, isShort as Lang.Boolean) as Lang.Array {
+        var key = idx * 2 + (isShort ? 1 : 0);
+        var f = _fit[key];
         if (f != null) {
             return f as Lang.Array;
         }
-        var fonts = [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY];
-        var face = Graphics.FONT_XTINY;
-        var k;
-        for (k = 0; k < fonts.size(); k++) {
-            if (dc.getTextWidthInPixels(label, fonts[k] as Graphics.FontDefinition) <= _cRoom) {
-                face = fonts[k] as Graphics.FontDefinition;
-                break;
+        var text = label;
+        if (isShort) {
+            text = Books.abbrevLabel(label);
+            if (!text.equals(label)) {
+                Perf.note("ABBR row '" + label + "' -> '" + text + "'");
             }
         }
-        var out = [face, ellipsize(dc, label, face, _cRoom), dc.getFontHeight(face)]; // ellipsis = last resort
-        _fit[idx] = out;
+        var out = [LIST_FONT, ellipsize(dc, text, LIST_FONT, _cMaxW - ROW_PAD), dc.getFontHeight(LIST_FONT)];
+        _fit[key] = out;
         return out;
     }
 
@@ -248,7 +275,14 @@ module PickList {
         Perf.texts++;
         if (focused) {
             dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_BG);
-            dc.fillRectangle(cx - _cPillW / 2, y0, _cPillW, _cRowH - 2);
+            var pw = dc.getTextWidthInPixels(fit[1] as Lang.String, fit[0] as Graphics.FontDefinition) + 2 * ROW_PAD;
+            if (pw < _cPillW) {
+                pw = _cPillW;
+            }
+            if (pw > _cMaxW) {
+                pw = _cMaxW;
+            }
+            dc.fillRectangle(cx - pw / 2, y0, pw, _cRowH - 2);
             dc.setColor(Palette.FOCUS_FG, Palette.FOCUS_BG);
         } else {
             dc.setColor(Palette.TEXT, bg);
@@ -257,8 +291,9 @@ module PickList {
                     fit[1] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
     }
 
-    function rowBitmap(dc as Graphics.Dc, idx as Lang.Number, label as Lang.String, focused as Lang.Boolean) {
-        var key = idx * 2 + (focused ? 1 : 0);
+    function rowBitmap(dc as Graphics.Dc, idx as Lang.Number, label as Lang.String, focused as Lang.Boolean,
+                       isShort as Lang.Boolean) {
+        var key = idx * 4 + (isShort ? 2 : 0) + (focused ? 1 : 0);
         var ref = _rowBmp[key];
         if (ref != null) {
             var got = (ref as Graphics.BufferedBitmapReference).get();
@@ -269,7 +304,7 @@ module PickList {
         if (_rowBmp.size() >= ROW_CACHE_MAX) {
             evictRows();
         }
-        var bw = _cPillW + 2;
+        var bw = _cMaxW + 2;
         ref = Graphics.createBufferedBitmap({:width => bw, :height => _cRowH});
         var bmp = (ref as Graphics.BufferedBitmapReference).get();
         if (bmp == null) {
@@ -278,7 +313,7 @@ module PickList {
         var bdc = (bmp as Graphics.BufferedBitmap).getDc();
         bdc.setColor(Palette.BG, Palette.BG);
         bdc.clear();
-        drawRow(bdc, bw / 2, 0, fitFor(dc, idx, label), focused, Palette.BG);
+        drawRow(bdc, bw / 2, 0, fitFor(dc, idx, label, isShort), focused, Palette.BG);
         _rowBmp[key] = ref;
         return ref;
     }
@@ -288,7 +323,7 @@ module PickList {
         var keys = _rowBmp.keys();
         var i;
         for (i = 0; i < keys.size(); i++) {
-            var ri = (keys[i] as Lang.Number) / 2;
+            var ri = (keys[i] as Lang.Number) / 4;
             if (ri < first - 2 || ri > first + _cVis + 2) {
                 _rowBmp.remove(keys[i]);
             }
@@ -326,7 +361,21 @@ module PickList {
     }
 
     //! Views call this first in onUpdate: focus chosen by a drag / momentum wins.
-    function takeFocus(focus as Lang.Number) as Lang.Number {
+    //! A drag/momentum focus belongs to the list it was made on (module state is shared):
+    //! a different list (edge pass D12: stale home-list focus hid the filtered list's
+    //! highlight) drops it, and focus is always clamped into range.
+    function takeFocus(focus as Lang.Number, labels as Lang.Array) as Lang.Number {
+        if (_cLabels == null || _cLabels != labels) {
+            _focusOut = -1;
+            stopMomentum();
+        }
+        var n = labels.size();
+        if (n > 0 && focus >= n) {
+            focus = n - 1;
+        }
+        if (_focusOut >= n) {
+            _focusOut = -1;
+        }
         if (_focusOut >= 0) {
             var f = _focusOut;
             _focusOut = -1;
@@ -460,6 +509,14 @@ module PickList {
             _lastFocus = focus;
         }
         var n = labels.size();
+        if (n == 0) {
+            // Filter with no books (Flipper's "K": every Kings book is numbered).
+            dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
+            Perf.texts++;
+            dc.drawText(w / 2, (_cTop + _cBottom) / 2 - dc.getFontHeight(Graphics.FONT_TINY) / 2,
+                        Graphics.FONT_TINY, "No books", Graphics.TEXT_JUSTIFY_CENTER);
+            return;
+        }
         var rowH = _cRowH;
         var pxi = _px.toNumber();
         var first = pxi / rowH;
@@ -478,11 +535,12 @@ module PickList {
             }
             var y = _cTop + r * rowH - off;
             var label = labels[i] as Lang.String;
-            var ref = bmps ? rowBitmap(dc, i, label, i == focus) : null;
+            var isShort = fullWidth(dc, i, label) > roomAt(y);
+            var ref = bmps ? rowBitmap(dc, i, label, i == focus, isShort) : null;
             if (ref != null) {
-                dc.drawBitmap(w / 2 - (_cPillW + 2) / 2, y, ref);
+                dc.drawBitmap(w / 2 - (_cMaxW + 2) / 2, y, ref);
             } else {
-                drawRow(dc, w / 2, y, fitFor(dc, i, label), i == focus, Graphics.COLOR_TRANSPARENT);
+                drawRow(dc, w / 2, y, fitFor(dc, i, label, isShort), i == focus, Graphics.COLOR_TRANSPARENT);
             }
         }
         dc.clearClip();
@@ -539,7 +597,7 @@ class PickListView extends WatchUi.View {
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
-        focus = PickList.takeFocus(focus);
+        focus = PickList.takeFocus(focus, labels);
         PickList.draw(dc, title, labels, focus);
     }
 }
@@ -651,12 +709,12 @@ class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
     }
 
     static function open() as Void {
-        var menu = new ThemedMenu("Browse");
-        menu.addItem(new ThemedMenuItem("Bookmarks", null, :bookmarks));
-        menu.addItem(new ThemedMenuItem("By Testament", null, :testament));
-        menu.addItem(new ThemedMenuItem("Filter books", "All, A to Z, 1 to 3", :letter));
-        menu.addItem(new ThemedMenuItem("All books", null, :all));
-        menu.addItem(new ThemedMenuItem("Theme: " + Palette.themeLabel(), "Dark / Light", :theme));
+        var menu = UiMenu.create("Browse");
+        menu.addItem(UiMenu.item("Bookmarks", null, :bookmarks));
+        menu.addItem(UiMenu.item("By Testament", null, :testament));
+        menu.addItem(UiMenu.item("Filter books", "All, A to Z, 1 to 3", :letter));
+        menu.addItem(UiMenu.item("All books", null, :all));
+        menu.addItem(UiMenu.item("Settings", "Scrolling, theme, vibration", :theme));
         WatchUi.pushView(menu, new HomeMenu2Delegate(), WatchUi.SLIDE_UP);
     }
 
@@ -664,16 +722,13 @@ class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
         var id = item.getId();
         WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
         if (id == :bookmarks) {
-            WatchUi.pushView(new BookmarksView(), new BookmarksDelegate(), WatchUi.SLIDE_UP);
+            NativeLists.openBookmarks();
         } else if (id == :testament) {
-            WatchUi.pushView(new TestamentListView(), new TestamentListDelegate(), WatchUi.SLIDE_LEFT);
+            NativeLists.openBrowse();
         } else if (id == :letter) {
-            var fv = new FilterGridView();
-            WatchUi.pushView(fv, new FilterGridDelegate(fv), WatchUi.SLIDE_LEFT);
+            NativeLists.openFilter();
         } else if (id == :theme) {
-            Palette.toggleTheme();
-            PickList.invalidate();
-            WatchUi.requestUpdate();
+            NativeLists.openSettings();
         } else if (id == :all) {
             var books = PickList.booksForFilter(0);
             var v2 = new PickListView("All books", PickList.bookLabels(books));
