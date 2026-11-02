@@ -193,6 +193,7 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
                         end_verse,
                     });
                     state.scroll_offset = 0;
+                    state.reader_on_chapter_page = false;
                     state.reader_came_from_collection = false;
                     state.current_view = AppView::Reader;
                 } else {

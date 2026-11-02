@@ -176,9 +176,9 @@ void bible_draw_toast(Canvas* canvas, const BibleToast* toast) {
  * ============================================================================ */
 
 uint16_t bible_max_visible_lines(int16_t y_offset) {
-    int16_t max_v = (BIBLE_SCREEN_HEIGHT - y_offset - BIBLE_MARGIN_Y) / BIBLE_LINE_HEIGHT;
-    if(max_v < 1) max_v = 1;
-    return (uint16_t)max_v;
+    int16_t avail = BIBLE_SCREEN_HEIGHT - y_offset - BIBLE_MARGIN_Y;
+    if(avail < BIBLE_CHAR_HEIGHT) return 1;
+    return (uint16_t)(1 + (avail - BIBLE_CHAR_HEIGHT) / BIBLE_LINE_HEIGHT);
 }
 
 void bible_render_page(
@@ -197,7 +197,7 @@ void bible_render_page(
         if(idx >= line_count) break;
 
         int16_t y = y_offset + ((int16_t)i * BIBLE_LINE_HEIGHT);
-        if(y + BIBLE_LINE_HEIGHT > BIBLE_SCREEN_HEIGHT - BIBLE_MARGIN_Y) break;
+        if(y + BIBLE_CHAR_HEIGHT > BIBLE_SCREEN_HEIGHT - BIBLE_MARGIN_Y) break;
 
         canvas_draw_str(canvas, BIBLE_MARGIN_X, y + BIBLE_CHAR_HEIGHT - 1, lines[idx].text);
     }

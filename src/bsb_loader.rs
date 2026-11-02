@@ -164,11 +164,8 @@ pub fn load_chapter(osis_lower: &str, chapter: u16) -> Option<Vec<Verse>> {
         let mut chunk = [0u8; CHUNK];
         let mut total_read: usize = 0;
         loop {
-            let n = sys::storage_file_read(
-                file,
-                chunk.as_mut_ptr() as *mut core::ffi::c_void,
-                CHUNK,
-            );
+            let n =
+                sys::storage_file_read(file, chunk.as_mut_ptr() as *mut core::ffi::c_void, CHUNK);
             if n == 0 || total_read + n > MAX_FILE_SIZE {
                 break;
             }

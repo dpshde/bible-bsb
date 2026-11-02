@@ -274,9 +274,11 @@ static bool bible_scan_verses_from_json(
     uint16_t start_verse,
     uint16_t end_verse,
     BibleVerseCallback callback,
-    void* ctx) {
+    void* ctx,
+    uint16_t* out_max_verse) {
     const char* p = json;
     uint16_t count = 0;
+    uint16_t max_verse = 0;
 
     while(*p != '\0') {
         /* Look for "n": */
@@ -292,6 +294,9 @@ static bool bible_scan_verses_from_json(
             while(*p >= '0' && *p <= '9') {
                 verse_num = verse_num * 10 + (*p - '0');
                 p++;
+            }
+            if(verse_num > max_verse) {
+                max_verse = verse_num;
             }
 
             /* Look for "t":" */
@@ -336,6 +341,7 @@ static bool bible_scan_verses_from_json(
                         bible_sanitize_text(text_buf, sizeof(text_buf) - 1);
                         count++;
                         if(!callback(verse_num, text_buf, ctx)) {
+                            if(out_max_verse) *out_max_verse = max_verse;
                             return true; /* caller requested early stop */
                         }
                     }
@@ -348,6 +354,7 @@ static bool bible_scan_verses_from_json(
         }
     }
 
+    if(out_max_verse) *out_max_verse = max_verse;
     return count > 0;
 }
 
@@ -425,10 +432,11 @@ bool bible_load_chapter(
     memset(&state->passage, 0, sizeof(BiblePassage));
 
     WrapContext ctx = {.state = state, .oom = false};
+    uint16_t max_verse = 0;
 
     /* Scan verses and wrap each one into lines immediately */
     bool ok = bible_scan_verses_from_json(
-        (const char*)buf, total, start_verse, end_verse, bible_wrap_callback, &ctx);
+        (const char*)buf, total, start_verse, end_verse, bible_wrap_callback, &ctx, &max_verse);
 
     free(buf);
 
@@ -450,8 +458,7 @@ bool bible_load_chapter(
     state->passage.start_verse = start_verse;
     state->passage.end_verse = end_verse;
 
-    /* Derive verse_count from the highest verse_number seen in lines */
-    uint16_t max_verse = 0;
+    /* Derive verse_count from the highest verse_number in the chapter */
     for(uint16_t i = 0; i < state->line_count; i++) {
         if(state->lines[i].verse_number > max_verse) {
             max_verse = state->lines[i].verse_number;
@@ -480,7 +487,7 @@ bool bible_load_chapter_verse_scan(
     }
 
     bool ok = bible_scan_verses_from_json(
-        (const char*)buf, total, start_verse, end_verse, callback, ctx);
+        (const char*)buf, total, start_verse, end_verse, callback, ctx, NULL);
 
     free(buf);
     return ok;

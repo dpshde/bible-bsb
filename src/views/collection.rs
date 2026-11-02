@@ -14,12 +14,7 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
         if state.collection.is_empty() {
             sys::canvas_set_font(canvas, sys::FontSecondary);
             sys::canvas_draw_str(canvas, 4, 30, c"No saved passages".as_ptr() as *const u8);
-            sys::canvas_draw_str(
-                canvas,
-                4,
-                44,
-                c"Back to home".as_ptr() as *const u8,
-            );
+            sys::canvas_draw_str(canvas, 4, 44, c"Back to home".as_ptr() as *const u8);
             return;
         }
 
@@ -104,7 +99,9 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
                 // Delete selected passage
                 if state.collection_scroll < state.collection.len() {
                     state.collection.remove(state.collection_scroll);
-                    if !state.collection.is_empty() && state.collection_scroll >= state.collection.len() {
+                    if !state.collection.is_empty()
+                        && state.collection_scroll >= state.collection.len()
+                    {
                         state.collection_scroll -= 1;
                     }
                     crate::storage::save_collection(&state.collection);
@@ -116,11 +113,15 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
                     let chapter = entry.chapter;
                     let osis_lower = crate::books::OSIS_BOOK_CODES[book_index].to_lowercase();
 
-                    let verses = if let Some(all_verses) = crate::bsb_loader::load_chapter(&osis_lower, chapter) {
+                    let verses = if let Some(all_verses) =
+                        crate::bsb_loader::load_chapter(&osis_lower, chapter)
+                    {
                         // Filter to the saved verse range
                         all_verses
                             .into_iter()
-                            .filter(|v| v.number >= entry.start_verse && v.number <= entry.end_verse)
+                            .filter(|v| {
+                                v.number >= entry.start_verse && v.number <= entry.end_verse
+                            })
                             .collect::<alloc::vec::Vec<_>>()
                     } else {
                         alloc::vec::Vec::new()
@@ -130,8 +131,16 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
                     state.selected_book = book_index;
                     state.selected_chapter = chapter;
 
-                    let start_verse = if verses.is_empty() { 0 } else { verses.first().unwrap().number };
-                    let end_verse = if verses.is_empty() { 0 } else { verses.last().unwrap().number };
+                    let start_verse = if verses.is_empty() {
+                        0
+                    } else {
+                        verses.first().unwrap().number
+                    };
+                    let end_verse = if verses.is_empty() {
+                        0
+                    } else {
+                        verses.last().unwrap().number
+                    };
 
                     state.passage = Some(crate::models::Passage {
                         book_index,
@@ -141,6 +150,7 @@ pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
                     });
 
                     state.scroll_offset = 0;
+                    state.reader_on_chapter_page = false;
                     state.reader_came_from_collection = true;
                     state.current_view = AppView::Reader;
                 }

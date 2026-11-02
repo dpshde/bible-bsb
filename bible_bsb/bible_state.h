@@ -101,11 +101,18 @@ typedef struct BibleAppState {
     uint16_t selected_start_verse;
     uint16_t selected_end_verse;
     uint8_t verse_select_mode; /* 0=All, 1=Start, 2=End */
-    uint8_t book_filter_idx; /* 0-21 */
+    uint8_t book_filter_idx; /* 0-22 */
+    bool genre_mode_enabled; /* true = Testament -> Genre -> Book hierarchy */
+    uint8_t browse_depth; /* 0 = Testament, 1 = Genre, 2 = Book */
+    uint8_t selected_testament; /* 0 = OT, 1 = NT */
+    uint8_t selected_genre; /* 0-9 index into BIBLE_GENRES */
     uint16_t scroll_offset;
     uint16_t book_scroll;
     uint16_t collection_scroll;
+    uint8_t collection_selected;
     uint8_t action_menu_selection;
+    bool action_menu_from_collection;
+    uint16_t goto_verse;
 
     /* Data */
     BiblePassage passage;
@@ -121,11 +128,13 @@ typedef struct BibleAppState {
     uint16_t line_count;
     uint16_t lines_capacity;
     uint16_t current_page;
+    bool reader_on_chapter_page; /* true when showing the chapter boundary title page */
 
     /* Feedback */
     BibleToast toast;
 
     /* NFC / sharing */
+    bool verse_select_for_nfc;
     bool reader_came_from_collection;
     char nfc_url[128];
     bool nfc_emitting;
@@ -256,12 +265,20 @@ static inline void bible_app_state_init(BibleAppState* state) {
     state->selected_end_verse = 1;
     state->verse_select_mode = 0;
     state->book_filter_idx = 0;
+    state->genre_mode_enabled = false;
+    state->browse_depth = 0;
+    state->selected_testament = 0;
+    state->selected_genre = 0;
     state->action_menu_selection = 0;
+    state->action_menu_from_collection = false;
+    state->goto_verse = 1;
     state->collection_count = 0;
     state->collection_loaded = false;
     state->line_count = 0;
     state->lines_capacity = 0;
     state->current_page = 0;
+    state->reader_on_chapter_page = false;
+    state->verse_select_for_nfc = false;
     state->reader_came_from_collection = false;
     state->nfc_emitting = false;
     state->nfc_is_export = false;

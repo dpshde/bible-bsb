@@ -22,28 +22,58 @@ pub fn draw(canvas: *mut sys::Canvas, state: &AppState) {
         }
 
         // Render text below header with top padding (header line at y=10, padding to y=16)
-        crate::renderer::render_page(canvas, &state.lines, state.scroll_offset, 16);
+        if state.reader_on_chapter_page {
+            if let Some(ref passage) = state.passage {
+                sys::canvas_set_font(canvas, sys::FontPrimary);
 
-        // Page indicator
-        let total_pages = crate::renderer::total_pages(&state.lines, 16);
-        let max_visible = ((64 - 16 - 2) / crate::renderer::LINE_HEIGHT) as usize;
-        let current_page = if state.scroll_offset + max_visible >= state.lines.len() {
-            total_pages
+                let book_name = books::OSIS_BOOK_NAMES
+                    .get(passage.book_index)
+                    .copied()
+                    .unwrap_or("Book");
+                let mut bbuf = [0u8; 32];
+                let bb = book_name.as_bytes();
+                let blen = bb.len().min(bbuf.len() - 1);
+                bbuf[..blen].copy_from_slice(&bb[..blen]);
+                bbuf[blen] = 0;
+                let bw = sys::canvas_string_width(canvas, bbuf.as_ptr() as *const core::ffi::c_char)
+                    as i32;
+                let bx = if bw < 128 { (128 - bw) / 2 } else { 2 };
+                sys::canvas_draw_str(canvas, bx, 32, bbuf.as_ptr() as *const u8);
+
+                let ch_str = alloc::format!("Chapter {}", passage.chapter);
+                let mut cbuf = [0u8; 24];
+                let cb = ch_str.as_bytes();
+                let clen = cb.len().min(cbuf.len() - 1);
+                cbuf[..clen].copy_from_slice(&cb[..clen]);
+                cbuf[clen] = 0;
+                let cw = sys::canvas_string_width(canvas, cbuf.as_ptr() as *const core::ffi::c_char)
+                    as i32;
+                let cx = if cw < 128 { (128 - cw) / 2 } else { 2 };
+                sys::canvas_draw_str(canvas, cx, 46, cbuf.as_ptr() as *const u8);
+            }
         } else {
-            state.scroll_offset / max_visible + 1
-        };
-        if total_pages > 1 {
-            sys::canvas_set_font(canvas, sys::FontSecondary);
-            let page_str = alloc::format!("{}/{}", current_page, total_pages);
-            let mut pbuf = [0u8; 16];
-            let pb = page_str.as_bytes();
-            let plen = pb.len().min(pbuf.len() - 1);
-            pbuf[..plen].copy_from_slice(&pb[..plen]);
-            pbuf[plen] = 0;
+            crate::renderer::render_page(canvas, &state.lines, state.scroll_offset, 16);
 
-            let width = sys::canvas_string_width(canvas, pbuf.as_ptr() as *const core::ffi::c_char);
-            let x = 128 - (width as i32) - 2;
-            sys::canvas_draw_str(canvas, x, 63, pbuf.as_ptr() as *const u8);
+            // Verse indicator: current_verse/total_verses
+            if !state.lines.is_empty() {
+                let idx = state.scroll_offset.min(state.lines.len() - 1);
+                let current_verse = state.lines[idx].verse_number;
+                let total_verses = state.lines.last().map(|l| l.verse_number).unwrap_or(0);
+                if current_verse > 0 && total_verses > 0 {
+                    sys::canvas_set_font(canvas, sys::FontSecondary);
+                    let verse_str = alloc::format!("{}/{}", current_verse, total_verses);
+                    let mut pbuf = [0u8; 16];
+                    let pb = verse_str.as_bytes();
+                    let plen = pb.len().min(pbuf.len() - 1);
+                    pbuf[..plen].copy_from_slice(&pb[..plen]);
+                    pbuf[plen] = 0;
+
+                    let width =
+                        sys::canvas_string_width(canvas, pbuf.as_ptr() as *const core::ffi::c_char);
+                    let x = 128 - (width as i32) - 2;
+                    sys::canvas_draw_str(canvas, x, 63, pbuf.as_ptr() as *const u8);
+                }
+            }
         }
         // Toast
         if let Some(ref msg) = state.toast_message {
@@ -112,7 +142,9 @@ fn prev_verse_offset(lines: &[crate::renderer::Line], current: usize) -> Option<
     let is_first = lines.get(current)?.is_verse_number;
 
     if !is_first {
-        lines.iter().position(|l| l.verse_number == current_verse && l.is_verse_number)
+        lines
+            .iter()
+            .position(|l| l.verse_number == current_verse && l.is_verse_number)
     } else {
         let mut prev_verse: u16 = 0;
         for line in lines[..current].iter().rev() {
@@ -124,46 +156,159 @@ fn prev_verse_offset(lines: &[crate::renderer::Line], current: usize) -> Option<
         if prev_verse == 0 {
             Some(0)
         } else {
-            lines.iter().position(|l| l.verse_number == prev_verse && l.is_verse_number)
+            lines
+                .iter()
+                .position(|l| l.verse_number == prev_verse && l.is_verse_number)
         }
     }
 }
 
+fn first_line_for_verse(lines: &[crate::renderer::Line], target_verse: u16) -> usize {
+    lines
+        .iter()
+        .position(|l| l.verse_number >= target_verse && l.is_verse_number)
+        .or_else(|| lines.iter().position(|l| l.verse_number >= target_verse))
+        .unwrap_or(0)
+}
+
+fn last_verse_offset(lines: &[crate::renderer::Line]) -> usize {
+    if let Some(last) = lines.last() {
+        first_line_for_verse(lines, last.verse_number)
+    } else {
+        0
+    }
+}
+
+fn max_scroll_offset(lines: &[crate::renderer::Line], max_visible: usize) -> usize {
+    let page_max = lines.len().saturating_sub(max_visible);
+    let last_start = last_verse_offset(lines);
+    last_start.max(page_max)
+}
+
+fn load_full_chapter_into_state(state: &mut AppState, book_index: usize, chapter: u16) -> bool {
+    let osis = books::OSIS_BOOK_CODES[book_index].to_lowercase();
+    state.lines.clear();
+    if let Some(verses) = crate::bsb_loader::load_chapter(&osis, chapter) {
+        if verses.is_empty() {
+            return false;
+        }
+        state.lines = crate::renderer::wrap_verses(&verses);
+        state.passage = Some(crate::models::Passage {
+            book_index,
+            chapter,
+            start_verse: 0,
+            end_verse: 0,
+        });
+        state.selected_book = book_index;
+        state.selected_chapter = chapter;
+        state.selected_start_verse = 1;
+        state.selected_end_verse = 1;
+        state.verse_select_mode = crate::views::VerseSelectMode::All;
+        true
+    } else {
+        reload_lines(state);
+        false
+    }
+}
+
+fn advance_forward(state: &mut AppState) {
+    let (book_index, chapter) = match state.passage {
+        Some(ref p) => (p.book_index, p.chapter),
+        None => return,
+    };
+
+    if let Some((next_book, next_ch)) = books::next_chapter(book_index, chapter) {
+        if load_full_chapter_into_state(state, next_book, next_ch) {
+            state.scroll_offset = 0;
+            state.reader_on_chapter_page = true;
+        }
+    }
+}
+
+fn retreat_backward(state: &mut AppState) {
+    let (book_index, chapter) = match state.passage {
+        Some(ref p) => (p.book_index, p.chapter),
+        None => return,
+    };
+
+    if books::prev_chapter(book_index, chapter).is_some() {
+        state.reader_on_chapter_page = true;
+    }
+}
+
+fn retreat_from_chapter_page(state: &mut AppState, to_last_line: bool) {
+    let (book_index, chapter) = match state.passage {
+        Some(ref p) => (p.book_index, p.chapter),
+        None => return,
+    };
+
+    if let Some((prev_book, prev_ch)) = books::prev_chapter(book_index, chapter) {
+        if load_full_chapter_into_state(state, prev_book, prev_ch) {
+            state.reader_on_chapter_page = false;
+            if to_last_line {
+                state.scroll_offset = max_scroll_offset(&state.lines, reader_max_visible());
+            } else {
+                state.scroll_offset = last_verse_offset(&state.lines);
+            }
+        }
+    } else {
+        state.reader_on_chapter_page = false;
+        state.scroll_offset = 0;
+    }
+}
+
 pub fn handle_input(event: &InputEvent, state: &mut AppState) -> bool {
-    let total_lines = state.lines.len();
     let max_visible = reader_max_visible();
-    let max_scroll = total_lines.saturating_sub(max_visible);
+    let max_scroll = max_scroll_offset(&state.lines, max_visible);
 
     match event.key {
         sys::InputKeyUp => {
             if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
-                if let Some(new_offset) = prev_verse_offset(&state.lines, state.scroll_offset) {
+                if state.reader_on_chapter_page {
+                    retreat_from_chapter_page(state, false);
+                } else if state.scroll_offset == 0 {
+                    retreat_backward(state);
+                } else if let Some(new_offset) =
+                    prev_verse_offset(&state.lines, state.scroll_offset)
+                {
                     state.scroll_offset = new_offset;
                 }
             }
         }
         sys::InputKeyDown => {
             if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
-                if let Some(new_offset) = next_verse_offset(&state.lines, state.scroll_offset) {
-                    if new_offset <= max_scroll {
-                        state.scroll_offset = new_offset;
-                    } else {
-                        state.scroll_offset = max_scroll;
-                    }
+                if state.reader_on_chapter_page {
+                    state.reader_on_chapter_page = false;
+                    state.scroll_offset = 0;
+                } else if let Some(new_offset) =
+                    next_verse_offset(&state.lines, state.scroll_offset)
+                {
+                    state.scroll_offset = new_offset.min(max_scroll);
+                } else {
+                    advance_forward(state);
                 }
             }
         }
         sys::InputKeyLeft => {
             if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
-                if state.scroll_offset > 0 {
+                if state.reader_on_chapter_page {
+                    retreat_from_chapter_page(state, true);
+                } else if state.scroll_offset > 0 {
                     state.scroll_offset -= 1;
+                } else {
+                    retreat_backward(state);
                 }
             }
         }
         sys::InputKeyRight => {
             if event.input_type == sys::InputTypePress || event.input_type == sys::InputTypeRepeat {
-                if state.scroll_offset < max_scroll {
+                if state.reader_on_chapter_page {
+                    state.reader_on_chapter_page = false;
+                    state.scroll_offset = 0;
+                } else if state.scroll_offset < max_scroll {
                     state.scroll_offset += 1;
+                } else {
+                    advance_forward(state);
                 }
             }
         }
@@ -288,9 +433,7 @@ fn reload_lines(state: &mut AppState) {
             let filtered: alloc::vec::Vec<crate::models::Verse> = if passage.start_verse > 0 {
                 all_verses
                     .into_iter()
-                    .filter(|v| {
-                        v.number >= passage.start_verse && v.number <= passage.end_verse
-                    })
+                    .filter(|v| v.number >= passage.start_verse && v.number <= passage.end_verse)
                     .collect()
             } else {
                 all_verses

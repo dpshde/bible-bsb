@@ -152,3 +152,35 @@ pub fn max_verse_for_chapter(book_index: usize, chapter: u16) -> u16 {
 
 /// Returns the 0-based OT/NT split index (39 = Malachi is the last OT book)
 pub const OT_COUNT: usize = 39;
+
+/// Advance to the next chapter, crossing book boundaries when at the last chapter
+/// of a book. Returns None at the end of Revelation 22.
+pub fn next_chapter(book_index: usize, chapter: u16) -> Option<(usize, u16)> {
+    if book_index >= BOOK_CHAPTER_COUNTS.len() || chapter == 0 {
+        return None;
+    }
+    let max_chapter = BOOK_CHAPTER_COUNTS[book_index];
+    if chapter < max_chapter {
+        Some((book_index, chapter + 1))
+    } else if book_index + 1 < BOOK_CHAPTER_COUNTS.len() {
+        Some((book_index + 1, 1))
+    } else {
+        None
+    }
+}
+
+/// Step back to the previous chapter, crossing book boundaries when at chapter 1.
+/// Returns None at the start of Genesis 1.
+pub fn prev_chapter(book_index: usize, chapter: u16) -> Option<(usize, u16)> {
+    if book_index >= BOOK_CHAPTER_COUNTS.len() || chapter == 0 {
+        return None;
+    }
+    if chapter > 1 {
+        let max_chapter = BOOK_CHAPTER_COUNTS[book_index];
+        Some((book_index, chapter.min(max_chapter + 1) - 1))
+    } else if book_index > 0 {
+        Some((book_index - 1, BOOK_CHAPTER_COUNTS[book_index - 1]))
+    } else {
+        None
+    }
+}

@@ -62,7 +62,11 @@ impl JsonWriter {
             return;
         }
         let written = unsafe {
-            sys::storage_file_write(self.file, self.buf.as_ptr() as *const core::ffi::c_void, self.pos)
+            sys::storage_file_write(
+                self.file,
+                self.buf.as_ptr() as *const core::ffi::c_void,
+                self.pos,
+            )
         };
         if written != self.pos {
             self.failed = true;
@@ -240,11 +244,8 @@ pub fn load_collection() -> Vec<CollectionEntry> {
         let mut chunk = [0u8; CHUNK];
         let mut total_read: usize = 0;
         loop {
-            let n = sys::storage_file_read(
-                file,
-                chunk.as_mut_ptr() as *mut core::ffi::c_void,
-                CHUNK,
-            );
+            let n =
+                sys::storage_file_read(file, chunk.as_mut_ptr() as *mut core::ffi::c_void, CHUNK);
             if n == 0 || total_read + n > MAX_FILE_SIZE {
                 break;
             }
@@ -428,7 +429,9 @@ pub fn build_kindled_json(entries: &[CollectionEntry]) -> String {
     let mut json = String::with_capacity(8192);
     json.push_str("{\"format\":\"kindled\",\"version\":1,\"exported_at\":\"2026-01-01T00:00:00Z\",\"schema_version\":1,\"counts\":{\"blocks\":");
     json.push_str(&u16_to_string(entries.len() as u16));
-    json.push_str(",\"entities\":0,\"links\":0,\"reflections\":0,\"life_stages\":0},\"data\":{\"blocks\":[");
+    json.push_str(
+        ",\"entities\":0,\"links\":0,\"reflections\":0,\"life_stages\":0},\"data\":{\"blocks\":[",
+    );
 
     for (i, entry) in entries.iter().enumerate() {
         if i > 0 {
