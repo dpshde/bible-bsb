@@ -1,0 +1,11 @@
+# Connect IQ jungle — BSB Bible spike
+project.manifest = manifest.xml
+
+# Base resources + sources for all devices
+base.sourcePath = source;test
+base.resourcePath = resources
+
+# Round MIP / AMOLED can later add resource overlays (POKE: per-class fonts/insets)
+# enduro3.resourcePath = resources;resources-round
+# fr265.resourcePath = resources;resources-round
+# venusq2.resourcePath = resources;resources-rectangle
