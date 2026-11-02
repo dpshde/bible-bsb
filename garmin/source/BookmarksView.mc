@@ -74,7 +74,8 @@ class BookmarksView extends WatchUi.View {
         var colW = col[:width] as Lang.Number;
         var colMidX = colLeft + colW / 2;
 
-        var titleFont = Graphics.FONT_TINY;
+        // Quiet group: XTINY title (not bold SMALL/TINY hero). POKE: try TINY if too faint on MIP.
+        var titleFont = Graphics.FONT_XTINY;
         var hintFont = Graphics.FONT_XTINY;
         var titleH = dc.getFontHeight(titleFont);
         var hintH = dc.getFontHeight(hintFont);

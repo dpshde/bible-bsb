@@ -13,10 +13,19 @@ module RoundLayout {
     }
     const READER_LAYOUT = READER_LAYOUT_RECT;
 
-    // POKE: target column width as fraction of screen width (~0.80 per Dylan).
+    // POKE: soft max column width as fraction of screen (~0.82). Floor asserted in tests: 0.72.
     const COLUMN_WIDTH_FRAC = 0.80;
+    const COLUMN_WIDTH_MIN_FRAC = 0.72;
 
-    // POKE: chord margin as fraction of radius (CENTERED_CHORD / safe capping).
+    // POKE: pixel pad inside the inscribed chord (NOT a second % of radius — that crushed RECT to ~40%).
+    const COLUMN_PIXEL_PAD = 6;
+
+    // Vertical band for width math on round screens (avoids near-bezel chords).
+    // POKE: 0.22..0.86 keeps inscribed width >= ~72% on 280 round (0.88 crushed the chord).
+    const COLUMN_BAND_TOP_FRAC = 0.22;
+    const COLUMN_BAND_BOTTOM_FRAC = 0.86;
+
+    // POKE: chord margin as fraction of radius (CENTERED_CHORD path only).
     const CHORD_MARGIN_FRAC = 0.07;
 
     // POKE: edge margin fraction of min(w,h) for square screens and as a floor on round.
@@ -98,8 +107,8 @@ module RoundLayout {
 
     //! Inscribed reader column: straight left/right edges, horizontally centered.
     //! Returns { :left, :width, :top, :bottom }.
-    //! Round: ~COLUMN_WIDTH_FRAC of screen width, capped so the rect stays inside the
-    //! circle for the whole [contentTop, contentBottom] band.
+    //! Round width = 2*sqrt(r^2 - hLimit^2) - 2*COLUMN_PIXEL_PAD, with the band
+    //! clamped to ~[0.22H, 0.88H] so a near-bezel bottom does not crush the column.
     //! Square: full width minus edge margins.
     function columnRect(width as Lang.Number, height as Lang.Number,
                         contentTop as Lang.Number, contentBottom as Lang.Number) as Lang.Dictionary {
@@ -118,45 +127,77 @@ module RoundLayout {
             return { :left => m, :width => sqW, :top => top, :bottom => bottom };
         }
 
-        var target = (width * COLUMN_WIDTH_FRAC).toNumber();
-        // Cap by the narrowest safe chord in the content band (minus a small pad).
-        var safe = minChordInBand(top, bottom, width, height) - 4;
-        if (safe < 1) {
-            safe = 1;
+        // Clamp vertical extents used for inscription (reading band, not full bezel-to-bezel).
+        var bandTop = (height * COLUMN_BAND_TOP_FRAC).toNumber();
+        var bandBot = (height * COLUMN_BAND_BOTTOM_FRAC).toNumber();
+        if (top < bandTop) {
+            top = bandTop;
         }
-        var colW = target;
-        if (colW > safe) {
-            colW = safe;
+        if (bottom > bandBot) {
+            bottom = bandBot;
         }
+        if (bottom <= top + 1) {
+            bottom = top + 1;
+        }
+
+        var colW = inscribedColumnWidth(width, height, top, bottom);
         var left = (width - colW) / 2;
         return { :left => left, :width => colW, :top => top, :bottom => bottom };
     }
 
-    //! Pure math helper for tests (no screenShape): largest centered width fitting a circle band.
+    //! Pure circle math (no screenShape): width = 2*sqrt(r^2 - h^2) - 2*pad
+    //! where h = max distance from center to [contentTop, contentBottom].
+    //! Soft-capped to COLUMN_WIDTH_FRAC; never below COLUMN_WIDTH_MIN_FRAC when geometry allows.
+    function inscribedColumnWidth(screenW as Lang.Number, screenH as Lang.Number,
+                                  contentTop as Lang.Number, contentBottom as Lang.Number) as Lang.Number {
+        var r = (screenW < screenH ? screenW : screenH) / 2.0;
+        var cy = screenH / 2.0;
+        var dTop = contentTop.toFloat() - cy;
+        if (dTop < 0) {
+            dTop = -dTop;
+        }
+        var dBot = contentBottom.toFloat() - cy;
+        if (dBot < 0) {
+            dBot = -dBot;
+        }
+        var hLimit = dTop;
+        if (dBot > hLimit) {
+            hLimit = dBot;
+        }
+        // If the band still reaches too close to the rim, pull hLimit in so width stays readable.
+        // Target at least COLUMN_WIDTH_MIN_FRAC when r allows it.
+        var minW = screenW * COLUMN_WIDTH_MIN_FRAC;
+        var halfMin = minW / 2.0 + COLUMN_PIXEL_PAD;
+        if (halfMin < r) {
+            var maxH = Math.sqrt(r * r - halfMin * halfMin);
+            if (hLimit > maxH) {
+                hLimit = maxH;
+            }
+        }
+        if (hLimit >= r) {
+            hLimit = r * 0.85;
+        }
+        var half = Math.sqrt(r * r - hLimit * hLimit) - COLUMN_PIXEL_PAD;
+        if (half < 1.0) {
+            half = 1.0;
+        }
+        var colW = (half * 2.0).toNumber();
+        var maxW = (screenW * COLUMN_WIDTH_FRAC).toNumber();
+        if (colW > maxW) {
+            colW = maxW;
+        }
+        var floorW = (screenW * COLUMN_WIDTH_MIN_FRAC).toNumber();
+        if (colW < floorW) {
+            colW = floorW;
+        }
+        return colW;
+    }
+
+    //! @deprecated Use inscribedColumnWidth; kept for older tests.
     function maxCenteredColumnWidth(screenW as Lang.Number, screenH as Lang.Number,
                                      contentTop as Lang.Number, contentBottom as Lang.Number,
                                      chordMarginFrac as Lang.Float) as Lang.Number {
-        var r = (screenW < screenH ? screenW : screenH) / 2.0;
-        var cy = screenH / 2.0;
-        var samples = [contentTop, (contentTop + contentBottom) / 2, contentBottom] as Lang.Array;
-        var minHalf = r;
-        var i;
-        for (i = 0; i < samples.size(); i++) {
-            var y = (samples[i] as Lang.Number).toFloat();
-            var dy = y - cy;
-            var inside = r * r - dy * dy;
-            if (inside <= 0) {
-                return 1;
-            }
-            var half = Math.sqrt(inside) - (r * chordMarginFrac);
-            if (half < minHalf) {
-                minHalf = half;
-            }
-        }
-        if (minHalf < 1.0) {
-            minHalf = 1.0;
-        }
-        return (minHalf * 2.0).toNumber();
+        return inscribedColumnWidth(screenW, screenH, contentTop, contentBottom);
     }
 
     function drawCenteredInChord(dc as Graphics.Dc, y as Lang.Number, text as Lang.String, font as Lang.Number) as Void {
@@ -196,10 +237,9 @@ module RoundLayout {
         var maxW = col[:width] as Lang.Number;
         var bandLeft = col[:left] as Lang.Number;
 
-        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_LT_GRAY);
-        dc.setClip(bandLeft, cy - 22, maxW, 44);
-        dc.fillRectangle(bandLeft, cy - 22, maxW, 44);
-        dc.clearClip();
+        // Dim behind the pill so it cannot blend into the reader on the first frame.
+        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_WHITE);
+        dc.fillRectangle(bandLeft, cy - 24, maxW, 48);
 
         var label = "★ " + message;
         var font = Graphics.FONT_TINY;
@@ -210,14 +250,22 @@ module RoundLayout {
         if (boxW > maxW - 8) {
             boxW = maxW - 8;
         }
+        if (boxW < 48) {
+            boxW = 48;
+        }
         var boxH = dc.getFontHeight(font) + 2 * padY;
         var boxX = (w - boxW) / 2;
         var boxY = cy - boxH / 2;
+        var endR = boxH / 2;
+        var innerW = boxW - boxH;
+        if (innerW < 1) {
+            innerW = 1;
+        }
 
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
-        dc.fillRectangle(boxX + boxH / 2, boxY, boxW - boxH, boxH);
-        dc.fillCircle(boxX + boxH / 2, cy, boxH / 2);
-        dc.fillCircle(boxX + boxW - boxH / 2, cy, boxH / 2);
+        dc.fillRectangle(boxX + endR, boxY, innerW, boxH);
+        dc.fillCircle(boxX + endR, cy, endR);
+        dc.fillCircle(boxX + boxW - endR, cy, endR);
 
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
         dc.drawText(w / 2, boxY + padY, font, label, Graphics.TEXT_JUSTIFY_CENTER);

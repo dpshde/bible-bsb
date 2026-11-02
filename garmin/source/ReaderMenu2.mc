@@ -22,19 +22,17 @@ module ReaderMenu2 {
 
         var modeLabel = AppState.scroll.mode == ScrollModel.MODE_VERSE ? "Verse" : "Line";
         var ref = Books.name(book) + " " + chapter + ":" + verse;
-        // No MenuItem sublabels on round screens — they clip under the bottom arc (Enduro 3 review).
-        // POKE: restore short sublabels on rectangular devices only (venusq2).
+        // Short titles; verse ref in sublabel so the title does not overflow the round edge.
+        // POKE: omit sublabel on tiny round if Menu2 still clips vertically at the bottom item.
         var menu = new WatchUi.Menu2({:title => "Menu"});
         menu.addItem(new WatchUi.MenuItem("Scroll: " + modeLabel, null, ID_SCROLL_MODE, {}));
-        // Flipper "Save to collection" → bookmark toggle; fold ref into title to avoid clip.
         menu.addItem(new WatchUi.MenuItem(
-            bookmarked ? ("Remove · " + ref) : ("Bookmark · " + ref),
-            null,
+            bookmarked ? "Remove bookmark" : "Bookmark",
+            ref,
             ID_BOOKMARK_VERSE,
             {}));
         menu.addItem(new WatchUi.MenuItem("Bookmarks", null, ID_BOOKMARKS_LIST, {}));
         menu.addItem(new WatchUi.MenuItem("Jump to chapter", null, ID_JUMP_CHAPTER, {}));
-        // Flipper "Back to reading" — dismiss menu (NFC omitted; see SPEC divergences).
         menu.addItem(new WatchUi.MenuItem("Back to reading", null, ID_BACK_READING, {}));
 
         WatchUi.pushView(menu, new ReaderMenu2Delegate(reader), WatchUi.SLIDE_LEFT);

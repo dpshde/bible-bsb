@@ -205,8 +205,9 @@ class ReaderView extends WatchUi.View {
         toast = message;
         clearToastTimer();
         _toastTimer = new Timer.Timer();
-        // POKE: RoundLayout.TOAST_MS
+        // POKE: RoundLayout.TOAST_MS (~1s visible)
         _toastTimer.start(method(:onToastExpired), RoundLayout.TOAST_MS, false);
+        // Force a redraw this frame so the pill is not skipped before the next input.
         WatchUi.requestUpdate();
     }
 
@@ -233,6 +234,7 @@ class ReaderView extends WatchUi.View {
     function bookmarkFocusedVerse() as Void {
         var f = AppState.scroll.focusVerse();
         var result = Bookmarks.toggle(f[:book] as Lang.Number, f[:chapter] as Lang.Number, f[:verse] as Lang.Number);
+        // Set toast before vibe so a slow Attention call cannot delay the first painted frame.
         if (result == :added) {
             showToast("Bookmarked");
         } else if (result == :removed) {
@@ -240,6 +242,7 @@ class ReaderView extends WatchUi.View {
         } else {
             showToast("Bookmarks full");
         }
+        WatchUi.requestUpdate();
         if (Attention has :vibrate) {
             Attention.vibrate([new Attention.VibeProfile(50, 100)]);
         }
