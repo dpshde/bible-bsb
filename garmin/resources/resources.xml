@@ -1,7 +1,3 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
-    <jsonData id="John3" filename="json/john-3.json"/>
-    <jsonData id="John4" filename="json/john-4.json"/>
-    <jsonData id="Malachi4" filename="json/malachi-4.json"/>
-    <jsonData id="Matthew1" filename="json/matthew-1.json"/>
 </resources>

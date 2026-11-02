@@ -9,3 +9,7 @@ base.resourcePath = resources
 # enduro3.resourcePath = resources;resources-round
 # fr265.resourcePath = resources;resources-round
 # venusq2.resourcePath = resources;resources-rectangle
+
+# Palette: MIP (64-color) devices get palette-exact gold; everyone else true gold.
+base.excludeAnnotations = mip
+enduro3.excludeAnnotations = amoled

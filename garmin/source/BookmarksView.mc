@@ -180,10 +180,21 @@ class BookmarksDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
+    // TAP FIX: on touch watches a screen tap is ALSO mapped to the onSelect behavior
+    // (before onTap), which opened the highlighted row instead of the tapped one.
+    // onSelect therefore never acts: button Enter arrives via onKey, taps via onTap.
     function onSelect() as Lang.Boolean {
-        if (TouchGuard.consumeSelect()) {
-            return true;
+        return false;
+    }
+
+    function onKey(evt as WatchUi.KeyEvent) as Lang.Boolean {
+        if (evt.getKey() == WatchUi.KEY_ENTER) {
+            return activate();
         }
+        return false;
+    }
+
+    function activate() as Lang.Boolean {
         bv().openFocused();
         return true;
     }
@@ -194,11 +205,9 @@ class BookmarksDelegate extends WatchUi.BehaviorDelegate {
         var idx = v.rowAtY(coords[1]);
         if (idx >= 0) {
             v.focus = idx;
-            TouchGuard.markSelect();
             v.openFocused();
-            return true;
         }
-        return false;
+        return true;
     }
 
     function onSwipe(evt) as Lang.Boolean {
@@ -229,7 +238,6 @@ class BookmarksDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onHold(evt) as Lang.Boolean {
-        TouchGuard.markSelect();
         var v = bv();
         if (v.items.size() == 0) {
             return true;

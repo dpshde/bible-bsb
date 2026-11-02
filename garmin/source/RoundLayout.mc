@@ -18,6 +18,11 @@ module RoundLayout {
     // POKE: tweak top/meta vs band vs preview split after Enduro reshoot.
     const LENS_META_BOTTOM_FRAC = 0.18;
     const LENS_BAND_TOP_FRAC = 0.20;
+    // POKE: LENS_CHORD_INSET — px kept clear between band corners and the rim/progress arc.
+    const LENS_CHORD_INSET = 7;
+    // POKE: PROGRESS_ARC — ring thickness (px) and bottom gap (deg, 0 = full ring).
+    const PROGRESS_ARC_PEN = 3;
+    const PROGRESS_ARC_GAP_DEG = 0;
     const LENS_BAND_BOTTOM_FRAC = 0.80;
     const LENS_PREVIEW_TOP_FRAC = 0.82;
 
@@ -137,7 +142,11 @@ module RoundLayout {
             colW = screenW - 2 * m;
             left = m;
         } else {
-            colW = lensColumnWidth(screenW, screenH, bandTop, bandBottom);
+            colW = lensColumnWidth(screenW, screenH, bandTop, bandBottom) - 2 * LENS_CHORD_INSET;
+            var floorW = (screenW * COLUMN_WIDTH_MIN_FRAC).toNumber();
+            if (colW < floorW) {
+                colW = floorW; // Dylan: never below 0.75 D
+            }
             left = (screenW - colW) / 2;
         }
         return {
@@ -197,6 +206,65 @@ module RoundLayout {
         return inscribedColumnWidth(screenW, screenH, contentTop, contentBottom);
     }
 
+    //! Two-line split: prefer line1 <= line2 (pyramid); if no such split fits both
+    //! widths, take any fitting split with the smallest overhang of line1. Null if none fits.
+    function pyramidSplit(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontDefinition,
+                          w1 as Lang.Number, w2 as Lang.Number) as Lang.Array or Null {
+        var words = ContentLoader.splitWords(text);
+        var best = null;
+        var bestScore = 0;
+        var k;
+        for (k = 1; k < words.size(); k++) {
+            var a = "";
+            var b = "";
+            var i;
+            for (i = 0; i < words.size(); i++) {
+                if (i < k) {
+                    a = a.length() == 0 ? words[i] as Lang.String : a + " " + words[i];
+                } else {
+                    b = b.length() == 0 ? words[i] as Lang.String : b + " " + words[i];
+                }
+            }
+            var wa = dc.getTextWidthInPixels(a, font);
+            var wb = dc.getTextWidthInPixels(b, font);
+            if (wa <= w1 && wb <= w2) {
+                // pyramid splits score by line1 width; inverted ones rank below all pyramids.
+                var score = wa <= wb ? 100000 + wa : 50000 - (wa - wb);
+                if (best == null || score > bestScore) {
+                    best = [a, b];
+                    bestScore = score;
+                }
+            }
+        }
+        return best;
+    }
+
+    //! Last-resort two lines: pyramid-split with line 2 unbounded, then ellipsize line 2 only.
+    function pyramidSplitEllipsize(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontDefinition,
+                                   w1 as Lang.Number, w2 as Lang.Number) as Lang.Array {
+        var parts = pyramidSplit(dc, text, font, w1, 100000);
+        if (parts == null) {
+            parts = ["", text];
+        }
+        parts[1] = ellipsize(dc, parts[1] as Lang.String, font, w2);
+        return parts;
+    }
+
+    function ellipsize(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontDefinition,
+                       maxW as Lang.Number) as Lang.String {
+        if (dc.getTextWidthInPixels(text, font) <= maxW) {
+            return text;
+        }
+        var s = text;
+        while (s.length() > 1) {
+            s = s.substring(0, s.length() - 1);
+            if (dc.getTextWidthInPixels(s + "..", font) <= maxW) {
+                return s + "..";
+            }
+        }
+        return "..";
+    }
+
     function drawCenteredInChord(dc as Graphics.Dc, y as Lang.Number, text as Lang.String,
                                  font as Graphics.FontDefinition) as Void {
         var w = dc.getWidth();
@@ -247,35 +315,50 @@ module RoundLayout {
             dc.fillRectangle(m, m / 2, barW < 1 ? 1 : barW, 2);
             return;
         }
+        // POKE: PROGRESS_ARC — thickness 3px, start 12 o'clock, clockwise, full ring
+        // (set PROGRESS_ARC_GAP_DEG > 0 for a gap centered at 6 o'clock), radius-2 bezel ring.
         var cx = w / 2;
         var cy = h / 2;
-        var rad = (w < h ? w : h) / 2 - 3;
+        var pen = PROGRESS_ARC_PEN;
+        var rad = (w < h ? w : h) / 2 - 2 - pen / 2;
         if (progress < 0) {
             progress = 0.0;
         }
         if (progress > 1) {
             progress = 1.0;
         }
-        var startDeg = 90;
-        var sweep = (360.0 * progress).toNumber();
-        if (sweep < 1 && progress > 0) {
-            sweep = 1;
+        var span = 360 - PROGRESS_ARC_GAP_DEG;
+        var startDeg = 90; // CIQ degrees: 0 = 3 o'clock, CCW positive -> 90 = 12 o'clock
+        dc.setPenWidth(pen);
+        // Dim track (~20% gold) under the fill.
+        dc.setColor(Palette.PROGRESS_TRACK, Graphics.COLOR_TRANSPARENT);
+        if (PROGRESS_ARC_GAP_DEG <= 0) {
+            dc.drawCircle(cx, cy, rad);
+        } else {
+            dc.drawArc(cx, cy, rad, Graphics.ARC_CLOCKWISE, startDeg, startDeg - span);
         }
-        dc.setColor(Palette.GOLD, Palette.BG);
-        dc.setPenWidth(2);
-        if (sweep > 0) {
-            dc.drawArc(cx, cy, rad, Graphics.ARC_COUNTER_CLOCKWISE, startDeg, startDeg + sweep);
+        var sweep = (span * progress).toNumber();
+        if (sweep < 2 && progress > 0) {
+            sweep = 2;
         }
+        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
+        if (sweep >= 360) {
+            dc.drawCircle(cx, cy, rad);
+        } else if (sweep > 0) {
+            dc.drawArc(cx, cy, rad, Graphics.ARC_CLOCKWISE, startDeg, startDeg - sweep);
+        }
+        // Bookmark ticks across the ring, clockwise from 12.
+        dc.setPenWidth(1);
         var i;
         for (i = 0; i < bookmarkFracs.size(); i++) {
             var f = bookmarkFracs[i] as Lang.Float;
             if (f < 0 || f > 1) {
                 continue;
             }
-            var deg = 90.0 + 360.0 * f;
+            var deg = 90.0 - span * f;
             var theta = deg * Math.PI / 180.0;
-            var x1 = cx + ((rad - 4) * Math.cos(theta)).toNumber();
-            var y1 = cy - ((rad - 4) * Math.sin(theta)).toNumber();
+            var x1 = cx + ((rad - 5) * Math.cos(theta)).toNumber();
+            var y1 = cy - ((rad - 5) * Math.sin(theta)).toNumber();
             var x2 = cx + ((rad + 1) * Math.cos(theta)).toNumber();
             var y2 = cy - ((rad + 1) * Math.sin(theta)).toNumber();
             dc.drawLine(x1, y1, x2, y2);
@@ -288,17 +371,17 @@ module RoundLayout {
         var w = dc.getWidth();
         var h = dc.getHeight();
 
-        // Solid overlay — covers all verse text (v4 gray band left text bleeding).
-        dc.setColor(Palette.SCRIM, Palette.SCRIM);
-        dc.clear();
+        // No solid fill: caller redraws the reader in Palette.TOAST_DIM first (dim, not blackout).
 
-        var label = "★ " + message;
+        var label = message;
+        var iconW = 10;
+        var iconGap = 6;
         var font = Graphics.FONT_TINY;
         var tw = dc.getTextWidthInPixels(label, font);
         var padX = 14;
         var padY = 8;
         var boxH = dc.getFontHeight(font) + 2 * padY;
-        var boxW = tw + 2 * padX;
+        var boxW = tw + iconW + iconGap + 2 * padX;
         var maxW = (w * 0.72).toNumber();
         if (boxW > maxW) {
             boxW = maxW;
@@ -321,6 +404,12 @@ module RoundLayout {
         dc.fillCircle(boxX + boxW - endR, cy, endR);
 
         dc.setColor(Palette.TOAST_FG, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w / 2, boxY + padY, font, label, Graphics.TEXT_JUSTIFY_CENTER);
+        var contentX = (w - (iconW + iconGap + tw)) / 2;
+        var iconH = dc.getFontHeight(font) - 6;
+        var iy = cy - iconH / 2;
+        // Bookmark ribbon: rectangle with a V notch at the bottom.
+        dc.fillPolygon([[contentX, iy], [contentX + iconW, iy], [contentX + iconW, iy + iconH],
+            [contentX + iconW / 2, iy + iconH - 4], [contentX, iy + iconH]]);
+        dc.drawText(contentX + iconW + iconGap, boxY + padY, font, label, Graphics.TEXT_JUSTIFY_LEFT);
     }
 }

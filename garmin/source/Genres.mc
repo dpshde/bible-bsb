@@ -20,8 +20,8 @@ module Genres {
         { :name => "Gospels (4)", :header => "< Gospels >", :testament => 1, :start => 39, :end => 42 },
         { :name => "Acts / History (1)", :header => "< Acts >", :testament => 1, :start => 43, :end => 43 },
         { :name => "Paul's Epistles (13)", :header => "< Paul >", :testament => 1, :start => 44, :end => 56 },
-        { :name => "Gen. Epistles (8)", :header => "< Gen Epistles >", :testament => 1, :start => 57, :end => 64 },
-        { :name => "Prophecy / Rev (1)", :header => "< Prophecy >", :testament => 1, :start => 65, :end => 65 }
+        { :name => "General Epistles (8)", :header => "< Gen Epistles >", :testament => 1, :start => 57, :end => 64 },
+        { :name => "Prophecy / Revelation (1)", :header => "< Prophecy >", :testament => 1, :start => 65, :end => 65 }
     ];
 
     function genresForTestament(testament as Lang.Number) as Lang.Array {
@@ -47,6 +47,13 @@ module Genres {
             out.add(b);
         }
         return out;
+    }
+
+    //! Title for a genre's book list: full genre name without the "(n)" count (no abbreviations).
+    function headerName(genreIdx as Lang.Number) as Lang.String {
+        var name = genreName(genreIdx);
+        var p = name.find(" (");
+        return p != null ? name.substring(0, p) : name;
     }
 
     function genreName(genreIdx as Lang.Number) as Lang.String {

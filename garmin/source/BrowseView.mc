@@ -13,30 +13,7 @@ class TestamentListView extends WatchUi.View {
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
-        Palette.applyBackground(dc);
-        var w = dc.getWidth();
-        var h = dc.getHeight();
-        var y = RoundLayout.edgeMargin(w, h);
-        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
-        RoundLayout.drawCenteredInChord(dc, y, "Testament", Graphics.FONT_TINY);
-        y += dc.getFontHeight(Graphics.FONT_TINY) + 8;
-        var rowH = dc.getFontHeight(Graphics.FONT_SMALL) + 8;
-        var i;
-        for (i = 0; i < Genres.TESTAMENT_COUNT; i++) {
-            var label = Genres.TESTAMENT_LABELS[i];
-            var midY = y + rowH / 2;
-            var left = RoundLayout.chordLeft(midY, w, h);
-            var cw = RoundLayout.chordWidth(midY, w, h);
-            if (i == focus) {
-                dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_FG);
-                dc.fillRectangle(left, y, cw, rowH - 2);
-                dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
-            } else {
-                dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
-            }
-            dc.drawText(w / 2, y + 3, Graphics.FONT_SMALL, label, Graphics.TEXT_JUSTIFY_CENTER);
-            y += rowH;
-        }
+        PickList.draw(dc, "Testament", Genres.TESTAMENT_LABELS, focus);
     }
 }
 
@@ -63,11 +40,35 @@ class TestamentListDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
+    // TAP FIX: on touch watches a screen tap is ALSO mapped to the onSelect behavior
+    // (before onTap), which opened the highlighted row instead of the tapped one.
+    // onSelect therefore never acts: button Enter arrives via onKey, taps via onTap.
     function onSelect() as Lang.Boolean {
+        return false;
+    }
+
+    function onKey(evt as WatchUi.KeyEvent) as Lang.Boolean {
+        if (evt.getKey() == WatchUi.KEY_ENTER) {
+            return activate();
+        }
+        return false;
+    }
+
+    function activate() as Lang.Boolean {
         WatchUi.pushView(
             new GenreListView(view().focus),
             new GenreListDelegate(view().focus),
             WatchUi.SLIDE_LEFT);
+        return true;
+    }
+
+    //! Tap: hit-test the rows PickList.draw just laid out; open the TAPPED row.
+    function onTap(evt as WatchUi.ClickEvent) as Lang.Boolean {
+        var idx = PickList.indexAtY(evt.getCoordinates()[1], 2);
+        if (idx >= 0) {
+            view().focus = idx;
+            activate();
+        }
         return true;
     }
 
@@ -86,39 +87,18 @@ class GenreListView extends WatchUi.View {
         View.initialize();
         me.testament = testament;
         me.genreIndexes = Genres.genresForTestament(testament);
-    }
-
-    function onUpdate(dc as Graphics.Dc) as Void {
-        Palette.applyBackground(dc);
-        var w = dc.getWidth();
-        var h = dc.getHeight();
-        var y = RoundLayout.edgeMargin(w, h);
-        var title = testament == 0 ? "Old Testament" : "New Testament";
-        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
-        RoundLayout.drawCenteredInChord(dc, y, title, Graphics.FONT_TINY);
-        y += dc.getFontHeight(Graphics.FONT_TINY) + 8;
-        var rowH = dc.getFontHeight(Graphics.FONT_SMALL) + 6;
-        var bottom = h - RoundLayout.edgeMargin(w, h);
+        // PERF: labels built once (stable array -> PickList layout cache).
+        _labels = [] as Lang.Array;
         var i;
         for (i = 0; i < genreIndexes.size(); i++) {
-            if (y + rowH > bottom) {
-                break;
-            }
-            var gi = genreIndexes[i] as Lang.Number;
-            var label = Genres.genreName(gi);
-            var midY = y + rowH / 2;
-            var left = RoundLayout.chordLeft(midY, w, h);
-            var cw = RoundLayout.chordWidth(midY, w, h);
-            if (i == focus) {
-                dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_FG);
-                dc.fillRectangle(left, y, cw, rowH - 2);
-                dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
-            } else {
-                dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
-            }
-            dc.drawText(w / 2, y + 2, Graphics.FONT_SMALL, label, Graphics.TEXT_JUSTIFY_CENTER);
-            y += rowH;
+            _labels.add(Genres.genreName(genreIndexes[i] as Lang.Number));
         }
+    }
+
+    var _labels as Lang.Array = [] as Lang.Array;
+
+    function onUpdate(dc as Graphics.Dc) as Void {
+        PickList.draw(dc, testament == 0 ? "Old Testament" : "New Testament", _labels, focus);
     }
 }
 
@@ -154,10 +134,40 @@ class GenreListDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
+    // TAP FIX: on touch watches a screen tap is ALSO mapped to the onSelect behavior
+    // (before onTap), which opened the highlighted row instead of the tapped one.
+    // onSelect therefore never acts: button Enter arrives via onKey, taps via onTap.
     function onSelect() as Lang.Boolean {
+        return false;
+    }
+
+    function onKey(evt as WatchUi.KeyEvent) as Lang.Boolean {
+        if (evt.getKey() == WatchUi.KEY_ENTER) {
+            return activate();
+        }
+        return false;
+    }
+
+    function activate() as Lang.Boolean {
         var v = view();
         var gi = v.genreIndexes[v.focus] as Lang.Number;
+        var books = Genres.booksForGenre(gi);
+        if (books.size() == 1) {
+            // Flipper: single-book genre (Acts, Revelation) skips the 1-row book list.
+            PickList.openBook(books[0] as Lang.Number);
+            return true;
+        }
         WatchUi.pushView(new GenreBookListView(gi), new GenreBookListDelegate(gi), WatchUi.SLIDE_LEFT);
+        return true;
+    }
+
+    //! Tap: hit-test the rows PickList.draw just laid out; open the TAPPED row.
+    function onTap(evt as WatchUi.ClickEvent) as Lang.Boolean {
+        var idx = PickList.indexAtY(evt.getCoordinates()[1], view().genreIndexes.size());
+        if (idx >= 0) {
+            view().focus = idx;
+            activate();
+        }
         return true;
     }
 
@@ -168,6 +178,7 @@ class GenreListDelegate extends WatchUi.BehaviorDelegate {
 }
 
 class GenreBookListView extends WatchUi.View {
+    var _labels as Lang.Array or Null = null;
     var genreIdx as Lang.Number;
     var bookIndexes as Lang.Array;
     var focus as Lang.Number = 0;
@@ -179,35 +190,11 @@ class GenreBookListView extends WatchUi.View {
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
-        Palette.applyBackground(dc);
-        var w = dc.getWidth();
-        var h = dc.getHeight();
-        var y = RoundLayout.edgeMargin(w, h);
-        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
-        RoundLayout.drawCenteredInChord(dc, y, Genres.genreName(genreIdx), Graphics.FONT_TINY);
-        y += dc.getFontHeight(Graphics.FONT_TINY) + 8;
-        var rowH = dc.getFontHeight(Graphics.FONT_SMALL) + 6;
-        var bottom = h - RoundLayout.edgeMargin(w, h);
-        var i;
-        for (i = 0; i < bookIndexes.size(); i++) {
-            if (y + rowH > bottom) {
-                break;
-            }
-            var bi = bookIndexes[i] as Lang.Number;
-            var label = Books.name(bi);
-            var midY = y + rowH / 2;
-            var left = RoundLayout.chordLeft(midY, w, h);
-            var cw = RoundLayout.chordWidth(midY, w, h);
-            if (i == focus) {
-                dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_FG);
-                dc.fillRectangle(left, y, cw, rowH - 2);
-                dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
-            } else {
-                dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
-            }
-            dc.drawText(w / 2, y + 2, Graphics.FONT_SMALL, label, Graphics.TEXT_JUSTIFY_CENTER);
-            y += rowH;
+        // Flipper header_name ("< OT History >") without the L/R chevrons.
+        if (_labels == null) {
+            _labels = PickList.bookLabels(bookIndexes); // PERF: once
         }
+        PickList.draw(dc, Genres.headerName(genreIdx), _labels as Lang.Array, focus);
     }
 }
 
@@ -243,18 +230,33 @@ class GenreBookListDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
+    // TAP FIX: on touch watches a screen tap is ALSO mapped to the onSelect behavior
+    // (before onTap), which opened the highlighted row instead of the tapped one.
+    // onSelect therefore never acts: button Enter arrives via onKey, taps via onTap.
     function onSelect() as Lang.Boolean {
-        var v = view();
-        var bi = v.bookIndexes[v.focus] as Lang.Number;
-        AppState.selectedBook = bi;
-        AppState.selectedChapter = 1;
-        // Spike defaults for books with non-1 start content.
-        if (bi == 42) {
-            AppState.selectedChapter = 3;
-        } else if (bi == 38) {
-            AppState.selectedChapter = 4;
+        return false;
+    }
+
+    function onKey(evt as WatchUi.KeyEvent) as Lang.Boolean {
+        if (evt.getKey() == WatchUi.KEY_ENTER) {
+            return activate();
         }
-        WatchUi.pushView(new ChapterGridView(), new ChapterGridDelegate(), WatchUi.SLIDE_LEFT);
+        return false;
+    }
+
+    function activate() as Lang.Boolean {
+        var v = view();
+        PickList.openBook(v.bookIndexes[v.focus] as Lang.Number);
+        return true;
+    }
+
+    //! Tap: hit-test the rows PickList.draw just laid out; open the TAPPED row.
+    function onTap(evt as WatchUi.ClickEvent) as Lang.Boolean {
+        var idx = PickList.indexAtY(evt.getCoordinates()[1], view().bookIndexes.size());
+        if (idx >= 0) {
+            view().focus = idx;
+            activate();
+        }
         return true;
     }
 

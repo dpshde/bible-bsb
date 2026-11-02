@@ -13,7 +13,8 @@ module ReaderMenu2 {
         ID_GOTO_VERSE = 4,
         ID_JUMP_CHAPTER = 5,
         ID_BROWSE_TESTAMENT = 6,
-        ID_BACK_READING = 7
+        ID_BACK_READING = 7,
+        ID_THEME = 8
     }
 
     function open(reader as ReaderView) as Void {
@@ -25,20 +26,20 @@ module ReaderMenu2 {
 
         var modeLabel = AppState.scroll.mode == ScrollModel.MODE_VERSE ? "Verse" : "Line";
         var ref = Books.refLabel(book, chapter, verse);
-        var menu = new WatchUi.Menu2({:title => "Menu"});
-        menu.addItem(new WatchUi.MenuItem("Scroll: " + modeLabel, null, ID_SCROLL_MODE, {}));
-        menu.addItem(new WatchUi.MenuItem(
+        var menu = new ThemedMenu("Menu");
+        menu.addItem(new ThemedMenuItem("Scroll: " + modeLabel, null, ID_SCROLL_MODE));
+        menu.addItem(new ThemedMenuItem(
             bookmarked ? ("Remove " + ref) : ("Bookmark " + ref),
             null,
-            ID_BOOKMARK_VERSE,
-            {}));
-        menu.addItem(new WatchUi.MenuItem("Bookmarks", null, ID_BOOKMARKS_LIST, {}));
+            ID_BOOKMARK_VERSE));
+        menu.addItem(new ThemedMenuItem("Bookmarks", null, ID_BOOKMARKS_LIST));
         // Flipper 51d0ce4: Go to verse (NFC omitted — see SPEC divergences).
-        menu.addItem(new WatchUi.MenuItem("Go to verse", null, ID_GOTO_VERSE, {}));
-        menu.addItem(new WatchUi.MenuItem("Jump to chapter", null, ID_JUMP_CHAPTER, {}));
+        menu.addItem(new ThemedMenuItem("Go to verse", null, ID_GOTO_VERSE));
+        menu.addItem(new ThemedMenuItem("Jump to chapter", null, ID_JUMP_CHAPTER));
         // Alternate entry path — POKE: default vs snake book list.
-        menu.addItem(new WatchUi.MenuItem("Browse by Testament", null, ID_BROWSE_TESTAMENT, {}));
-        menu.addItem(new WatchUi.MenuItem("Back to reading", null, ID_BACK_READING, {}));
+        menu.addItem(new ThemedMenuItem("By Testament", null, ID_BROWSE_TESTAMENT));
+        menu.addItem(new ThemedMenuItem("Theme: " + Palette.themeLabel(), null, ID_THEME));
+        menu.addItem(new ThemedMenuItem("Back to reading", null, ID_BACK_READING));
 
         WatchUi.pushView(menu, new ReaderMenu2Delegate(reader), WatchUi.SLIDE_LEFT);
     }
@@ -63,17 +64,36 @@ module ReaderMenu2 {
         if (count < 1) {
             count = 1;
         }
-        // Spike: flat Menu2 of verse numbers (OK for John 3 = 36). POKE: Picker for Psalms 119.
-        var menu = new WatchUi.Menu2({:title => "Go to verse"});
+        // POKE: GOTO_RANGE — chapters over GOTO_FLAT_MAX verses (Psalm 119 = 176) get a
+        // range level first ("Verses 161-176"), so every verse is reachable in <= 2 lists.
+        if (count > GOTO_FLAT_MAX) {
+            var rm = new ThemedMenu("Go to verse");
+            var s = 1;
+            while (s <= count) {
+                var e = s + GOTO_RANGE - 1;
+                if (e > count) {
+                    e = count;
+                }
+                rm.addItem(new ThemedMenuItem("Verses " + s + "-" + e, null, s));
+                s = e + 1;
+            }
+            WatchUi.pushView(rm, new VerseRangeDelegate(reader, count), WatchUi.SLIDE_LEFT);
+            return;
+        }
+        pushVerseList(reader, 1, count, 1);
+    }
+
+    const GOTO_FLAT_MAX = 40;
+    const GOTO_RANGE = 20;
+
+    function pushVerseList(reader as ReaderView, from as Lang.Number, to as Lang.Number,
+                           pops as Lang.Number) as Void {
+        var menu = new ThemedMenu("Go to verse");
         var i;
-        var maxItems = count;
-        if (maxItems > 60) {
-            maxItems = 60; // watchdog / Menu2 practicality
+        for (i = from; i <= to; i++) {
+            menu.addItem(new ThemedMenuItem("Verse " + i, null, i));
         }
-        for (i = 1; i <= maxItems; i++) {
-            menu.addItem(new WatchUi.MenuItem("Verse " + i, null, i, {}));
-        }
-        WatchUi.pushView(menu, new VersePickerDelegate(reader), WatchUi.SLIDE_LEFT);
+        WatchUi.pushView(menu, new VersePickerDelegate(reader, pops), WatchUi.SLIDE_LEFT);
     }
 }
 
@@ -113,6 +133,12 @@ class ReaderMenu2Delegate extends WatchUi.Menu2InputDelegate {
             WatchUi.popView(WatchUi.SLIDE_RIGHT); // reader
             return;
         }
+        if (id == ReaderMenu2.ID_THEME) {
+            Palette.toggleTheme();
+            WatchUi.popView(WatchUi.SLIDE_RIGHT);
+            WatchUi.requestUpdate();
+            return;
+        }
         if (id == ReaderMenu2.ID_BROWSE_TESTAMENT) {
             WatchUi.popView(WatchUi.SLIDE_RIGHT);
             WatchUi.pushView(new TestamentListView(), new TestamentListDelegate(), WatchUi.SLIDE_LEFT);
@@ -126,17 +152,46 @@ class ReaderMenu2Delegate extends WatchUi.Menu2InputDelegate {
     }
 }
 
-class VersePickerDelegate extends WatchUi.Menu2InputDelegate {
+class VerseRangeDelegate extends WatchUi.Menu2InputDelegate {
     var _reader as ReaderView;
+    var _count as Lang.Number;
 
-    function initialize(reader as ReaderView) {
+    function initialize(reader as ReaderView, count as Lang.Number) {
         Menu2InputDelegate.initialize();
         _reader = reader;
+        _count = count;
+    }
+
+    function onSelect(item as WatchUi.MenuItem) as Void {
+        var s = item.getId() as Lang.Number;
+        var e = s + ReaderMenu2.GOTO_RANGE - 1;
+        if (e > _count) {
+            e = _count;
+        }
+        ReaderMenu2.pushVerseList(_reader, s, e, 2);
+    }
+
+    function onBack() as Void {
+        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+    }
+}
+
+class VersePickerDelegate extends WatchUi.Menu2InputDelegate {
+    var _reader as ReaderView;
+    var _pops as Lang.Number;
+
+    function initialize(reader as ReaderView, pops as Lang.Number) {
+        Menu2InputDelegate.initialize();
+        _reader = reader;
+        _pops = pops;
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
         var verse = item.getId() as Lang.Number;
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+        var i;
+        for (i = 0; i < _pops; i++) {
+            WatchUi.popView(WatchUi.SLIDE_RIGHT);
+        }
         _reader.jumpToVerse(verse);
     }
 

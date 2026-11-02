@@ -24,16 +24,26 @@ module Bookmarks {
         return id & 0xFF;
     }
 
+    // PERF: Storage is flash on device — read once, then serve from memory.
+    var _cache as Lang.Array or Null = null;
+    var version as Lang.Number = 0; // bumps on every save (reader tick cache key)
+
     function load() as Lang.Array {
+        if (_cache != null) {
+            return _cache as Lang.Array;
+        }
         var v = Application.Storage.getValue(STORAGE_KEY);
         if (v == null || !(v instanceof Lang.Array)) {
-            return [];
+            v = [];
         }
-        return v as Lang.Array;
+        _cache = v as Lang.Array;
+        return _cache as Lang.Array;
     }
 
     function save(list as Lang.Array) as Void {
         Application.Storage.setValue(STORAGE_KEY, list);
+        _cache = list;
+        version++;
     }
 
     //! Toggle: remove if present, else prepend. Returns :added, :removed, or :full.

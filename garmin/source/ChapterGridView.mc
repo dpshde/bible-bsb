@@ -14,9 +14,14 @@ class ChapterGridView extends WatchUi.View {
     var _cellH as Lang.Number = 0;
     var _screenW as Lang.Number = 0;
     var _screenH as Lang.Number = 0;
+    // Chord-reflow: first chapter index shown + per-visible-row start/cap (hit-test cache).
+    var _firstIdx as Lang.Number = 0;
+    var _rowStart as Lang.Array = [] as Lang.Array;
+    var _rowCap as Lang.Array = [] as Lang.Array;
 
     function initialize() {
         View.initialize();
+        grid = new SnakeGrid.Model(1, 1, 1);
         rebuildGridFromState();
     }
 
@@ -39,6 +44,7 @@ class ChapterGridView extends WatchUi.View {
         }
         grid.setFocusIndex(focusIdx);
         _gridBook = AppState.selectedBook;
+        _firstIdx = 0;
     }
 
     function onShow() as Void {
@@ -51,6 +57,26 @@ class ChapterGridView extends WatchUi.View {
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
+        var t0 = Perf.start();
+        onUpdateImpl(dc);
+        Perf.end("grid", t0);
+    }
+
+    // PERF caches: per-book headings (1 resource), per-chapter subtitle split, per-top layout,
+    // per-book label strings. Grid key presses then cost draw calls only.
+    var _headsBook as Lang.Number = -1;
+    var _heads as Lang.Array or Null = null;
+    var _subKey as Lang.Number = -1;
+    var _subParts as Lang.Array or Null = null;
+    var _layTop as Lang.Number = -1;
+    var _layCount as Lang.Number = -1;
+    var _caps as Lang.Array = [] as Lang.Array;
+    var _rowLeftA as Lang.Array = [] as Lang.Array;
+    var _cellWA as Lang.Array = [] as Lang.Array;
+    var _capTotal as Lang.Number = 0;
+    var _labels as Lang.Array = [] as Lang.Array;
+
+    function onUpdateImpl(dc as Graphics.Dc) as Void {
         Palette.applyBackground(dc);
         var w = dc.getWidth();
         var h = dc.getHeight();
@@ -63,11 +89,39 @@ class ChapterGridView extends WatchUi.View {
 
         // First section heading of the focused chapter as subtitle when bundled.
         var subY = titleY + dc.getFontHeight(titleFont) + 1;
-        var firstSec = firstSectionTitle(AppState.selectedBook, grid.focusedChapter());
-        if (firstSec != null) {
+        var focusCh = grid.focusedChapter();
+        var sf = Graphics.FONT_XTINY;
+        var sh = dc.getFontHeight(sf);
+        if (_subKey != AppState.selectedBook * 1000 + focusCh) {
+            _subKey = AppState.selectedBook * 1000 + focusCh;
+            _subParts = null;
+            var firstSec = firstSectionTitle(AppState.selectedBook, focusCh);
+            if (firstSec != null) {
+                var st = firstSec as Lang.String;
+                // POKE: GRID_SUBTITLE_WRAP — never clip: one line if it fits the chord, else pyramid two lines.
+                var c1 = RoundLayout.chordWidth(subY, w, h) - 12;
+                if (dc.getTextWidthInPixels(st, sf) <= c1) {
+                    _subParts = [st];
+                } else {
+                    var c2 = RoundLayout.chordWidth(subY + sh - 2, w, h) - 12;
+                    var parts = RoundLayout.pyramidSplit(dc, st, sf, c1, c2);
+                    if (parts == null) {
+                        parts = RoundLayout.pyramidSplitEllipsize(dc, st, sf, c1, c2);
+                    }
+                    _subParts = parts;
+                }
+            }
+        }
+        if (_subParts != null) {
+            var sp = _subParts as Lang.Array;
             dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
-            RoundLayout.drawCenteredInChord(dc, subY, firstSec as Lang.String, Graphics.FONT_XTINY);
-            subY += dc.getFontHeight(Graphics.FONT_XTINY) + 2;
+            dc.drawText(w / 2, subY, sf, sp[0] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            if (sp.size() > 1) {
+                dc.drawText(w / 2, subY + sh - 2, sf, sp[1] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+                subY += 2 * sh;
+            } else {
+                subY += sh + 2;
+            }
         }
 
         var top = subY + 4;
@@ -83,36 +137,96 @@ class ChapterGridView extends WatchUi.View {
         _gridTop = top;
         _cellH = cellH;
 
+        if (_layTop != top || _layCount != grid.itemCount) {
+            computeLayout(dc, top, cellH, w, h);
+        }
+        var caps = _caps;
+        var total = _capTotal;
         var r;
+        var step = caps[0] as Lang.Number;
+        if (_firstIdx >= grid.itemCount) {
+            _firstIdx = 0;
+        }
+        while (grid.focusIndex < _firstIdx) {
+            _firstIdx -= step;
+            if (_firstIdx < 0) {
+                _firstIdx = 0;
+            }
+        }
+        while (grid.focusIndex >= _firstIdx + total) {
+            _firstIdx += step;
+        }
+        _rowStart = [] as Lang.Array;
+        _rowCap = caps;
+        var idx = _firstIdx;
         var c;
+        var smallH = dc.getFontHeight(Graphics.FONT_SMALL);
         for (r = 0; r < grid.visibleRows; r++) {
-            var row = grid.startRow + r;
-            var rowMidY = top + r * cellH + cellH / 2;
-            var rowLeft = RoundLayout.chordLeft(rowMidY, w, h);
-            var rowW = RoundLayout.chordWidth(rowMidY, w, h);
-            var cellW = rowW / grid.columns;
-            for (c = 0; c < grid.columns; c++) {
-                var idx = grid.indexAt(row, c);
+            _rowStart.add(idx);
+            var cap2 = caps[r] as Lang.Number;
+            var cellW = _cellWA[r] as Lang.Number;
+            var rowLeft = _rowLeftA[r] as Lang.Number;
+            for (c = 0; c < cap2; c++) {
                 if (idx >= grid.itemCount) {
                     break;
                 }
                 var ch = idx + 1;
                 var x = rowLeft + c * cellW;
                 var y = top + r * cellH;
-                var label = ch.toString();
+                var label = _labels[idx] as Lang.String;
+                var ty = y + cellH / 2 - smallH / 2;
                 if (idx == grid.focusIndex) {
                     dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_FG);
                     dc.fillRectangle(x + 1, y + 1, cellW - 2, cellH - 2);
                     dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
-                    dc.drawText(x + cellW / 2, y + cellH / 2 - dc.getFontHeight(Graphics.FONT_SMALL) / 2,
-                        Graphics.FONT_SMALL, label, Graphics.TEXT_JUSTIFY_CENTER);
                 } else {
                     dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
-                    dc.drawText(x + cellW / 2, y + cellH / 2 - dc.getFontHeight(Graphics.FONT_SMALL) / 2,
-                        Graphics.FONT_SMALL, label, Graphics.TEXT_JUSTIFY_CENTER);
                 }
+                dc.drawText(x + cellW / 2, ty, Graphics.FONT_SMALL, label, Graphics.TEXT_JUSTIFY_CENTER);
+                idx++;
             }
         }
+    }
+
+    //! PERF: per-row capacity / left / cell width for this grid top, computed once (not per frame).
+    function computeLayout(dc as Graphics.Dc, top as Lang.Number, cellH as Lang.Number,
+                           w as Lang.Number, h as Lang.Number) as Void {
+        // Per-row capacity from the chord at that row's y (outer rows hold fewer cells).
+        // POKE: GRID_CELL_PAD — px of air around a label when sizing row capacity.
+        var cellPad = 14;
+        // Size cells to the widest label in this book ("150" for Psalms), not "00".
+        var minCellW = dc.getTextWidthInPixels(grid.itemCount >= 100 ? "000" : "00", Graphics.FONT_SMALL) + cellPad;
+        _caps = [] as Lang.Array;
+        _rowLeftA = [] as Lang.Array;
+        _cellWA = [] as Lang.Array;
+        _capTotal = 0;
+        var r;
+        for (r = 0; r < grid.visibleRows; r++) {
+            var midY = top + r * cellH + cellH / 2;
+            // Narrowest edge of the row so focus pills never clip on the circle.
+            var edgeY = midY < h / 2 ? top + r * cellH : top + (r + 1) * cellH;
+            var rowW = RoundLayout.chordWidth(edgeY, w, h);
+            var cap = rowW / minCellW;
+            if (cap > grid.columns) {
+                cap = grid.columns;
+            }
+            if (cap < 1) {
+                cap = 1;
+            }
+            _caps.add(cap);
+            _rowLeftA.add(RoundLayout.chordLeft(edgeY, w, h));
+            _cellWA.add(rowW / cap);
+            _capTotal += cap;
+        }
+        if (_labels.size() != grid.itemCount) {
+            _labels = [] as Lang.Array;
+            var i;
+            for (i = 1; i <= grid.itemCount; i++) {
+                _labels.add(i.toString());
+            }
+        }
+        _layTop = top;
+        _layCount = grid.itemCount;
     }
 
     //! Map screen coords to chapter index, or -1.
@@ -124,19 +238,21 @@ class ChapterGridView extends WatchUi.View {
         if (displayRow < 0 || displayRow >= grid.visibleRows) {
             return -1;
         }
-        var row = grid.startRow + displayRow;
-        var rowMidY = _gridTop + displayRow * _cellH + _cellH / 2;
-        var rowLeft = RoundLayout.chordLeft(rowMidY, _screenW, _screenH);
-        var rowW = RoundLayout.chordWidth(rowMidY, _screenW, _screenH);
-        if (x < rowLeft || x > rowLeft + rowW) {
+        if (displayRow >= _rowStart.size()) {
             return -1;
         }
-        var cellW = rowW / grid.columns;
+        // Same cached rects the frame was drawn with (tap == what you see).
+        var rowLeft = _rowLeftA[displayRow] as Lang.Number;
+        var cap = _rowCap[displayRow] as Lang.Number;
+        var cellW = _cellWA[displayRow] as Lang.Number;
+        if (x < rowLeft || x >= rowLeft + cap * cellW) {
+            return -1;
+        }
         var col = ((x - rowLeft) / cellW).toNumber();
-        if (col < 0 || col >= grid.columns) {
+        if (col < 0 || col >= cap) {
             return -1;
         }
-        var idx = grid.indexAt(row, col);
+        var idx = (_rowStart[displayRow] as Lang.Number) + col;
         if (idx < 0 || idx >= grid.itemCount) {
             return -1;
         }
@@ -150,19 +266,26 @@ class ChapterGridView extends WatchUi.View {
         ReaderView.openFor(AppState.selectedBook, AppState.selectedChapter);
     }
 
+    //! PERF: per-book heading index (one tiny resource per book), not a chapter JSON per focus move.
     function firstSectionTitle(book as Lang.Number, chapter as Lang.Number) as Lang.String or Null {
-        if (!ContentLoader.hasChapter(book, chapter)) {
+        if (_headsBook != book) {
+            _headsBook = book;
+            _heads = null;
+            var rz = BsbIndex.heads(book);
+            if (rz != null) {
+                Perf.loads++;
+                var hv = WatchUi.loadResource(rz as Lang.ResourceId);
+                if (hv instanceof Lang.Array) {
+                    _heads = hv as Lang.Array;
+                }
+            }
+        }
+        var hs = _heads;
+        if (hs == null || chapter < 1 || chapter > hs.size()) {
             return null;
         }
-        var data = ContentLoader.loadChapter(book, chapter);
-        if (data == null) {
-            return null;
-        }
-        var sections = data[:sections] as Lang.Array;
-        if (sections.size() == 0) {
-            return null;
-        }
-        return sections[0][:title] as Lang.String;
+        var t = hs[chapter - 1] as Lang.String;
+        return t.length() > 0 ? t : null;
     }
 }
 
@@ -195,22 +318,27 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
+    // TAP FIX: on touch watches a screen tap is ALSO mapped to the onSelect behavior
+    // (before onTap), which opened the highlighted row instead of the tapped one.
+    // onSelect therefore never acts: button Enter arrives via onKey, taps via onTap.
     function onSelect() as Lang.Boolean {
-        if (TouchGuard.consumeSelect()) {
-            return true;
+        return false;
+    }
+
+    function onKey(evt as WatchUi.KeyEvent) as Lang.Boolean {
+        if (evt.getKey() == WatchUi.KEY_ENTER) {
+            return activate();
         }
+        return false;
+    }
+
+    function activate() as Lang.Boolean {
         var v = gridView();
         v.openChapterIndex(v.grid.focusIndex);
         return true;
     }
 
-    function onKey(evt) as Lang.Boolean {
-        // POKE: measure hold with onKeyPressed/Released timing vs onHold for Enduro 3 Select.
-        return false;
-    }
-
     function onHold(evt) as Lang.Boolean {
-        TouchGuard.markSelect();
         var coords = evt.getCoordinates();
         var v = gridView();
         var idx = v.chapterAt(coords[0], coords[1]);
@@ -230,11 +358,9 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
         var v = gridView();
         var idx = v.chapterAt(coords[0], coords[1]);
         if (idx >= 0) {
-            TouchGuard.markSelect();
             v.openChapterIndex(idx);
-            return true;
         }
-        return false;
+        return true;
     }
 
     function onSwipe(evt) as Lang.Boolean {

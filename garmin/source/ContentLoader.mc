@@ -18,21 +18,8 @@ module ContentLoader {
     var _wordCache as Lang.Dictionary = {};
 
     function resourceFor(book as Lang.Number, chapter as Lang.Number) as Lang.ResourceId or Null {
-        // John=42, Malachi=38, Matthew=39
-        if (book == 42 && chapter == 3) {
-            return Rez.JsonData.John3;
-        }
-        if (book == 42 && chapter == 4) {
-            return Rez.JsonData.John4;
-        }
-        if (book == 38 && chapter == 4) {
-            return Rez.JsonData.Malachi4;
-        }
-        if (book == 39 && chapter == 1) {
-            return Rez.JsonData.Matthew1;
-        }
-        // POKE: map full canon once pack/chunk pipeline exists.
-        return null;
+        // Full BSB bundled offline (1189 chapters, resources/bsb, generated BsbIndex).
+        return BsbIndex.rez(book, chapter);
     }
 
     function hasChapter(book as Lang.Number, chapter as Lang.Number) as Lang.Boolean {
@@ -41,11 +28,40 @@ module ContentLoader {
 
     //! Returns { :book, :chapter, :verses, :sections } or null.
     //! sections = [ { :startVerse, :title }, ... ] from verse "h" fields (BSB USJ).
+    // PERF: 2-slot chapter cache (primary + continuation). loadResource + JSON decode is the
+    // single most expensive call on device; never repeat it for a chapter already in memory.
+    var _ck0 as Lang.Number = -1;
+    var _cd0 as Lang.Dictionary or Null = null;
+    var _ck1 as Lang.Number = -1;
+    var _cd1 as Lang.Dictionary or Null = null;
+
     function loadChapter(book as Lang.Number, chapter as Lang.Number) as Lang.Dictionary or Null {
+        var key = book * 1000 + chapter;
+        if (key == _ck0) {
+            return _cd0;
+        }
+        if (key == _ck1) {
+            var d = _cd1;
+            _ck1 = _ck0;
+            _cd1 = _cd0;
+            _ck0 = key;
+            _cd0 = d;
+            return d;
+        }
+        var res = loadChapterUncached(book, chapter);
+        _ck1 = _ck0;
+        _cd1 = _cd0;
+        _ck0 = key;
+        _cd0 = res;
+        return res;
+    }
+
+    function loadChapterUncached(book as Lang.Number, chapter as Lang.Number) as Lang.Dictionary or Null {
         var rez = resourceFor(book, chapter);
         if (rez == null) {
             return null;
         }
+        Perf.loads++;
         var data = WatchUi.loadResource(rez);
         if (data == null || !(data instanceof Lang.Dictionary)) {
             return null;
@@ -94,7 +110,7 @@ module ContentLoader {
 
     //! Active section title for verse, or null.
     function stickySectionTitle(sections as Lang.Array, verse as Lang.Number) as Lang.String or Null {
-        var active as Lang.String or Null = null;
+        var active = null;
         var i;
         for (i = 0; i < sections.size(); i++) {
             var sec = sections[i];
@@ -124,6 +140,14 @@ module ContentLoader {
             return null;
         }
         var verses = data[:verses] as Lang.Array;
+        // PERF: verses are stored 1..N in order — try the direct slot first.
+        if (verse >= 1 && verse <= verses.size()) {
+            var dv = verses[verse - 1];
+            var dn = dv["n"];
+            if (dn == verse) {
+                return dv["t"] as Lang.String;
+            }
+        }
         var i;
         for (i = 0; i < verses.size(); i++) {
             var v = verses[i];
@@ -157,6 +181,7 @@ module ContentLoader {
         if (hit != null) {
             return hit as Lang.Number;
         }
+        Perf.measures++;
         var w = dc.getTextWidthInPixels(word, font);
         _wordCache[key] = w;
         return w;
