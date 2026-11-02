@@ -13,9 +13,10 @@
 #define BIBLE_MAX_CHAPTERS        150
 #define BIBLE_MAX_FILTER_OPTIONS  22
 #define BIBLE_MAX_COLLECTION      100
-#define BIBLE_MAX_VERSES          176 /* Psalms 119 = 176 verses */
-#define BIBLE_MAX_LINES           800 /* Psalm 119 wraps to about 770 lines */
-#define BIBLE_MAX_FILE_SIZE       20000
+#define BIBLE_MAX_VERSES           176 /* Psalms 119 = 176 verses */
+#define BIBLE_MAX_LINES            800 /* Psalm 119 wraps to about 770 lines */
+#define BIBLE_MAX_CHAPTER_SECTIONS 24  /* Psalm 119 has 22 sections */
+#define BIBLE_MAX_FILE_SIZE        20000
 #define BIBLE_MAX_COLLECTION_SIZE 2048
 #define BIBLE_READ_CHUNK          1024
 
@@ -58,10 +59,15 @@ static inline bool bible_toast_active(const BibleToast* toast) {
  * Line (rendered wrapped line)
  * ============================================================================ */
 typedef struct {
-    char text[64]; /* max chars per line + verse prefix + safety */
+    char text[28]; /* max 20 chars per line + null terminator + alignment */
     uint16_t verse_number; /* verse this line belongs to (0 = unassigned) */
     bool is_verse_number; /* true if first line of a verse (has number prefix) */
 } BibleLine;
+
+typedef struct {
+    uint16_t start_verse;
+    char title[56];
+} BibleSectionHeading;
 
 /* ============================================================================
  * Passage (currently loaded chapter metadata — verses live on SD, not RAM)
@@ -72,6 +78,8 @@ typedef struct {
     uint16_t start_verse;
     uint16_t end_verse;
     uint16_t verse_count;
+    uint8_t section_count;
+    BibleSectionHeading sections[BIBLE_MAX_CHAPTER_SECTIONS];
 } BiblePassage;
 
 /* ============================================================================
@@ -129,6 +137,8 @@ typedef struct BibleAppState {
     uint16_t lines_capacity;
     uint16_t current_page;
     bool reader_on_chapter_page; /* true when showing the chapter boundary title page */
+    uint32_t header_scroll_ticks; /* tick counter for pause-then-scroll header marquee */
+    const void* header_scroll_key; /* tracks active header so scroll resets on change */
 
     /* Feedback */
     BibleToast toast;
@@ -278,6 +288,8 @@ static inline void bible_app_state_init(BibleAppState* state) {
     state->lines_capacity = 0;
     state->current_page = 0;
     state->reader_on_chapter_page = false;
+    state->header_scroll_ticks = 0;
+    state->header_scroll_key = NULL;
     state->verse_select_for_nfc = false;
     state->reader_came_from_collection = false;
     state->nfc_emitting = false;

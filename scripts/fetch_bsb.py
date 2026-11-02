@@ -18,7 +18,12 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-BSB_JSONL_URL = "https://arweave.net/B6yeNb3lk_VkiIp-fTWVh13TlM94LjLK6kC63BPXa8s"
+BSB_TXT_URL = "https://bereanbible.com/bsb.txt"
+BSB_USJ_ZIP_URL = "https://bereanbible.com/bsb_usj.zip"
+HTTP_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    "Accept": "*/*",
+}
 
 BOOK_CODES = {
     "Genesis": "GEN",
@@ -116,24 +121,127 @@ PACK_HS_WINDOW = 11
 PACK_HS_LOOKAHEAD = 4
 
 
-def download_jsonl(destination: Path) -> Path:
-    req = urllib.request.Request(BSB_JSONL_URL, headers={"User-Agent": "Kindled-Spark/1.0"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
+def _open_url(url: str):
+    import ssl
+
+    req = urllib.request.Request(url, headers=HTTP_HEADERS)
+    try:
+        return urllib.request.urlopen(req, timeout=60)
+    except urllib.error.URLError:
+        ctx = ssl._create_unverified_context()
+        return urllib.request.urlopen(req, timeout=60, context=ctx)
+
+
+def download_bsb_txt(destination: Path) -> Path:
+    with _open_url(BSB_TXT_URL) as resp:
         with destination.open("wb") as out:
             shutil.copyfileobj(resp, out)
     return destination
 
 
-def build_chapters(jsonl_path: Path, output_dir: Path) -> int:
-    chapters = {}
-    with jsonl_path.open("r", encoding="utf-8") as src:
-        for line in src:
-            if not line.strip():
+def _extract_usj_plain_text(items) -> str:
+    parts = []
+    for item in items:
+        if isinstance(item, str):
+            parts.append(item)
+        elif isinstance(item, dict):
+            if item.get("type") == "note":
                 continue
-            row = json.loads(line)
-            code = BOOK_CODES[row["book"]].lower()
-            chapter = int(row["chapter"])
-            verse = {"n": int(row["verseNum"]), "t": row["text"]}
+            if "content" in item:
+                parts.append(_extract_usj_plain_text(item["content"]))
+    return "".join(parts).strip()
+
+
+def _iter_usj_verse_numbers(items):
+    for sub in items:
+        if isinstance(sub, dict):
+            if sub.get("type") == "verse":
+                yield int(sub["number"])
+            if "content" in sub:
+                yield from _iter_usj_verse_numbers(sub["content"])
+
+
+def load_official_bsb_headings(usj_zip_path: Path | None = None) -> dict[tuple[str, int, int], str]:
+    """Load official BSB section headings from bereanbible.com/bsb_usj.zip."""
+    if usj_zip_path is not None and usj_zip_path.is_file():
+        raw_zip = usj_zip_path.read_bytes()
+    else:
+        with _open_url(BSB_USJ_ZIP_URL) as resp:
+            raw_zip = resp.read()
+
+    import io
+
+    headings: dict[tuple[str, int, int], str] = {}
+    with zipfile.ZipFile(io.BytesIO(raw_zip)) as zf:
+        for name in sorted(zf.namelist()):
+            if not name.endswith(".usj"):
+                continue
+            code = name.split("/")[-1].replace(".usj", "").lower()
+            doc = json.loads(zf.read(name).decode("utf-8"))
+            cur_ch = 0
+            pending: list[str] = []
+            for item in doc.get("content", []):
+                t = item.get("type")
+                if t == "chapter":
+                    cur_ch = int(item["number"])
+                    pending = []
+                elif t == "para":
+                    marker = item.get("marker", "")
+                    txt = _extract_usj_plain_text(item.get("content", []))
+                    if marker in ("s1", "s2") or (marker == "qa" and txt.isascii()):
+                        if txt:
+                            pending.append(txt)
+                    for vnum in _iter_usj_verse_numbers(item.get("content", [])):
+                        if pending:
+                            headings[(code, cur_ch, vnum)] = " - ".join(pending)
+                            pending = []
+    return headings
+
+
+def build_chapters(
+    input_path: Path,
+    output_dir: Path,
+    headings: dict[tuple[str, int, int], str] | None = None,
+) -> int:
+    chapters = {}
+    with input_path.open("r", encoding="utf-8") as src:
+        for line in src:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stripped.startswith("{"):
+                row = json.loads(stripped)
+                code = BOOK_CODES[row["book"]].lower()
+                chapter = int(row["chapter"])
+                vnum = int(row["verseNum"])
+                text = row["text"]
+                row_heading = row.get("heading")
+            else:
+                if "\t" not in line:
+                    continue
+                ref_col, text = line.rstrip("\r\n").split("\t", 1)
+                if ":" not in ref_col or " " not in ref_col:
+                    continue
+                book_name, ch_vs = ref_col.rsplit(" ", 1)
+                if book_name not in BOOK_CODES or ":" not in ch_vs:
+                    continue
+                ch_str, vs_str = ch_vs.split(":", 1)
+                if not ch_str.isdigit() or not vs_str.isdigit():
+                    continue
+                code = BOOK_CODES[book_name].lower()
+                chapter = int(ch_str)
+                vnum = int(vs_str)
+                text = text.strip()
+                if not text:
+                    continue
+                row_heading = None
+
+            verse = {"n": vnum}
+            if headings and (code, chapter, vnum) in headings:
+                verse["h"] = headings[(code, chapter, vnum)]
+            elif row_heading:
+                verse["h"] = str(row_heading)
+            verse["t"] = text
             chapters.setdefault((code, chapter), []).append(verse)
 
     if output_dir.exists():
@@ -256,13 +364,13 @@ def main():
     chapter_dir = args.pack_dir
     total = None
     if chapter_dir is None:
+        headings = load_official_bsb_headings()
         if args.input:
-            jsonl_path = args.input
-            total = build_chapters(jsonl_path, args.output)
+            total = build_chapters(args.input, args.output, headings=headings)
         else:
             with tempfile.TemporaryDirectory() as tmp:
-                jsonl_path = download_jsonl(Path(tmp) / "bsb.jsonl")
-                total = build_chapters(jsonl_path, args.output)
+                txt_path = download_bsb_txt(Path(tmp) / "bsb.txt")
+                total = build_chapters(txt_path, args.output, headings=headings)
         chapter_dir = args.output
         print(f"Done. Wrote {total} chapter files to {args.output}")
 

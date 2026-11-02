@@ -189,6 +189,8 @@ static void bible_bsb_scene_verse_select_on_exit(void* context) {
 static void bible_bsb_scene_reader_on_enter(void* context) {
     BibleApp* app = context;
     app->state->current_scene = BibleSceneReader;
+    app->state->header_scroll_ticks = 0;
+    app->state->header_scroll_key = NULL;
     view_dispatcher_switch_to_view(app->view_dispatcher, BibleViewReader);
 }
 
@@ -385,6 +387,9 @@ static void bible_bsb_tick_callback(void* context) {
     BibleApp* app = context;
     if(app && app->state) {
         bible_toast_tick(&app->state->toast);
+        if(app->state->current_scene == BibleSceneReader) {
+            app->state->header_scroll_ticks++;
+        }
         /* Queue a redraw so toast timers and the NFC pulse stay current. */
         bible_app_request_redraw(app);
     }

@@ -9,9 +9,62 @@
 /* ============================================================================
  * Reader layout constants
  * ============================================================================ */
-#define READER_HEADER_Y  8
-#define READER_DIVIDER_Y 10
-#define READER_CONTENT_Y 16
+#define READER_HEADER_Y                 8
+#define READER_DIVIDER_Y                10
+#define READER_CONTENT_Y                16
+#define READER_HEADER_PAUSE_START_TICKS 50 /* ~1.7s pause at start (30fps) */
+#define READER_HEADER_PAUSE_END_TICKS   50 /* ~1.7s pause at end (30fps) */
+#define READER_HEADER_TICKS_PER_CHAR    7  /* ~4.3 chars/s horizontal scroll */
+
+static void reader_draw_scrolling_text(
+    Canvas* canvas,
+    int16_t x,
+    int16_t y,
+    int16_t max_w,
+    const char* text,
+    uint32_t ticks,
+    bool center_when_fits) {
+    if(!canvas || !text || text[0] == '\0' || max_w <= 0) return;
+
+    uint16_t full_w = canvas_string_width(canvas, text);
+    if(full_w <= (uint16_t)max_w) {
+        int16_t draw_x = center_when_fits ? (int16_t)(x + (max_w - (int16_t)full_w) / 2) : x;
+        canvas_draw_str(canvas, draw_x, y, text);
+        return;
+    }
+
+    size_t len = strlen(text);
+    size_t max_offset = 0;
+    while(max_offset + 1 < len &&
+          canvas_string_width(canvas, text + max_offset) > (uint16_t)max_w) {
+        max_offset++;
+    }
+
+    uint32_t scroll_span = (uint32_t)max_offset * READER_HEADER_TICKS_PER_CHAR;
+    uint32_t cycle =
+        READER_HEADER_PAUSE_START_TICKS + scroll_span + READER_HEADER_PAUSE_END_TICKS;
+    uint32_t phase = ticks % cycle;
+
+    size_t char_offset = 0;
+    if(phase < READER_HEADER_PAUSE_START_TICKS) {
+        char_offset = 0;
+    } else if(phase < READER_HEADER_PAUSE_START_TICKS + scroll_span) {
+        char_offset = (size_t)((phase - READER_HEADER_PAUSE_START_TICKS) /
+                               READER_HEADER_TICKS_PER_CHAR);
+    } else {
+        char_offset = max_offset;
+    }
+
+    char visible_buf[64];
+    strlcpy(visible_buf, text + char_offset, sizeof(visible_buf));
+    size_t vlen = strlen(visible_buf);
+    while(vlen > 0 && canvas_string_width(canvas, visible_buf) > (uint16_t)max_w) {
+        vlen--;
+        visible_buf[vlen] = '\0';
+    }
+
+    canvas_draw_str(canvas, x, y, visible_buf);
+}
 
 /* ============================================================================
  * Display reference for the header
@@ -47,6 +100,23 @@ static void bible_passage_display_ref(const BibleAppState* state, char* out, siz
     } else {
         snprintf(out, out_len, "%s %u", book_name, (unsigned int)passage->chapter);
     }
+}
+
+/* ============================================================================
+ * Sticky section header lookup for the current verse
+ * ============================================================================ */
+static const char*
+    bible_sticky_section_for_verse(const BiblePassage* passage, uint16_t current_verse) {
+    if(!passage || passage->section_count == 0) return NULL;
+
+    const char* active = NULL;
+    for(uint8_t i = 0; i < passage->section_count; i++) {
+        if(passage->sections[i].start_verse <= current_verse &&
+           passage->sections[i].title[0] != '\0') {
+            active = passage->sections[i].title;
+        }
+    }
+    return active;
 }
 
 /* ============================================================================
@@ -292,34 +362,82 @@ void bible_bsb_view_reader_draw(Canvas* canvas, void* ctx) {
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
 
-    /* Header with passage reference + right-aligned X/Y verse indicator */
+    /* Header with sticky section title on left + compact OSIS ref (e.g. JHN 3:16) on right */
     if(state->passage.verse_count > 0) {
-        char ref_buf[48];
-        bible_passage_display_ref(state, ref_buf, sizeof(ref_buf));
         canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str(canvas, BIBLE_MARGIN_X, READER_HEADER_Y, ref_buf);
+
+        uint16_t current_verse = 1;
+        uint8_t right_w = 0;
+        char osis_ref[20];
+        osis_ref[0] = '\0';
+        const char* osis =
+            (state->passage.book_index < BIBLE_BOOK_COUNT &&
+             OSIS_BOOK_CODES[state->passage.book_index]) ?
+                OSIS_BOOK_CODES[state->passage.book_index] :
+                "BSB";
 
         if(!state->reader_on_chapter_page && state->lines && state->line_count > 0) {
             uint16_t idx = (state->scroll_offset < state->line_count) ?
                                state->scroll_offset :
                                (uint16_t)(state->line_count - 1);
-            uint16_t current_verse = state->lines[idx].verse_number;
-            uint16_t total_verses = state->passage.verse_count;
-            if(total_verses == 0) {
-                total_verses = state->lines[state->line_count - 1].verse_number;
-            }
-            if(current_verse > 0 && total_verses > 0) {
-                char verse_str[16];
-                snprintf(
-                    verse_str,
-                    sizeof(verse_str),
-                    "%u/%u",
-                    (unsigned int)current_verse,
-                    (unsigned int)total_verses);
-                uint8_t width = canvas_string_width(canvas, verse_str);
-                int16_t x = BIBLE_SCREEN_WIDTH - (int16_t)width - BIBLE_MARGIN_X;
-                canvas_draw_str(canvas, x, READER_HEADER_Y, verse_str);
-            }
+            current_verse = state->lines[idx].verse_number;
+            if(current_verse == 0) current_verse = 1;
+
+            snprintf(
+                osis_ref,
+                sizeof(osis_ref),
+                "%s %u:%u",
+                osis,
+                (unsigned int)state->passage.chapter,
+                (unsigned int)current_verse);
+            uint8_t text_w = canvas_string_width(canvas, osis_ref);
+            right_w = text_w + 5;
+        }
+
+        char header_buf[64];
+        const char* sticky =
+            (!state->reader_on_chapter_page) ?
+                bible_sticky_section_for_verse(&state->passage, current_verse) :
+                NULL;
+        const void* scroll_key = state->reader_on_chapter_page ?
+                                     (const void*)1 :
+                                     (sticky ? (const void*)sticky : (const void*)2);
+        if(state->header_scroll_key != scroll_key) {
+            state->header_scroll_key = scroll_key;
+            state->header_scroll_ticks = 0;
+        }
+
+        if(sticky && sticky[0] != '\0') {
+            strlcpy(header_buf, sticky, sizeof(header_buf));
+        } else {
+            bible_passage_display_ref(state, header_buf, sizeof(header_buf));
+        }
+
+        /* Fit or horizontally scroll sticky header to the space left of the OSIS badge */
+        int16_t max_left_w =
+            (int16_t)BIBLE_SCREEN_WIDTH - (int16_t)right_w - BIBLE_MARGIN_X -
+            (right_w > 0 ? 4 : BIBLE_MARGIN_X);
+        if(max_left_w < 20) max_left_w = 20;
+
+        reader_draw_scrolling_text(
+            canvas,
+            BIBLE_MARGIN_X,
+            READER_HEADER_Y,
+            max_left_w,
+            header_buf,
+            state->header_scroll_ticks,
+            false);
+
+        if(right_w > 0) {
+            int16_t box_x = BIBLE_SCREEN_WIDTH - (int16_t)right_w;
+            if(box_x < 0) box_x = 0;
+
+            /* Inverted black tab anchored to top-right & divider line */
+            canvas_set_color(canvas, ColorBlack);
+            canvas_draw_box(canvas, (uint8_t)box_x, 0, right_w, READER_DIVIDER_Y + 1);
+            canvas_set_color(canvas, ColorWhite);
+            canvas_draw_str(canvas, box_x + 3, READER_HEADER_Y, osis_ref);
+            canvas_set_color(canvas, ColorBlack);
         }
 
         canvas_draw_line(canvas, 0, READER_DIVIDER_Y, BIBLE_SCREEN_WIDTH, READER_DIVIDER_Y);
@@ -336,18 +454,35 @@ void bible_bsb_view_reader_draw(Canvas* canvas, void* ctx) {
             "Chapter %u",
             (unsigned int)state->passage.chapter);
 
+        bool has_subtitle =
+            (state->passage.section_count > 0 && state->passage.sections[0].title[0] != '\0');
+        int16_t book_y = has_subtitle ? 26 : 32;
+        int16_t ch_y = has_subtitle ? 40 : 46;
+
         canvas_set_font(canvas, FontPrimary);
         uint8_t book_w = canvas_string_width(canvas, book_name);
         int16_t book_x = (BIBLE_SCREEN_WIDTH > book_w) ?
                              (int16_t)((BIBLE_SCREEN_WIDTH - book_w) / 2) :
                              BIBLE_MARGIN_X;
-        canvas_draw_str(canvas, book_x, 32, book_name);
+        canvas_draw_str(canvas, book_x, book_y, book_name);
 
         uint8_t ch_w = canvas_string_width(canvas, chapter_str);
         int16_t ch_x = (BIBLE_SCREEN_WIDTH > ch_w) ?
                            (int16_t)((BIBLE_SCREEN_WIDTH - ch_w) / 2) :
                            BIBLE_MARGIN_X;
-        canvas_draw_str(canvas, ch_x, 46, chapter_str);
+        canvas_draw_str(canvas, ch_x, ch_y, chapter_str);
+
+        if(has_subtitle) {
+            canvas_set_font(canvas, FontSecondary);
+            reader_draw_scrolling_text(
+                canvas,
+                BIBLE_MARGIN_X,
+                54,
+                BIBLE_SCREEN_WIDTH - (BIBLE_MARGIN_X * 2),
+                state->passage.sections[0].title,
+                state->header_scroll_ticks,
+                true);
+        }
 
         bible_draw_toast(canvas, &state->toast);
         return;
