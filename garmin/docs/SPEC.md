@@ -25,7 +25,7 @@ Primary device: **Enduro 3** (5-button + touch, round MIP ~280×280). Budget lin
 | Chapter snake grid | Open reader (full chapter; verse picker deferred — POKE) | Bookmark **chapter** | Book list | Next cell (snake) | Prev cell (snake) | — | Tap cell; long-press cell = bookmark chapter |
 | Reader | (optional menu) | Bookmark **focused verse** | Return to grid **for current chapter** (after continuation) | Scroll down / next verse block | Scroll up / prev | Bookmarks | Swipe scroll; hold verse |
 | Bookmarks list | Jump to passage | Remove bookmark | Book list | Next item | Prev item | — | Tap / long-press |
-| Toast/feedback | — | — | Dismiss | — | — | — | Auto-clear ~2s + vibe if available |
+| Toast/feedback | — | — | Dismiss | — | — | — | Auto-clear ~1s pill + vibe if available |
 
 ### Long-press rules & platform constraints
 
@@ -303,6 +303,10 @@ Everything **not** listed here should match Flipper behavior/spirit from `flippe
 | NFC share / Kindled export | Omitted in spike | No Flipper NFC; CIQ comms different | — |
 | Toast software frames @30fps | Toast + `Attention.vibrate` | Haptics exist on Garmin | Devices with Attention |
 | SceneManager stack | `WatchUi.pushView`/`popView` | CIQ navigation model | All |
+| Fixed 128px column / 2px margins | **Per-row circle chord width** (`RoundLayout.chordWidth`) with ~7%‑of‑r margin; square = full width − edge margin. Reader wraps to **min chord in content band** (scroll-stable). | Round faces clip left-aligned chrome; mid-circle is wider than Flipper’s fixed column | Round: Enduro 3, FR165/265/965, Venu, VA5/6; square: Venu Sq uses edge margins only |
+| Left-aligned headers / bottom hints | Centered in the row’s chord; full book name with font shrink — **no** `"Malac"` truncation | Circle radius clips left/bottom glyphs on 280px | Round primarily |
+| No chapter divider (single passage) | Continuation divider with **~1 line-height pad** above/below, centered, thin rules + accent label | Garmin continuation feature needs clear breathing room on dense round layouts | All |
+| Black toast box over text | Centered **pill** toast with dim band + ★ mark, auto-dismiss ~1s (`RoundLayout.TOAST_MS`) | Watch chrome expects transient banners; Flipper toast was a filled rect on 128×64 | All |
 
 ### Flipper ↔ Garmin layout references
 

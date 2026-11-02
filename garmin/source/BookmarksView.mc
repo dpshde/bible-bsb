@@ -18,34 +18,44 @@ class BookmarksView extends WatchUi.View {
         }
     }
 
-    function onUpdate(dc as Dc) as Void {
+    function onUpdate(dc as Graphics.Dc) as Void {
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
         dc.clear();
         var w = dc.getWidth();
         var h = dc.getHeight();
-        var inset = (w < h ? w : h) / 10;
-        dc.drawText(w / 2, inset, Graphics.FONT_TINY, "Bookmarks", Graphics.TEXT_JUSTIFY_CENTER);
-        var y = inset + dc.getFontHeight(Graphics.FONT_TINY) + 6;
-        dc.drawLine(inset, y - 4, w - inset, y - 4);
+        var titleFont = Graphics.FONT_TINY;
+        var rowFont = Graphics.FONT_SMALL;
+        var y = RoundLayout.edgeMargin(w, h);
+        RoundLayout.drawCenteredInChord(dc, y, "Bookmarks", titleFont);
+        y += dc.getFontHeight(titleFont) + 6;
+        var ruleLeft = RoundLayout.chordLeft(y - 4, w, h);
+        dc.drawLine(ruleLeft, y - 4, ruleLeft + RoundLayout.chordWidth(y - 4, w, h), y - 4);
+
         if (items.size() == 0) {
-            dc.drawText(w / 2, h / 2, Graphics.FONT_SMALL, "No bookmarks", Graphics.TEXT_JUSTIFY_CENTER);
+            RoundLayout.drawCenteredInChord(dc, h / 2, "No bookmarks", Graphics.FONT_SMALL);
             return;
         }
+
+        var rowH = dc.getFontHeight(rowFont) + 8;
+        var bottom = h - RoundLayout.edgeMargin(w, h);
         var i;
         for (i = 0; i < items.size(); i++) {
-            var label = Bookmarks.formatLabel(items[i] as Lang.Number);
-            if (i == focus) {
-                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-                dc.fillRectangle(inset, y - 2, w - 2 * inset, dc.getFontHeight(Graphics.FONT_SMALL) + 4);
-                dc.drawText(inset + 4, y, Graphics.FONT_SMALL, label, Graphics.TEXT_JUSTIFY_LEFT);
-                dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-            } else {
-                dc.drawText(inset + 4, y, Graphics.FONT_SMALL, label, Graphics.TEXT_JUSTIFY_LEFT);
-            }
-            y += dc.getFontHeight(Graphics.FONT_SMALL) + 6;
-            if (y > h - inset) {
+            if (y + rowH > bottom) {
                 break;
             }
+            var label = Bookmarks.formatLabel(items[i] as Lang.Number);
+            var midY = y + rowH / 2;
+            var left = RoundLayout.chordLeft(midY, w, h);
+            var cw = RoundLayout.chordWidth(midY, w, h);
+            if (i == focus) {
+                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+                dc.fillRectangle(left, y, cw, rowH - 2);
+                dc.drawText(w / 2, y + 3, rowFont, label, Graphics.TEXT_JUSTIFY_CENTER);
+                dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
+            } else {
+                dc.drawText(w / 2, y + 3, rowFont, label, Graphics.TEXT_JUSTIFY_CENTER);
+            }
+            y += rowH;
         }
     }
 }
@@ -91,7 +101,6 @@ class BookmarksDelegate extends WatchUi.BehaviorDelegate {
         ReaderView.openFor(book, chapter);
         // POKE: after open, scrollOffset snap to verse if verse!=0.
         if (verse != 0) {
-            // deferred snap once lines built
         }
         return true;
     }

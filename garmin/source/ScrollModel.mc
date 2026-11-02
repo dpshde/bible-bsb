@@ -14,7 +14,8 @@ module ScrollModel {
     enum {
         KIND_VERSE = 0,
         KIND_DIVIDER = 1,
-        KIND_END = 2
+        KIND_END = 2,
+        KIND_SPACER = 3
     }
 
     class Line {
@@ -103,8 +104,8 @@ module ScrollModel {
                 idx = lines.size() - 1;
             }
             var line = lines[idx] as Line;
-            if (line.kind == KIND_DIVIDER || line.kind == KIND_END) {
-                // Divider attaches to following verse 1
+            if (line.kind == KIND_DIVIDER || line.kind == KIND_END || line.kind == KIND_SPACER) {
+                // Divider/spacer attaches to following verse 1
                 var j = idx + 1;
                 while (j < lines.size()) {
                     var n = lines[j] as Line;
@@ -112,6 +113,15 @@ module ScrollModel {
                         return { :book => n.book, :chapter => n.chapter, :verse => n.verse };
                     }
                     j++;
+                }
+                // Look backward if at trailing spacers
+                j = idx - 1;
+                while (j >= 0) {
+                    var p = lines[j] as Line;
+                    if (p.kind == KIND_VERSE) {
+                        return { :book => p.book, :chapter => p.chapter, :verse => p.verse };
+                    }
+                    j--;
                 }
                 return { :book => line.book, :chapter => line.chapter, :verse => 1 };
             }

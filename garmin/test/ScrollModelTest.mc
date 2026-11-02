@@ -6,7 +6,7 @@ function _line(kind as Lang.Number, book as Lang.Number, chapter as Lang.Number,
 }
 
 (:test)
-function testSnapToVerseStart(logger as Logger) as Lang.Boolean {
+function testSnapToVerseStart(logger as Test.Logger) as Lang.Boolean {
     var lines = [
         _line(ScrollModel.KIND_VERSE, 42, 3, 1, true),
         _line(ScrollModel.KIND_VERSE, 42, 3, 1, false),
@@ -20,7 +20,7 @@ function testSnapToVerseStart(logger as Logger) as Lang.Boolean {
 }
 
 (:test)
-function testFocusVerseIncrementalMidVerse(logger as Logger) as Lang.Boolean {
+function testFocusVerseIncrementalMidVerse(logger as Test.Logger) as Lang.Boolean {
     var lines = [
         _line(ScrollModel.KIND_VERSE, 42, 3, 1, true),
         _line(ScrollModel.KIND_VERSE, 42, 3, 1, false),
@@ -35,7 +35,7 @@ function testFocusVerseIncrementalMidVerse(logger as Logger) as Lang.Boolean {
 }
 
 (:test)
-function testFocusVerseOnDividerAttachesToNext(logger as Logger) as Lang.Boolean {
+function testFocusVerseOnDividerAttachesToNext(logger as Test.Logger) as Lang.Boolean {
     var lines = [
         _line(ScrollModel.KIND_VERSE, 42, 3, 36, true),
         _line(ScrollModel.KIND_DIVIDER, 42, 4, 0, false),
@@ -49,7 +49,7 @@ function testFocusVerseOnDividerAttachesToNext(logger as Logger) as Lang.Boolean
 }
 
 (:test)
-function testVerseModeCrossesBoundaryInOneStep(logger as Logger) as Lang.Boolean {
+function testVerseModeCrossesBoundaryInOneStep(logger as Test.Logger) as Lang.Boolean {
     var s = new ScrollModel.State();
     s.mode = ScrollModel.MODE_VERSE;
     s.visibleCount = 4;
@@ -69,7 +69,7 @@ function testVerseModeCrossesBoundaryInOneStep(logger as Logger) as Lang.Boolean
 }
 
 (:test)
-function testIncrementalStepsThroughDivider(logger as Logger) as Lang.Boolean {
+function testIncrementalStepsThroughDivider(logger as Test.Logger) as Lang.Boolean {
     var s = new ScrollModel.State();
     s.mode = ScrollModel.MODE_INCREMENTAL;
     s.visibleCount = 2;
@@ -87,7 +87,7 @@ function testIncrementalStepsThroughDivider(logger as Logger) as Lang.Boolean {
 }
 
 (:test)
-function testTallVerseStepsInsideBeforeCrossing(logger as Logger) as Lang.Boolean {
+function testTallVerseStepsInsideBeforeCrossing(logger as Test.Logger) as Lang.Boolean {
     var s = new ScrollModel.State();
     s.mode = ScrollModel.MODE_VERSE;
     s.visibleCount = 2;

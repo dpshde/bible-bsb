@@ -1,10 +1,11 @@
+using Toybox.Graphics;
 using Toybox.Lang;
 using Toybox.WatchUi;
 
 //! Loads spike chapter JSON from resources. One chapter at a time (SPEC §6).
 module ContentLoader {
 
-    function resourceFor(book as Lang.Number, chapter as Lang.Number) as Lang.Symbol or Null {
+    function resourceFor(book as Lang.Number, chapter as Lang.Number) as Lang.ResourceId or Null {
         // John=42, Malachi=38, Matthew=39
         if (book == 42 && chapter == 3) {
             return Rez.JsonData.John3;
@@ -47,44 +48,100 @@ module ContentLoader {
         };
     }
 
-    //! Naive wrap for spike — returns Array of { :text, :verse, :isStart }.
-    //! POKE: measure with device fonts; use Graphics.getTextWidthForNumberOfLines.
+    //! Char-budget wrap (tests / fallback). O(n) char-array scan — avoids CIQ watchdog.
     function wrapVerse(verseNum as Lang.Number, text as Lang.String, maxChars as Lang.Number) as Lang.Array {
         var out = [];
         var prefix = verseNum + " ";
-        var remaining = text;
+        var chars = text.toCharArray();
+        var n = chars.size();
+        var pos = 0;
         var first = true;
-        while (remaining.length() > 0) {
-            var budget = maxChars;
+        while (pos < n) {
             var chunk = "";
+            var budget = maxChars;
             if (first) {
                 chunk = prefix;
                 budget = maxChars - prefix.length();
                 if (budget < 8) {
-                    budget = maxChars; // fall back
+                    budget = maxChars;
                     chunk = "";
                 }
             }
-            if (remaining.length() <= budget) {
-                out.add({ :text => chunk + remaining, :verse => verseNum, :isStart => first });
+            if (n - pos <= budget) {
+                out.add({ :text => chunk + text.substring(pos, n), :verse => verseNum, :isStart => first });
                 break;
             }
             var take = budget;
-            var space = -1;
             var i;
-            for (i = 0; i < budget && i < remaining.length(); i++) {
-                if (remaining.substring(i, i + 1).equals(" ")) {
-                    space = i;
+            for (i = budget - 1; i > 0; i--) {
+                if (chars[pos + i] == ' ') {
+                    take = i;
+                    break;
                 }
             }
-            if (space > 0) {
-                take = space;
+            out.add({ :text => chunk + text.substring(pos, pos + take), :verse => verseNum, :isStart => first });
+            pos += take;
+            while (pos < n && chars[pos] == ' ') {
+                pos++;
             }
-            var part = remaining.substring(0, take);
-            out.add({ :text => chunk + part, :verse => verseNum, :isStart => first });
-            remaining = remaining.substring(take, remaining.length());
-            if (remaining.length() > 0 && remaining.substring(0, 1).equals(" ")) {
-                remaining = remaining.substring(1, remaining.length());
+            first = false;
+        }
+        return out;
+    }
+
+    //! Pixel wrap to a max width (chord / square content width). Returns { :text, :verse, :isStart }.
+    function wrapVerseToWidth(dc as Graphics.Dc, font as Lang.Number, verseNum as Lang.Number,
+                              text as Lang.String, maxWidth as Lang.Number) as Lang.Array {
+        var out = [];
+        var prefix = verseNum + " ";
+        var chars = text.toCharArray();
+        var n = chars.size();
+        var pos = 0;
+        var first = true;
+        while (pos < n) {
+            var linePrefix = first ? prefix : "";
+            var prefixW = dc.getTextWidthInPixels(linePrefix, font);
+            var budgetPx = maxWidth - prefixW;
+            if (budgetPx < 12) {
+                linePrefix = "";
+                budgetPx = maxWidth;
+            }
+
+            // Entire remainder fits.
+            var rest = text.substring(pos, n);
+            if (dc.getTextWidthInPixels(rest, font) <= budgetPx) {
+                out.add({ :text => linePrefix + rest, :verse => verseNum, :isStart => first });
+                break;
+            }
+
+            // Walk forward by words until width exceeded (char scan, break on spaces).
+            var end = pos;
+            var lastSpace = -1;
+            while (end < n) {
+                var probe = text.substring(pos, end + 1);
+                if (dc.getTextWidthInPixels(probe, font) > budgetPx) {
+                    break;
+                }
+                if (chars[end] == ' ') {
+                    lastSpace = end;
+                }
+                end++;
+            }
+            var takeEnd = end;
+            if (lastSpace > pos) {
+                takeEnd = lastSpace;
+            } else if (end == pos) {
+                // Single overlong token — force one char to make progress.
+                takeEnd = pos + 1;
+            }
+            out.add({
+                :text => linePrefix + text.substring(pos, takeEnd),
+                :verse => verseNum,
+                :isStart => first
+            });
+            pos = takeEnd;
+            while (pos < n && chars[pos] == ' ') {
+                pos++;
             }
             first = false;
         }

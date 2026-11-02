@@ -2,7 +2,7 @@ using Toybox.Lang;
 using Toybox.Test;
 
 (:test)
-function testSnakeIndexRowCol(logger as Logger) as Lang.Boolean {
+function testSnakeIndexRowCol(logger as Test.Logger) as Lang.Boolean {
     var g = new SnakeGrid.Model(21, 5, 4); // John 21 chapters, 5 cols
     Test.assertEqual(g.rowOf(0), 0);
     Test.assertEqual(g.colOf(0), 0);
@@ -16,7 +16,7 @@ function testSnakeIndexRowCol(logger as Logger) as Lang.Boolean {
 }
 
 (:test)
-function testSnakeMidRowWrap(logger as Logger) as Lang.Boolean {
+function testSnakeMidRowWrap(logger as Test.Logger) as Lang.Boolean {
     var g = new SnakeGrid.Model(21, 5, 4);
     g.setFocusIndex(4); // chapter 5
     g.next(); // snake → chapter 6
@@ -28,7 +28,7 @@ function testSnakeMidRowWrap(logger as Logger) as Lang.Boolean {
 }
 
 (:test)
-function testSnakeWrapEnds(logger as Logger) as Lang.Boolean {
+function testSnakeWrapEnds(logger as Test.Logger) as Lang.Boolean {
     var g = new SnakeGrid.Model(21, 5, 4);
     g.wrap = true;
     g.setFocusIndex(20);
@@ -40,7 +40,7 @@ function testSnakeWrapEnds(logger as Logger) as Lang.Boolean {
 }
 
 (:test)
-function testSnakeViewportKeepsFocusRow(logger as Logger) as Lang.Boolean {
+function testSnakeViewportKeepsFocusRow(logger as Test.Logger) as Lang.Boolean {
     var g = new SnakeGrid.Model(150, 5, 4); // Psalms
     g.setFocusIndex(0);
     Test.assertEqual(g.startRow, 0);
@@ -51,7 +51,7 @@ function testSnakeViewportKeepsFocusRow(logger as Logger) as Lang.Boolean {
 }
 
 (:test)
-function testSnakeRowAccelerator(logger as Logger) as Lang.Boolean {
+function testSnakeRowAccelerator(logger as Test.Logger) as Lang.Boolean {
     var g = new SnakeGrid.Model(21, 5, 4);
     g.setFocusIndex(0);
     g.nextRow();
