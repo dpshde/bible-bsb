@@ -74,6 +74,16 @@ module ScrollModel {
         }
 
         function maxScroll() as Lang.Number {
+            // Verse mode: focused verse starts at band top — allow last line as
+            // offset even when it leaves empty space below (SPEC §9). The old
+            // lines-visibleCount clamp blocked boundary snaps and tall-verse
+            // steps at end of buffer (tests + Enduro validation).
+            if (mode == MODE_VERSE) {
+                if (lines.size() == 0) {
+                    return 0;
+                }
+                return lines.size() - 1;
+            }
             if (lines.size() <= visibleCount) {
                 return 0;
             }
@@ -91,10 +101,11 @@ module ScrollModel {
         }
 
         //! Focus verse for bookmarking (SPEC §9).
+        //! Empty buffer returns book=-1 so callers keep AppState (never invent Genesis).
         function focusVerse() as Lang.Dictionary {
             // POKE: validate "first fully visible content line" vs top-line rule on round insets.
             if (lines.size() == 0) {
-                return { :book => 0, :chapter => 1, :verse => 1 };
+                return { :book => -1, :chapter => 1, :verse => 1 };
             }
             var idx = scrollOffset;
             if (idx < 0) {

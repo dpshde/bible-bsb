@@ -8,6 +8,7 @@ class ChapterGridView extends WatchUi.View {
     var grid as SnakeGrid.Model;
     var holdTimer as Timer.Timer or Null = null;
     var holding as Lang.Boolean = false;
+    var _gridBook as Lang.Number = -1;
     // Hit-test cache
     var _gridTop as Lang.Number = 0;
     var _cellH as Lang.Number = 0;
@@ -16,6 +17,12 @@ class ChapterGridView extends WatchUi.View {
 
     function initialize() {
         View.initialize();
+        rebuildGridFromState();
+    }
+
+    //! Rebuild snake model from AppState — fixes Back-from-continuation leaving
+    //! Malachi's grid while selectedBook is Matthew (VALIDATION Genes 1:1 bug).
+    function rebuildGridFromState() as Void {
         var settings = System.getDeviceSettings();
         var w = settings.screenWidth;
         var h = settings.screenHeight;
@@ -23,22 +30,40 @@ class ChapterGridView extends WatchUi.View {
         var rows = SnakeGrid.visibleRowsForHeight(h);
         var n = Books.chapterCount(AppState.selectedBook);
         grid = new SnakeGrid.Model(n, cols, rows);
-        grid.setFocusIndex(AppState.selectedChapter - 1);
+        var focusIdx = AppState.selectedChapter - 1;
+        if (focusIdx < 0) {
+            focusIdx = 0;
+        }
+        if (focusIdx >= n) {
+            focusIdx = n > 0 ? n - 1 : 0;
+        }
+        grid.setFocusIndex(focusIdx);
+        _gridBook = AppState.selectedBook;
+    }
+
+    function onShow() as Void {
+        // Spec: Back to grid focuses the continued chapter's book.
+        if (_gridBook != AppState.selectedBook
+            || grid.focusedChapter() != AppState.selectedChapter
+            || grid.itemCount != Books.chapterCount(AppState.selectedBook)) {
+            rebuildGridFromState();
+        }
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-        dc.clear();
+        Palette.applyBackground(dc);
         var w = dc.getWidth();
         var h = dc.getHeight();
         _screenW = w;
         _screenH = h;
         var titleFont = Graphics.FONT_TINY;
         var titleY = RoundLayout.edgeMargin(w, h);
+        dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
         RoundLayout.drawCenteredInChord(dc, titleY, Books.name(AppState.selectedBook), titleFont);
 
         var top = titleY + dc.getFontHeight(titleFont) + 6;
         var ruleLeft = RoundLayout.chordLeft(top - 4, w, h);
+        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(ruleLeft, top - 4, ruleLeft + RoundLayout.chordWidth(top - 4, w, h), top - 4);
 
         var bottom = h - RoundLayout.edgeMargin(w, h);
@@ -67,12 +92,13 @@ class ChapterGridView extends WatchUi.View {
                 var y = top + r * cellH;
                 var label = ch.toString();
                 if (idx == grid.focusIndex) {
-                    dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+                    dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_FG);
                     dc.fillRectangle(x + 1, y + 1, cellW - 2, cellH - 2);
+                    dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
                     dc.drawText(x + cellW / 2, y + cellH / 2 - dc.getFontHeight(Graphics.FONT_SMALL) / 2,
                         Graphics.FONT_SMALL, label, Graphics.TEXT_JUSTIFY_CENTER);
-                    dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
                 } else {
+                    dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
                     dc.drawText(x + cellW / 2, y + cellH / 2 - dc.getFontHeight(Graphics.FONT_SMALL) / 2,
                         Graphics.FONT_SMALL, label, Graphics.TEXT_JUSTIFY_CENTER);
                 }
@@ -110,6 +136,7 @@ class ChapterGridView extends WatchUi.View {
 
     function openChapterIndex(idx as Lang.Number) as Void {
         grid.setFocusIndex(idx);
+        AppState.selectedBook = _gridBook >= 0 ? _gridBook : AppState.selectedBook;
         AppState.selectedChapter = grid.focusedChapter();
         ReaderView.openFor(AppState.selectedBook, AppState.selectedChapter);
     }
@@ -148,9 +175,8 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
         if (TouchGuard.consumeSelect()) {
             return true;
         }
-        var g = gridView().grid;
-        AppState.selectedChapter = g.focusedChapter();
-        ReaderView.openFor(AppState.selectedBook, AppState.selectedChapter);
+        var v = gridView();
+        v.openChapterIndex(v.grid.focusIndex);
         return true;
     }
 
@@ -168,7 +194,8 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
             v.grid.setFocusIndex(idx);
         }
         var ch = v.grid.focusedChapter();
-        var result = Bookmarks.toggle(AppState.selectedBook, ch, 0);
+        var book = v._gridBook >= 0 ? v._gridBook : AppState.selectedBook;
+        var result = Bookmarks.toggle(book, ch, 0);
         System.println("bookmark chapter " + result);
         WatchUi.requestUpdate();
         return true;

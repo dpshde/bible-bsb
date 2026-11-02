@@ -14,21 +14,21 @@ module ReaderMenu2 {
     }
 
     function open(reader as ReaderView) as Void {
-        var focus = AppState.scroll.focusVerse();
+        var focus = reader.resolveFocus();
         var book = focus[:book] as Lang.Number;
         var chapter = focus[:chapter] as Lang.Number;
         var verse = focus[:verse] as Lang.Number;
         var bookmarked = isBookmarked(book, chapter, verse);
 
         var modeLabel = AppState.scroll.mode == ScrollModel.MODE_VERSE ? "Verse" : "Line";
-        var ref = Books.name(book) + " " + chapter + ":" + verse;
-        // Short titles; verse ref in sublabel so the title does not overflow the round edge.
-        // POKE: omit sublabel on tiny round if Menu2 still clips vertically at the bottom item.
+        // Title-only items — native Menu2 sublabels clip on Enduro 3 round (v4: "ohn 3:1").
+        // Fold the short OSIS ref into the bookmark title instead.
+        var ref = Books.refLabel(book, chapter, verse);
         var menu = new WatchUi.Menu2({:title => "Menu"});
         menu.addItem(new WatchUi.MenuItem("Scroll: " + modeLabel, null, ID_SCROLL_MODE, {}));
         menu.addItem(new WatchUi.MenuItem(
-            bookmarked ? "Remove bookmark" : "Bookmark",
-            ref,
+            bookmarked ? ("Remove " + ref) : ("Bookmark " + ref),
+            null,
             ID_BOOKMARK_VERSE,
             {}));
         menu.addItem(new WatchUi.MenuItem("Bookmarks", null, ID_BOOKMARKS_LIST, {}));

@@ -22,16 +22,17 @@ class BookmarksView extends WatchUi.View {
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-        dc.clear();
+        Palette.applyBackground(dc);
         var w = dc.getWidth();
         var h = dc.getHeight();
         var titleFont = Graphics.FONT_TINY;
         var rowFont = Graphics.FONT_SMALL;
         var y = RoundLayout.edgeMargin(w, h);
+        dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
         RoundLayout.drawCenteredInChord(dc, y, "Bookmarks", titleFont);
         y += dc.getFontHeight(titleFont) + 6;
         var ruleLeft = RoundLayout.chordLeft(y - 4, w, h);
+        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(ruleLeft, y - 4, ruleLeft + RoundLayout.chordWidth(y - 4, w, h), y - 4);
 
         if (items.size() == 0) {
@@ -55,11 +56,12 @@ class BookmarksView extends WatchUi.View {
             var left = RoundLayout.chordLeft(midY, w, h);
             var cw = RoundLayout.chordWidth(midY, w, h);
             if (i == focus) {
-                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+                dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_FG);
                 dc.fillRectangle(left, y, cw, rowH - 2);
+                dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
                 dc.drawText(w / 2, y + 3, rowFont, label, Graphics.TEXT_JUSTIFY_CENTER);
-                dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
             } else {
+                dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
                 dc.drawText(w / 2, y + 3, rowFont, label, Graphics.TEXT_JUSTIFY_CENTER);
             }
             y += rowH;
@@ -74,7 +76,6 @@ class BookmarksView extends WatchUi.View {
         var colW = col[:width] as Lang.Number;
         var colMidX = colLeft + colW / 2;
 
-        // Quiet group: XTINY title (not bold SMALL/TINY hero). POKE: try TINY if too faint on MIP.
         var titleFont = Graphics.FONT_XTINY;
         var hintFont = Graphics.FONT_XTINY;
         var titleH = dc.getFontHeight(titleFont);
@@ -92,7 +93,7 @@ class BookmarksView extends WatchUi.View {
         drawBookmarkIcon(dc, colMidX, blockTop + iconH / 2, iconH);
 
         var titleY = blockTop + iconH + gap;
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
         dc.drawText(colMidX, titleY, titleFont, "No bookmarks yet", Graphics.TEXT_JUSTIFY_CENTER);
 
         // POKE: hint copy — button vs touch; try "Hold Select on a verse" on 5-btn-only.
@@ -101,9 +102,8 @@ class BookmarksView extends WatchUi.View {
             hint = "Long-press a verse";
         }
         var hintY = titleY + titleH + gap;
-        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
         dc.drawText(colMidX, hintY, hintFont, hint, Graphics.TEXT_JUSTIFY_CENTER);
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
     }
 
     //! Small outline bookmark glyph (no bitmap asset required).
@@ -114,8 +114,7 @@ class BookmarksView extends WatchUi.View {
         var left = cx - hw;
         var right = cx + hw;
         var notch = cy + size / 6;
-        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
-        // Ribbon outline: left, top, right, then V-notch at bottom.
+        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(left, top, right, top);
         dc.drawLine(left, top, left, bot);
         dc.drawLine(right, top, right, bot);

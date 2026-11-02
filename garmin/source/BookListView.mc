@@ -14,16 +14,17 @@ class BookListView extends WatchUi.View {
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-        dc.clear();
+        Palette.applyBackground(dc);
         var w = dc.getWidth();
         var h = dc.getHeight();
         var titleFont = Graphics.FONT_TINY;
         var rowFont = Graphics.FONT_SMALL;
         var y = RoundLayout.edgeMargin(w, h);
+        dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
         RoundLayout.drawCenteredInChord(dc, y, "Bible BSB", titleFont);
         y += dc.getFontHeight(titleFont) + 4;
         var ruleLeft = RoundLayout.chordLeft(y, w, h);
+        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(ruleLeft, y, ruleLeft + RoundLayout.chordWidth(y, w, h), y);
         y += 8;
 
@@ -40,11 +41,12 @@ class BookListView extends WatchUi.View {
             var left = RoundLayout.chordLeft(midY, w, h);
             var cw = RoundLayout.chordWidth(midY, w, h);
             if (i == focus) {
-                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+                dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_FG);
                 dc.fillRectangle(left, y, cw, rowH - 2);
+                dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
                 dc.drawText(w / 2, y + 3, rowFont, label, Graphics.TEXT_JUSTIFY_CENTER);
-                dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
             } else {
+                dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
                 dc.drawText(w / 2, y + 3, rowFont, label, Graphics.TEXT_JUSTIFY_CENTER);
             }
             y += rowH;
@@ -57,6 +59,7 @@ class BookListView extends WatchUi.View {
         if (RoundLayout.chordWidth(hintY + hintH / 2, w, h) < dc.getTextWidthInPixels(hint, hintFont) + 8) {
             hintY -= hintH;
         }
+        dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
         RoundLayout.drawCenteredInChord(dc, hintY, hint, hintFont);
     }
 

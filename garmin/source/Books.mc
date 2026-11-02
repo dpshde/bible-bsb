@@ -18,6 +18,19 @@ module Books {
         "1 Peter", "2 Peter", "1 John", "2 John", "3 John", "Jude", "Revelation"
     ];
 
+    //! OSIS-style short codes for the top-arc meta line (e.g. JHN 3:16).
+    const OSIS = [
+        "GEN", "EXO", "LEV", "NUM", "DEU", "JOS", "JDG", "RUT",
+        "1SA", "2SA", "1KI", "2KI", "1CH", "2CH", "EZR",
+        "NEH", "EST", "JOB", "PSA", "PRO", "ECC", "SNG",
+        "ISA", "JER", "LAM", "EZK", "DAN", "HOS", "JOL", "AMO",
+        "OBA", "JON", "MIC", "NAM", "HAB", "ZEP", "HAG", "ZEC",
+        "MAL", "MAT", "MRK", "LUK", "JHN", "ACT", "ROM", "1CO",
+        "2CO", "GAL", "EPH", "PHP", "COL", "1TH",
+        "2TH", "1TI", "2TI", "TIT", "PHM", "HEB", "JAS",
+        "1PE", "2PE", "1JN", "2JN", "3JN", "JUD", "REV"
+    ];
+
     const CHAPTER_COUNTS = [
         50, 40, 27, 36, 34, 24, 21, 4, 31, 24, 22, 25, 29, 36, 10, 13, 10, 42, 150, 31, 12, 8,
         66, 52, 5, 48, 12, 14, 3, 9, 1, 4, 7, 3, 3, 3, 2, 14, 4, 28, 16, 24, 21, 28,
@@ -34,6 +47,13 @@ module Books {
         return NAMES[bookIndex];
     }
 
+    function osis(bookIndex as Lang.Number) as Lang.String {
+        if (bookIndex < 0 || bookIndex >= BOOK_COUNT) {
+            return "?";
+        }
+        return OSIS[bookIndex];
+    }
+
     function chapterCount(bookIndex as Lang.Number) as Lang.Number {
         if (bookIndex < 0 || bookIndex >= BOOK_COUNT) {
             return 0;
@@ -41,12 +61,16 @@ module Books {
         return CHAPTER_COUNTS[bookIndex];
     }
 
+    //! Short label for meta / tight chrome. Prefers OSIS; full name when it fits.
     function shortName(bookIndex as Lang.Number) as Lang.String {
-        // POKE: try OSIS codes or smarter abbreviations per display width.
-        var n = name(bookIndex);
-        if (n.length() <= 6) {
-            return n;
+        return osis(bookIndex);
+    }
+
+    //! "JHN 3:16" — OSIS + chapter:verse. Full name allowed by caller if width permits.
+    function refLabel(bookIndex as Lang.Number, chapter as Lang.Number, verse as Lang.Number) as Lang.String {
+        if (verse <= 0) {
+            return osis(bookIndex) + " " + chapter;
         }
-        return n.substring(0, 5);
+        return osis(bookIndex) + " " + chapter + ":" + verse;
     }
 }

@@ -3,43 +3,41 @@ using Toybox.Lang;
 using Toybox.Math;
 using Toybox.System;
 
-//! Round/square safe geometry for Enduro 3 and budget lines.
+//! Center-band lens geometry + helpers for Enduro 3 / budget lines.
 module RoundLayout {
 
-    // POKE: READER_LAYOUT — RECT = straight left column (default); CENTERED_CHORD = each line centered on its chord.
+    // POKE: READER_LAYOUT — LENS is the new default; RECT/CENTERED_CHORD kept for A/B.
     enum {
         READER_LAYOUT_RECT = 0,
-        READER_LAYOUT_CENTERED_CHORD = 1
+        READER_LAYOUT_CENTERED_CHORD = 1,
+        READER_LAYOUT_LENS = 2
     }
-    const READER_LAYOUT = READER_LAYOUT_RECT;
+    const READER_LAYOUT = READER_LAYOUT_LENS;
 
-    // POKE: soft max column width as fraction of screen (~0.82). Floor asserted in tests: 0.72.
-    const COLUMN_WIDTH_FRAC = 0.80;
-    const COLUMN_WIDTH_MIN_FRAC = 0.72;
+    // Lens vertical fracs (round + square band).
+    // POKE: tweak top/meta vs band vs preview split after Enduro reshoot.
+    const LENS_META_BOTTOM_FRAC = 0.18;
+    const LENS_BAND_TOP_FRAC = 0.20;
+    const LENS_BAND_BOTTOM_FRAC = 0.80;
+    const LENS_PREVIEW_TOP_FRAC = 0.82;
 
-    // POKE: pixel pad inside the inscribed chord (NOT a second % of radius — that crushed RECT to ~40%).
+    // POKE: bottom arc shows verse counter; set false to prefer next-verse preview words.
+    const LENS_PREVIEW_VERSE_COUNTER = true;
+
     const COLUMN_PIXEL_PAD = 6;
+    const COLUMN_WIDTH_MIN_FRAC = 0.75; // lens band must be >= 0.75 D on 280 (Dylan)
+    const CHORD_MARGIN_FRAC = 0.07;
+    const EDGE_MARGIN_FRAC = 0.06;
+    const DIVIDER_PAD_LINES = 1; // ~1 line air above/below continuation header
+    const TOAST_MS = 1000;
+    const MODE_BANNER_ONLY = true;
+    // POKE: VERSE_GAP_FRAC — vertical gap between verses as a fraction of line height (0.4–0.5).
+    const VERSE_GAP_FRAC = 0.45;
 
-    // Vertical band for width math on round screens (avoids near-bezel chords).
-    // POKE: 0.22..0.86 keeps inscribed width >= ~72% on 280 round (0.88 crushed the chord).
+    // Legacy RECT constants (still used if READER_LAYOUT_RECT).
+    const COLUMN_WIDTH_FRAC = 0.80;
     const COLUMN_BAND_TOP_FRAC = 0.22;
     const COLUMN_BAND_BOTTOM_FRAC = 0.86;
-
-    // POKE: chord margin as fraction of radius (CENTERED_CHORD path only).
-    const CHORD_MARGIN_FRAC = 0.07;
-
-    // POKE: edge margin fraction of min(w,h) for square screens and as a floor on round.
-    const EDGE_MARGIN_FRAC = 0.06;
-
-    // POKE: blank spacer lines above/below continuation divider.
-    const DIVIDER_PAD_LINES = 1;
-
-    // POKE: toast / mode-banner auto-dismiss milliseconds (~1s).
-    const TOAST_MS = 1000;
-
-    // POKE: mode change feedback — transient centered label only (no permanent V/L chip).
-    // Alternatives later: tiny icon in header safe area.
-    const MODE_BANNER_ONLY = true;
 
     function isRound() as Lang.Boolean {
         var shape = System.getDeviceSettings().screenShape;
@@ -54,7 +52,6 @@ module RoundLayout {
         return m;
     }
 
-    //! Usable text width in pixels for a line whose vertical center is at y.
     function chordWidth(y as Lang.Number, width as Lang.Number, height as Lang.Number) as Lang.Number {
         var margin = edgeMargin(width, height);
         var maxW = width - 2 * margin;
@@ -64,16 +61,14 @@ module RoundLayout {
         if (!isRound()) {
             return maxW;
         }
-
         var cy = height / 2.0;
         var r = (width < height ? width : height) / 2.0;
         var dy = y.toFloat() - cy;
-        var r2 = r * r;
-        var dy2 = dy * dy;
-        if (dy2 >= r2) {
+        var inside = r * r - dy * dy;
+        if (inside <= 0) {
             return 1;
         }
-        var half = Math.sqrt(r2 - dy2) - (r * CHORD_MARGIN_FRAC);
+        var half = Math.sqrt(inside) - (r * CHORD_MARGIN_FRAC);
         if (half < 1.0) {
             half = 1.0;
         }
@@ -81,111 +76,35 @@ module RoundLayout {
         if (cw > maxW) {
             cw = maxW;
         }
-        if (cw < 1) {
-            cw = 1;
-        }
-        return cw;
+        return cw < 1 ? 1 : cw;
     }
 
     function chordLeft(y as Lang.Number, width as Lang.Number, height as Lang.Number) as Lang.Number {
         return (width - chordWidth(y, width, height)) / 2;
     }
 
-    function minChordInBand(y0 as Lang.Number, y1 as Lang.Number, width as Lang.Number, height as Lang.Number) as Lang.Number {
-        var a = chordWidth(y0, width, height);
-        var b = chordWidth((y0 + y1) / 2, width, height);
-        var c = chordWidth(y1, width, height);
-        var m = a;
-        if (b < m) {
-            m = b;
-        }
-        if (c < m) {
-            m = c;
-        }
-        return m;
-    }
-
-    //! Inscribed reader column: straight left/right edges, horizontally centered.
-    //! Returns { :left, :width, :top, :bottom }.
-    //! Round width = 2*sqrt(r^2 - hLimit^2) - 2*COLUMN_PIXEL_PAD, with the band
-    //! clamped to ~[0.22H, 0.88H] so a near-bezel bottom does not crush the column.
-    //! Square: full width minus edge margins.
-    function columnRect(width as Lang.Number, height as Lang.Number,
-                        contentTop as Lang.Number, contentBottom as Lang.Number) as Lang.Dictionary {
-        var top = contentTop;
-        var bottom = contentBottom;
-        if (bottom <= top + 1) {
-            bottom = top + 1;
-        }
-
-        if (!isRound()) {
-            var m = edgeMargin(width, height);
-            var sqW = width - 2 * m;
-            if (sqW < 1) {
-                sqW = 1;
-            }
-            return { :left => m, :width => sqW, :top => top, :bottom => bottom };
-        }
-
-        // Clamp vertical extents used for inscription (reading band, not full bezel-to-bezel).
-        var bandTop = (height * COLUMN_BAND_TOP_FRAC).toNumber();
-        var bandBot = (height * COLUMN_BAND_BOTTOM_FRAC).toNumber();
-        if (top < bandTop) {
-            top = bandTop;
-        }
-        if (bottom > bandBot) {
-            bottom = bandBot;
-        }
-        if (bottom <= top + 1) {
-            bottom = top + 1;
-        }
-
-        var colW = inscribedColumnWidth(width, height, top, bottom);
-        var left = (width - colW) / 2;
-        return { :left => left, :width => colW, :top => top, :bottom => bottom };
-    }
-
-    //! Pure circle math (no screenShape): width = 2*sqrt(r^2 - h^2) - 2*pad
-    //! where h = max distance from center to [contentTop, contentBottom].
-    //! Soft-capped to COLUMN_WIDTH_FRAC; never below COLUMN_WIDTH_MIN_FRAC when geometry allows.
-    function inscribedColumnWidth(screenW as Lang.Number, screenH as Lang.Number,
-                                  contentTop as Lang.Number, contentBottom as Lang.Number) as Lang.Number {
+    //! Pure: W(y) = 2*sqrt(R^2 - (y-cy)^2) with pixel pad (no % margin).
+    function rawChordWidth(y as Lang.Number, screenW as Lang.Number, screenH as Lang.Number) as Lang.Number {
         var r = (screenW < screenH ? screenW : screenH) / 2.0;
         var cy = screenH / 2.0;
-        var dTop = contentTop.toFloat() - cy;
-        if (dTop < 0) {
-            dTop = -dTop;
+        var dy = y.toFloat() - cy;
+        var inside = r * r - dy * dy;
+        if (inside <= 0) {
+            return 1;
         }
-        var dBot = contentBottom.toFloat() - cy;
-        if (dBot < 0) {
-            dBot = -dBot;
-        }
-        var hLimit = dTop;
-        if (dBot > hLimit) {
-            hLimit = dBot;
-        }
-        // If the band still reaches too close to the rim, pull hLimit in so width stays readable.
-        // Target at least COLUMN_WIDTH_MIN_FRAC when r allows it.
-        var minW = screenW * COLUMN_WIDTH_MIN_FRAC;
-        var halfMin = minW / 2.0 + COLUMN_PIXEL_PAD;
-        if (halfMin < r) {
-            var maxH = Math.sqrt(r * r - halfMin * halfMin);
-            if (hLimit > maxH) {
-                hLimit = maxH;
-            }
-        }
-        if (hLimit >= r) {
-            hLimit = r * 0.85;
-        }
-        var half = Math.sqrt(r * r - hLimit * hLimit) - COLUMN_PIXEL_PAD;
+        var half = Math.sqrt(inside) - COLUMN_PIXEL_PAD;
         if (half < 1.0) {
             half = 1.0;
         }
-        var colW = (half * 2.0).toNumber();
-        var maxW = (screenW * COLUMN_WIDTH_FRAC).toNumber();
-        if (colW > maxW) {
-            colW = maxW;
-        }
+        return (half * 2.0).toNumber();
+    }
+
+    //! Pure lens column width for a band (round geometry). Floor at COLUMN_WIDTH_MIN_FRAC * D.
+    function lensColumnWidth(screenW as Lang.Number, screenH as Lang.Number,
+                             bandTop as Lang.Number, bandBottom as Lang.Number) as Lang.Number {
+        var wTop = rawChordWidth(bandTop, screenW, screenH);
+        var wBot = rawChordWidth(bandBottom, screenW, screenH);
+        var colW = wTop < wBot ? wTop : wBot;
         var floorW = (screenW * COLUMN_WIDTH_MIN_FRAC).toNumber();
         if (colW < floorW) {
             colW = floorW;
@@ -193,14 +112,91 @@ module RoundLayout {
         return colW;
     }
 
-    //! @deprecated Use inscribedColumnWidth; kept for older tests.
+    //! Center-band lens geometry. Returns:
+    //! { :metaBottom, :bandTop, :bandBottom, :previewTop, :left, :width, :bandHeight }
+    function lensBand(screenW as Lang.Number, screenH as Lang.Number) as Lang.Dictionary {
+        return lensBandEx(screenW, screenH, isRound());
+    }
+
+    function lensBandEx(screenW as Lang.Number, screenH as Lang.Number,
+                        treatAsRound as Lang.Boolean) as Lang.Dictionary {
+        var metaBottom = (screenH * LENS_META_BOTTOM_FRAC).toNumber();
+        var bandTop = (screenH * LENS_BAND_TOP_FRAC).toNumber();
+        var bandBottom = (screenH * LENS_BAND_BOTTOM_FRAC).toNumber();
+        var previewTop = (screenH * LENS_PREVIEW_TOP_FRAC).toNumber();
+        if (bandBottom <= bandTop + 1) {
+            bandBottom = bandTop + 1;
+        }
+
+        var colW;
+        var left;
+        if (!treatAsRound) {
+            var m = edgeMargin(screenW, screenH);
+            colW = screenW - 2 * m;
+            left = m;
+        } else {
+            colW = lensColumnWidth(screenW, screenH, bandTop, bandBottom);
+            left = (screenW - colW) / 2;
+        }
+        return {
+            :metaBottom => metaBottom,
+            :bandTop => bandTop,
+            :bandBottom => bandBottom,
+            :previewTop => previewTop,
+            :left => left,
+            :width => colW,
+            :bandHeight => bandBottom - bandTop
+        };
+    }
+
+    //! True if [y, y+h) lies fully inside the reading band.
+    function isInsideBand(y as Lang.Number, h as Lang.Number, bandTop as Lang.Number,
+                          bandBottom as Lang.Number) as Lang.Boolean {
+        return y >= bandTop && (y + h) <= bandBottom;
+    }
+
+    function inscribedColumnWidth(screenW as Lang.Number, screenH as Lang.Number,
+                                  contentTop as Lang.Number, contentBottom as Lang.Number) as Lang.Number {
+        var colW = lensColumnWidth(screenW, screenH, contentTop, contentBottom);
+        var maxW = (screenW * COLUMN_WIDTH_FRAC).toNumber();
+        if (colW > maxW) {
+            colW = maxW;
+        }
+        return colW;
+    }
+
+    function columnRect(width as Lang.Number, height as Lang.Number,
+                        contentTop as Lang.Number, contentBottom as Lang.Number) as Lang.Dictionary {
+        if (READER_LAYOUT == READER_LAYOUT_LENS) {
+            var lens = lensBand(width, height);
+            return {
+                :left => lens[:left],
+                :width => lens[:width],
+                :top => lens[:bandTop],
+                :bottom => lens[:bandBottom]
+            };
+        }
+        var top = contentTop;
+        var bottom = contentBottom;
+        if (bottom <= top + 1) {
+            bottom = top + 1;
+        }
+        if (!isRound()) {
+            var m = edgeMargin(width, height);
+            return { :left => m, :width => width - 2 * m, :top => top, :bottom => bottom };
+        }
+        var colW = inscribedColumnWidth(width, height, top, bottom);
+        return { :left => (width - colW) / 2, :width => colW, :top => top, :bottom => bottom };
+    }
+
     function maxCenteredColumnWidth(screenW as Lang.Number, screenH as Lang.Number,
                                      contentTop as Lang.Number, contentBottom as Lang.Number,
                                      chordMarginFrac as Lang.Float) as Lang.Number {
         return inscribedColumnWidth(screenW, screenH, contentTop, contentBottom);
     }
 
-    function drawCenteredInChord(dc as Graphics.Dc, y as Lang.Number, text as Lang.String, font as Lang.Number) as Void {
+    function drawCenteredInChord(dc as Graphics.Dc, y as Lang.Number, text as Lang.String,
+                                 font as Graphics.FontDefinition) as Void {
         var w = dc.getWidth();
         var h = dc.getHeight();
         var midY = y + dc.getFontHeight(font) / 2;
@@ -215,7 +211,7 @@ module RoundLayout {
         dc.clearClip();
     }
 
-    function shrinkFont(font as Lang.Number) as Lang.Number {
+    function shrinkFont(font as Graphics.FontDefinition) as Graphics.FontDefinition {
         if (font == Graphics.FONT_MEDIUM) {
             return Graphics.FONT_SMALL;
         }
@@ -228,46 +224,101 @@ module RoundLayout {
         return font;
     }
 
-    //! Dim backdrop + centered rounded pill; width follows column when RECT layout.
+    function growFont(font as Graphics.FontDefinition) as Graphics.FontDefinition {
+        if (font == Graphics.FONT_XTINY) {
+            return Graphics.FONT_TINY;
+        }
+        if (font == Graphics.FONT_TINY) {
+            return Graphics.FONT_SMALL;
+        }
+        return font;
+    }
+
+    //! Progress arc along the bezel from 12 o'clock. progress in [0,1].
+    function drawProgressArc(dc as Graphics.Dc, progress as Lang.Float, bookmarkFracs as Lang.Array) as Void {
+        var w = dc.getWidth();
+        var h = dc.getHeight();
+        if (!isRound()) {
+            var m = edgeMargin(w, h);
+            var barW = ((w - 2 * m) * progress).toNumber();
+            dc.setColor(Palette.GOLD, Palette.BG);
+            dc.fillRectangle(m, m / 2, barW < 1 ? 1 : barW, 2);
+            return;
+        }
+        var cx = w / 2;
+        var cy = h / 2;
+        var rad = (w < h ? w : h) / 2 - 3;
+        if (progress < 0) {
+            progress = 0.0;
+        }
+        if (progress > 1) {
+            progress = 1.0;
+        }
+        var startDeg = 90;
+        var sweep = (360.0 * progress).toNumber();
+        if (sweep < 1 && progress > 0) {
+            sweep = 1;
+        }
+        dc.setColor(Palette.GOLD, Palette.BG);
+        dc.setPenWidth(2);
+        if (sweep > 0) {
+            dc.drawArc(cx, cy, rad, Graphics.ARC_COUNTER_CLOCKWISE, startDeg, startDeg + sweep);
+        }
+        var i;
+        for (i = 0; i < bookmarkFracs.size(); i++) {
+            var f = bookmarkFracs[i] as Lang.Float;
+            if (f < 0 || f > 1) {
+                continue;
+            }
+            var deg = 90.0 + 360.0 * f;
+            var theta = deg * Math.PI / 180.0;
+            var x1 = cx + ((rad - 4) * Math.cos(theta)).toNumber();
+            var y1 = cy - ((rad - 4) * Math.sin(theta)).toNumber();
+            var x2 = cx + ((rad + 1) * Math.cos(theta)).toNumber();
+            var y2 = cy - ((rad + 1) * Math.sin(theta)).toNumber();
+            dc.drawLine(x1, y1, x2, y2);
+        }
+        dc.setPenWidth(1);
+    }
+
+    //! Full-screen solid scrim + single centered gold pill. No gray band, no body bleed.
     function drawToastPill(dc as Graphics.Dc, message as Lang.String) as Void {
         var w = dc.getWidth();
         var h = dc.getHeight();
-        var cy = h / 2;
-        var col = columnRect(w, h, cy - 30, cy + 30);
-        var maxW = col[:width] as Lang.Number;
-        var bandLeft = col[:left] as Lang.Number;
 
-        // Dim behind the pill so it cannot blend into the reader on the first frame.
-        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_WHITE);
-        dc.fillRectangle(bandLeft, cy - 24, maxW, 48);
+        // Solid overlay — covers all verse text (v4 gray band left text bleeding).
+        dc.setColor(Palette.SCRIM, Palette.SCRIM);
+        dc.clear();
 
         var label = "★ " + message;
         var font = Graphics.FONT_TINY;
         var tw = dc.getTextWidthInPixels(label, font);
         var padX = 14;
         var padY = 8;
+        var boxH = dc.getFontHeight(font) + 2 * padY;
         var boxW = tw + 2 * padX;
-        if (boxW > maxW - 8) {
-            boxW = maxW - 8;
+        var maxW = (w * 0.72).toNumber();
+        if (boxW > maxW) {
+            boxW = maxW;
         }
         if (boxW < 48) {
             boxW = 48;
         }
-        var boxH = dc.getFontHeight(font) + 2 * padY;
         var boxX = (w - boxW) / 2;
-        var boxY = cy - boxH / 2;
+        var boxY = (h - boxH) / 2;
+        var cy = h / 2;
         var endR = boxH / 2;
         var innerW = boxW - boxH;
         if (innerW < 1) {
             innerW = 1;
         }
 
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
+        dc.setColor(Palette.TOAST_PILL, Palette.BG);
         dc.fillRectangle(boxX + endR, boxY, innerW, boxH);
         dc.fillCircle(boxX + endR, cy, endR);
         dc.fillCircle(boxX + boxW - endR, cy, endR);
 
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(Palette.TOAST_FG, Graphics.COLOR_TRANSPARENT);
         dc.drawText(w / 2, boxY + padY, font, label, Graphics.TEXT_JUSTIFY_CENTER);
     }
 }

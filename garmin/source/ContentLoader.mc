@@ -3,7 +3,20 @@ using Toybox.Lang;
 using Toybox.WatchUi;
 
 //! Loads spike chapter JSON from resources. One chapter at a time (SPEC §6).
+//! Wrapping is word-based (one getTextWidthInPixels per word, not per char) so a
+//! full chapter stays under the stock 240k CIQ watchdog. See WRAP_COST_NOTE.
 module ContentLoader {
+
+    //! Measured intent: word-split wrap of John 3 (36 verses) on Enduro 3 must
+    //! stay under the stock 240k instruction watchdog when only the focused
+    //! chapter is wrapped eagerly and the next chapter is deferred via Timer.
+    //! Char-by-char getTextWidthInPixels was ~10s / crash at a20df65+; this path
+    //! targets reader open <300ms equivalent with no watchdog raise.
+    const WRAP_COST_NOTE = "word-measure wrap; eager=focus chapter only; defer continuation";
+
+    // Word-width memo for one chapter wrap pass (cleared by clearWordCache).
+    // Avoids re-measuring the same short tokens (e.g. "the", "and") hundreds of times.
+    var _wordCache as Lang.Dictionary = {};
 
     function resourceFor(book as Lang.Number, chapter as Lang.Number) as Lang.ResourceId or Null {
         // John=42, Malachi=38, Matthew=39
@@ -48,103 +61,189 @@ module ContentLoader {
         };
     }
 
-    //! Char-budget wrap (tests / fallback). O(n) char-array scan — avoids CIQ watchdog.
-    function wrapVerse(verseNum as Lang.Number, text as Lang.String, maxChars as Lang.Number) as Lang.Array {
-        var out = [];
-        var prefix = verseNum + " ";
+    function verseCount(book as Lang.Number, chapter as Lang.Number) as Lang.Number {
+        var data = loadChapter(book, chapter);
+        if (data == null) {
+            return 0;
+        }
+        var verses = data[:verses];
+        if (verses == null) {
+            return 0;
+        }
+        return (verses as Lang.Array).size();
+    }
+
+    function verseText(book as Lang.Number, chapter as Lang.Number, verse as Lang.Number) as Lang.String or Null {
+        var data = loadChapter(book, chapter);
+        if (data == null) {
+            return null;
+        }
+        var verses = data[:verses] as Lang.Array;
+        var i;
+        for (i = 0; i < verses.size(); i++) {
+            var v = verses[i];
+            var n = v["n"];
+            if (n == null) {
+                n = v[:n];
+            }
+            if (n == verse) {
+                var t = v["t"];
+                if (t == null) {
+                    t = v[:t];
+                }
+                return t as Lang.String;
+            }
+        }
+        return null;
+    }
+
+    function clearWordCache() as Void {
+        _wordCache = {};
+    }
+
+    function wordWidth(dc as Graphics.Dc, font as Graphics.FontDefinition, word as Lang.String) as Lang.Number {
+        var hit = _wordCache[word];
+        if (hit != null) {
+            return hit as Lang.Number;
+        }
+        var w = dc.getTextWidthInPixels(word, font);
+        _wordCache[word] = w;
+        return w;
+    }
+
+    //! Split on spaces into words (O(n) single pass, no per-char Dc calls).
+    function splitWords(text as Lang.String) as Lang.Array {
+        var out = [] as Lang.Array;
         var chars = text.toCharArray();
         var n = chars.size();
-        var pos = 0;
-        var first = true;
-        while (pos < n) {
-            var chunk = "";
-            var budget = maxChars;
-            if (first) {
-                chunk = prefix;
-                budget = maxChars - prefix.length();
-                if (budget < 8) {
-                    budget = maxChars;
-                    chunk = "";
+        var start = 0;
+        var i = 0;
+        while (i < n) {
+            if (chars[i] == ' ') {
+                if (i > start) {
+                    out.add(text.substring(start, i));
                 }
+                i++;
+                start = i;
+            } else {
+                i++;
             }
-            if (n - pos <= budget) {
-                out.add({ :text => chunk + text.substring(pos, n), :verse => verseNum, :isStart => first });
-                break;
-            }
-            var take = budget;
-            var i;
-            for (i = budget - 1; i > 0; i--) {
-                if (chars[pos + i] == ' ') {
-                    take = i;
-                    break;
-                }
-            }
-            out.add({ :text => chunk + text.substring(pos, pos + take), :verse => verseNum, :isStart => first });
-            pos += take;
-            while (pos < n && chars[pos] == ' ') {
-                pos++;
-            }
-            first = false;
+        }
+        if (start < n) {
+            out.add(text.substring(start, n));
         }
         return out;
     }
 
-    //! Pixel wrap to a max width (chord / square content width). Returns { :text, :verse, :isStart }.
-    function wrapVerseToWidth(dc as Graphics.Dc, font as Lang.Number, verseNum as Lang.Number,
-                              text as Lang.String, maxWidth as Lang.Number) as Lang.Array {
+    //! Char-budget wrap (unit tests / no-Dc fallback). Word-based, O(words).
+    function wrapVerse(verseNum as Lang.Number, text as Lang.String, maxChars as Lang.Number) as Lang.Array {
         var out = [];
         var prefix = verseNum + " ";
-        var chars = text.toCharArray();
-        var n = chars.size();
-        var pos = 0;
-        var first = true;
-        while (pos < n) {
-            var linePrefix = first ? prefix : "";
-            var prefixW = dc.getTextWidthInPixels(linePrefix, font);
-            var budgetPx = maxWidth - prefixW;
-            if (budgetPx < 12) {
-                linePrefix = "";
-                budgetPx = maxWidth;
+        var words = splitWords(text);
+        var line = prefix;
+        var wi;
+        for (wi = 0; wi < words.size(); wi++) {
+            var word = words[wi] as Lang.String;
+            var candidate;
+            if (line.equals(prefix)) {
+                candidate = prefix + word;
+            } else if (line.length() == 0) {
+                candidate = word;
+            } else {
+                candidate = line + " " + word;
             }
-
-            // Entire remainder fits.
-            var rest = text.substring(pos, n);
-            if (dc.getTextWidthInPixels(rest, font) <= budgetPx) {
-                out.add({ :text => linePrefix + rest, :verse => verseNum, :isStart => first });
-                break;
-            }
-
-            // Walk forward by words until width exceeded (char scan, break on spaces).
-            var end = pos;
-            var lastSpace = -1;
-            while (end < n) {
-                var probe = text.substring(pos, end + 1);
-                if (dc.getTextWidthInPixels(probe, font) > budgetPx) {
-                    break;
+            if (candidate.length() <= maxChars) {
+                line = candidate;
+            } else {
+                if (line.length() > 0) {
+                    out.add({ :text => line, :verse => verseNum, :isStart => out.size() == 0 });
                 }
-                if (chars[end] == ' ') {
-                    lastSpace = end;
-                }
-                end++;
+                line = word;
             }
-            var takeEnd = end;
-            if (lastSpace > pos) {
-                takeEnd = lastSpace;
-            } else if (end == pos) {
-                // Single overlong token — force one char to make progress.
-                takeEnd = pos + 1;
-            }
-            out.add({
-                :text => linePrefix + text.substring(pos, takeEnd),
-                :verse => verseNum,
-                :isStart => first
-            });
-            pos = takeEnd;
-            while (pos < n && chars[pos] == ' ') {
-                pos++;
-            }
-            first = false;
+        }
+        if (line.length() > 0) {
+            out.add({ :text => line, :verse => verseNum, :isStart => out.size() == 0 });
         }
         return out;
+    }
+
+    //! Pixel wrap — word-based. Returns { :text, :verse, :isStart, :prefixVerse }.
+    //! Text does NOT include the leading "N "; caller draws gold number when isStart.
+    //! One getTextWidthInPixels per distinct word (cached), never per character.
+    function wrapVerseToWidth(dc as Graphics.Dc, font as Graphics.FontDefinition, verseNum as Lang.Number,
+                              text as Lang.String, maxWidth as Lang.Number) as Lang.Array {
+        var out = [];
+        var numStr = verseNum.toString();
+        var numW = wordWidth(dc, font, numStr) + wordWidth(dc, font, " ");
+        var spaceW = wordWidth(dc, font, " ");
+        var words = splitWords(text);
+        var line = "";
+        var lineW = 0;
+        var isFirstLine = true;
+        var wi;
+        for (wi = 0; wi < words.size(); wi++) {
+            var word = words[wi] as Lang.String;
+            var wordW = wordWidth(dc, font, word);
+            var budget = maxWidth;
+            if (isFirstLine) {
+                budget = maxWidth - numW;
+                if (budget < 12) {
+                    budget = maxWidth;
+                }
+            }
+            var needSpace = line.length() > 0;
+            var addW = wordW + (needSpace ? spaceW : 0);
+            if (lineW + addW <= budget) {
+                if (needSpace) {
+                    line = line + " " + word;
+                } else {
+                    line = word;
+                }
+                lineW += addW;
+            } else {
+                if (line.length() > 0) {
+                    out.add({
+                        :text => line,
+                        :verse => verseNum,
+                        :isStart => out.size() == 0,
+                        :prefixVerse => (out.size() == 0 ? verseNum : 0)
+                    });
+                }
+                isFirstLine = false;
+                line = word;
+                lineW = wordW;
+            }
+        }
+        if (line.length() > 0 || out.size() == 0) {
+            out.add({
+                :text => line,
+                :verse => verseNum,
+                :isStart => out.size() == 0,
+                :prefixVerse => (out.size() == 0 ? verseNum : 0)
+            });
+        }
+        return out;
+    }
+
+    //! Estimate wrapped line count without a Dc (char-budget). Used by cost tests.
+    function estimateWrapLineCount(text as Lang.String, maxChars as Lang.Number) as Lang.Number {
+        var words = splitWords(text);
+        if (words.size() == 0) {
+            return 1;
+        }
+        var lines = 1;
+        var used = 0;
+        var wi;
+        for (wi = 0; wi < words.size(); wi++) {
+            var wlen = (words[wi] as Lang.String).length();
+            var add = (used == 0) ? wlen : (1 + wlen);
+            if (used > 0 && used + add > maxChars) {
+                lines++;
+                used = wlen;
+            } else {
+                used += add;
+            }
+        }
+        return lines;
     }
 }
