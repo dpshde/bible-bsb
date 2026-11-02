@@ -64,6 +64,7 @@ class ReaderView extends WatchUi.View {
         _numFont = Graphics.FONT_XTINY;
 
         var lines = [] as Lang.Array;
+        AppState.sections = [];
         appendChapterLines(dc, lines, _wrapBook, _wrapChapter, _colWidth);
         _verseCount = ContentLoader.verseCount(_wrapBook, _wrapChapter);
 
@@ -203,6 +204,10 @@ class ReaderView extends WatchUi.View {
         if (data == null) {
             return;
         }
+        // Sections for sticky header — only replace when loading the primary chapter.
+        if (book == _wrapBook && chapter == _wrapChapter) {
+            AppState.sections = data[:sections] as Lang.Array;
+        }
         var verses = data[:verses];
         if (verses == null) {
             return;
@@ -266,20 +271,39 @@ class ReaderView extends WatchUi.View {
         var chapter = focus[:chapter] as Lang.Number;
         var verse = focus[:verse] as Lang.Number;
 
-        // Top arc 0–18%: centered metadata only. Nothing else.
+        // Top arc 0–18%: sticky section heading (gold) + ref beneath, or ref alone.
+        var metaFont = Graphics.FONT_XTINY;
+        var refFont = Graphics.FONT_XTINY;
         var meta = Books.refLabel(book, chapter, verse);
         var full = Books.name(book) + " " + chapter + ":" + verse;
-        var metaFont = Graphics.FONT_XTINY;
-        var metaY = (_metaBottom - dc.getFontHeight(metaFont)) / 2;
-        if (metaY < 2) {
-            metaY = 2;
-        }
-        dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
-        // Prefer full name when it fits the top chord; else OSIS.
-        var topChord = RoundLayout.rawChordWidth(metaY + dc.getFontHeight(metaFont) / 2, w, h);
-        var label = dc.getTextWidthInPixels(full, metaFont) <= topChord - 8 ? full : meta;
+        var sticky = ContentLoader.stickySectionTitle(AppState.sections, verse);
         dc.setClip(0, 0, w, _metaBottom);
-        dc.drawText(w / 2, metaY, metaFont, label, Graphics.TEXT_JUSTIFY_CENTER);
+        if (sticky != null && (sticky as Lang.String).length() > 0) {
+            var titleFont = Graphics.FONT_XTINY;
+            var titleH = dc.getFontHeight(titleFont);
+            var refH = dc.getFontHeight(refFont);
+            var blockH = titleH + 2 + refH;
+            var topY = (_metaBottom - blockH) / 2;
+            if (topY < 1) {
+                topY = 1;
+            }
+            var chord = RoundLayout.rawChordWidth(topY + titleH / 2, w, h) - 8;
+            var title = ellipsizeToWidth(dc, (sticky as Lang.String).toUpper(), titleFont, chord);
+            dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(w / 2, topY, titleFont, title, Graphics.TEXT_JUSTIFY_CENTER);
+            var refLabel = dc.getTextWidthInPixels(full, refFont) <= chord ? full : meta;
+            dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(w / 2, topY + titleH + 2, refFont, refLabel, Graphics.TEXT_JUSTIFY_CENTER);
+        } else {
+            var metaY = (_metaBottom - dc.getFontHeight(metaFont)) / 2;
+            if (metaY < 2) {
+                metaY = 2;
+            }
+            var topChord = RoundLayout.rawChordWidth(metaY + dc.getFontHeight(metaFont) / 2, w, h);
+            var label = dc.getTextWidthInPixels(full, metaFont) <= topChord - 8 ? full : meta;
+            dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(w / 2, metaY, metaFont, label, Graphics.TEXT_JUSTIFY_CENTER);
+        }
         dc.clearClip();
 
         // Progress arc (replaces scrollbar).
@@ -425,6 +449,38 @@ class ReaderView extends WatchUi.View {
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         dc.drawText(midX, y + (lineH - dc.getFontHeight(font)) / 2, font, label,
             Graphics.TEXT_JUSTIFY_CENTER);
+    }
+
+    function ellipsizeToWidth(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontDefinition,
+                              maxW as Lang.Number) as Lang.String {
+        if (dc.getTextWidthInPixels(text, font) <= maxW) {
+            return text;
+        }
+        var s = text;
+        while (s.length() > 3) {
+            s = s.substring(0, s.length() - 1);
+            var trial = s.substring(0, s.length() - 2) + "..";
+            if (dc.getTextWidthInPixels(trial, font) <= maxW) {
+                return trial;
+            }
+        }
+        return "..";
+    }
+
+    //! Snap scroll so verse N starts at band top (Menu2 Go to verse).
+    function jumpToVerse(verse as Lang.Number) as Void {
+        var lines = AppState.scroll.lines;
+        var i;
+        for (i = 0; i < lines.size(); i++) {
+            var ln = lines[i] as ScrollModel.Line;
+            if (ln.kind == ScrollModel.KIND_VERSE && ln.isVerseStart && ln.verse == verse
+                && ln.book == AppState.selectedBook && ln.chapter == AppState.selectedChapter) {
+                AppState.scroll.scrollOffset = i;
+                AppState.scroll.clampOffset();
+                WatchUi.requestUpdate();
+                return;
+            }
+        }
     }
 
     function resolveFocus() as Lang.Dictionary {

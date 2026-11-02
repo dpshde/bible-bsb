@@ -39,7 +39,8 @@ module ContentLoader {
         return resourceFor(book, chapter) != null;
     }
 
-    //! Returns { :book, :chapter, :verses => [ { :n, :t }, ... ] } or null.
+    //! Returns { :book, :chapter, :verses, :sections } or null.
+    //! sections = [ { :startVerse, :title }, ... ] from verse "h" fields (BSB USJ).
     function loadChapter(book as Lang.Number, chapter as Lang.Number) as Lang.Dictionary or Null {
         var rez = resourceFor(book, chapter);
         if (rez == null) {
@@ -53,11 +54,56 @@ module ContentLoader {
         if (verses == null) {
             verses = data[:verses];
         }
+        var sections = [] as Lang.Array;
+        if (verses != null) {
+            sections = extractSections(verses as Lang.Array);
+        }
         return {
             :book => book,
             :chapter => chapter,
-            :verses => verses
+            :verses => verses,
+            :sections => sections
         };
+    }
+
+    //! Build sticky-header table from optional verse["h"] / [:h] fields.
+    function extractSections(verses as Lang.Array) as Lang.Array {
+        var out = [] as Lang.Array;
+        var i;
+        for (i = 0; i < verses.size(); i++) {
+            var v = verses[i];
+            var h = v["h"];
+            if (h == null) {
+                h = v[:h];
+            }
+            if (h == null) {
+                continue;
+            }
+            var title = h as Lang.String;
+            if (title.length() == 0) {
+                continue;
+            }
+            var n = v["n"];
+            if (n == null) {
+                n = v[:n];
+            }
+            out.add({ :startVerse => n as Lang.Number, :title => title });
+        }
+        return out;
+    }
+
+    //! Active section title for verse, or null.
+    function stickySectionTitle(sections as Lang.Array, verse as Lang.Number) as Lang.String or Null {
+        var active as Lang.String or Null = null;
+        var i;
+        for (i = 0; i < sections.size(); i++) {
+            var sec = sections[i];
+            var start = sec[:startVerse] as Lang.Number;
+            if (start <= verse) {
+                active = sec[:title] as Lang.String;
+            }
+        }
+        return active;
     }
 
     function verseCount(book as Lang.Number, chapter as Lang.Number) as Lang.Number {

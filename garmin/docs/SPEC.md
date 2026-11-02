@@ -52,6 +52,8 @@ Flipper (`bible_view_action_menu.c:17-21`) order: **Save to collection**, **Shar
 | 4 | Jump to chapter | *(no Flipper item — Back then grid)* | Pops reader → chapter grid |
 | 5 | Back to reading | Back to reading | Dismiss menu |
 | — | ~~Share via NFC~~ | Share via NFC | **Dropped** — see divergences |
+| — | Go to verse | Go to verse (item 3 @ 51d0ce4) | Menu2 verse list (POKE: Picker for long chapters) |
+| — | Browse by Testament | Testament→Genre (book list) | Alternate entry; snake grid stays default (POKE) |
 
 ### Long-press rules & platform constraints
 
@@ -353,6 +355,9 @@ Everything **not** listed here should match Flipper behavior/spirit from `flippe
 | Black toast box over text | Full-screen solid scrim + single centered gold pill (`★ Bookmarked`), ~1s, then full redraw — **no** gray band | v4 pill sat on a full-width gray strip with verse bleed | All |
 | Custom ActionMenu canvas (3 items) | Native **`WatchUi.Menu2`**: Scroll mode, Bookmark toggle, Bookmarks, Jump to chapter, Back to reading | System menu look + touch/button for free; Flipper had no scroll-mode item | All |
 | Share via NFC in ActionMenu | **Omitted** from Menu2 | No Flipper NFC stack on CIQ; route.bible share is a later POKE | All |
+| ActionMenu: Save / NFC / Go to verse (51d0ce4) | Menu2: Scroll mode, Bookmark, Bookmarks, **Go to verse**, Jump to chapter, **Browse by Testament**, Back | Garmin extras for toggle + touch; NFC skipped; Go to verse = Menu2 list | All |
+| Letter / OT-NT filter + Testament→Genre | Snake book list default; **Browse by Testament** Menu2 path (OT/NT → genre → books) | Flipper 51d0ce4 genre hierarchy as alternate | All; POKE default |
+| Sticky BSB section headings (`h`) | Top-arc sticky gold title + muted ref; chapter-grid subtitle from first `h` | Official headings from bereanbible.com `bsb_usj.zip` | Bundled spike chapters |
 | D-pad only (no touch) | Full **touch map** (`onTap`/`onSwipe`/`onHold`) + `TouchGuard` anti-double-fire with buttons | Enduro 3 / Venu / VA / FR touchscreens | Touch-capable products |
 
 ### Flipper ↔ Garmin layout references

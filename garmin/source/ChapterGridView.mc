@@ -58,10 +58,19 @@ class ChapterGridView extends WatchUi.View {
         _screenH = h;
         var titleFont = Graphics.FONT_TINY;
         var titleY = RoundLayout.edgeMargin(w, h);
-        dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         RoundLayout.drawCenteredInChord(dc, titleY, Books.name(AppState.selectedBook), titleFont);
 
-        var top = titleY + dc.getFontHeight(titleFont) + 6;
+        // First section heading of the focused chapter as subtitle when bundled.
+        var subY = titleY + dc.getFontHeight(titleFont) + 1;
+        var firstSec = firstSectionTitle(AppState.selectedBook, grid.focusedChapter());
+        if (firstSec != null) {
+            dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
+            RoundLayout.drawCenteredInChord(dc, subY, firstSec as Lang.String, Graphics.FONT_XTINY);
+            subY += dc.getFontHeight(Graphics.FONT_XTINY) + 2;
+        }
+
+        var top = subY + 4;
         var ruleLeft = RoundLayout.chordLeft(top - 4, w, h);
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(ruleLeft, top - 4, ruleLeft + RoundLayout.chordWidth(top - 4, w, h), top - 4);
@@ -139,6 +148,21 @@ class ChapterGridView extends WatchUi.View {
         AppState.selectedBook = _gridBook >= 0 ? _gridBook : AppState.selectedBook;
         AppState.selectedChapter = grid.focusedChapter();
         ReaderView.openFor(AppState.selectedBook, AppState.selectedChapter);
+    }
+
+    function firstSectionTitle(book as Lang.Number, chapter as Lang.Number) as Lang.String or Null {
+        if (!ContentLoader.hasChapter(book, chapter)) {
+            return null;
+        }
+        var data = ContentLoader.loadChapter(book, chapter);
+        if (data == null) {
+            return null;
+        }
+        var sections = data[:sections] as Lang.Array;
+        if (sections.size() == 0) {
+            return null;
+        }
+        return sections[0][:title] as Lang.String;
     }
 }
 
