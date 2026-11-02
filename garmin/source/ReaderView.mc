@@ -7,11 +7,14 @@ using Toybox.WatchUi;
 //! Center-band lens reader. Eager-wraps the opened chapter only; defers the
 //! continuation chapter across a Timer tick so open stays under the 240k watchdog.
 //! Every verse starts on a new line (no run-on paragraph); gold inline numbers.
+//! System fonts only (BMFont weighting reverted — see docs/font-budget.md).
 class ReaderView extends WatchUi.View {
     var toast as Lang.String or Null = null;
     var _toastTimer as Timer.Timer or Null = null;
     var _deferTimer as Timer.Timer or Null = null;
     var _laidOut as Lang.Boolean = false;
+    var _bodyFont as Graphics.FontDefinition = Graphics.FONT_XTINY;
+    var _numFont as Graphics.FontDefinition = Graphics.FONT_XTINY;
     var _colLeft as Lang.Number = 0;
     var _colWidth as Lang.Number = 0;
     var _bandTop as Lang.Number = 0;
@@ -55,17 +58,20 @@ class ReaderView extends WatchUi.View {
 
     function rebuildLines(dc as Graphics.Dc) as Void {
         applyLens(dc);
-        Fonts.ensureLoaded();
         _wrapBook = AppState.selectedBook;
         _wrapChapter = AppState.selectedChapter;
+        _bodyFont = Graphics.FONT_XTINY;
+        _numFont = Graphics.FONT_XTINY;
 
         var lines = [] as Lang.Array;
         appendChapterLines(dc, lines, _wrapBook, _wrapChapter, _colWidth);
         _verseCount = ContentLoader.verseCount(_wrapBook, _wrapChapter);
 
         AppState.scroll.lines = lines;
+        // POKE: dynamic font — if focused verse fits the band one size larger in Verse mode, grow.
+        maybeGrowFontForFocus(dc, AppState.scroll.lines);
         AppState.scroll.scrollOffset = 0;
-        var lineH = dc.getFontHeight(Fonts.regular) + 2;
+        var lineH = dc.getFontHeight(_bodyFont) + 2;
         var bandH = _bandBottom - _bandTop;
         AppState.scroll.visibleCount = bandH / lineH;
         if (AppState.scroll.visibleCount < 1) {
@@ -137,9 +143,61 @@ class ReaderView extends WatchUi.View {
         }
     }
 
+    function maybeGrowFontForFocus(dc as Graphics.Dc, lines as Lang.Array) as Void {
+        // POKE: on threshold — grow only in Verse mode when the focused verse fits.
+        if (AppState.scroll.mode != ScrollModel.MODE_VERSE) {
+            return;
+        }
+        var larger = RoundLayout.growFont(_bodyFont);
+        if (larger == _bodyFont) {
+            return;
+        }
+        // Count lines belonging to first verse at current wrap; re-wrap that verse at larger.
+        if (lines.size() == 0) {
+            return;
+        }
+        var first = lines[0] as ScrollModel.Line;
+        if (first.kind != ScrollModel.KIND_VERSE) {
+            return;
+        }
+        var data = ContentLoader.loadChapter(first.book, first.chapter);
+        if (data == null) {
+            return;
+        }
+        var verses = data[:verses] as Lang.Array;
+        var t as Lang.String or Null = null;
+        var i;
+        for (i = 0; i < verses.size(); i++) {
+            var v = verses[i];
+            var n = v["n"];
+            if (n == null) {
+                n = v[:n];
+            }
+            if (n == first.verse) {
+                t = v["t"];
+                if (t == null) {
+                    t = v[:t];
+                }
+                break;
+            }
+        }
+        if (t == null) {
+            return;
+        }
+        var wrapped = ContentLoader.wrapVerseToWidth(dc, larger, first.verse, t as Lang.String, _colWidth);
+        var lineH = dc.getFontHeight(larger) + 2;
+        var bandH = _bandBottom - _bandTop;
+        if (wrapped.size() * lineH <= bandH) {
+            _bodyFont = larger;
+            // Re-wrap whole chapter at larger size; caller uses AppState.scroll.lines after.
+            var rebuilt = [] as Lang.Array;
+            appendChapterLines(dc, rebuilt, _wrapBook, _wrapChapter, _colWidth);
+            AppState.scroll.lines = rebuilt;
+        }
+    }
+
     function appendChapterLines(dc as Graphics.Dc, lines as Lang.Array, book as Lang.Number,
                                 chapter as Lang.Number, wrapW as Lang.Number) as Void {
-        Fonts.ensureLoaded();
         ContentLoader.clearWordCache();
         var data = ContentLoader.loadChapter(book, chapter);
         if (data == null) {
@@ -163,16 +221,15 @@ class ReaderView extends WatchUi.View {
             var text = t as Lang.String;
             // POKE: WORDS_OF_JESUS — spike JSON has no \wj; hook skips tint until markup ships.
             if (ContentLoader.hasJesusMarkup(text)) {
-                // Future: split runs and wrap with Fonts.medium + Palette.JESUS.
+                // Future: split runs and draw with Palette.JESUS.
             }
             text = ContentLoader.plainVerseText(text);
             var vchars = text.length();
-            var pull = vchars <= Fonts.SHORT_VERSE_CHARS;
-            // Wrap short verses at medium-16; others at regular-14 (light ≈ same metrics).
-            var face = pull ? Fonts.mediumLg : Fonts.regular;
-            var faceKey = pull ? Fonts.KEY_MEDIUM_LG : Fonts.KEY_REGULAR;
-            var wrapped = ContentLoader.wrapVerseToWidthKeyed(
-                dc, face, n as Lang.Number, text, wrapW, faceKey);
+            var pull = vchars <= RoundLayout.SHORT_VERSE_CHARS;
+            // Short verses use one system size up (TINY); body stays XTINY. No custom BMFont.
+            var face = pull ? Graphics.FONT_TINY : _bodyFont;
+            var wrapped = ContentLoader.wrapVerseToWidth(
+                dc, face, n as Lang.Number, text, wrapW);
             var j;
             for (j = 0; j < wrapped.size(); j++) {
                 var row = wrapped[j];
@@ -209,19 +266,20 @@ class ReaderView extends WatchUi.View {
         var chapter = focus[:chapter] as Lang.Number;
         var verse = focus[:verse] as Lang.Number;
 
-        Fonts.ensureLoaded();
-        // Top arc 0–18%: letterspaced small-caps gold meta only. Nothing else.
+        // Top arc 0–18%: centered metadata only. Nothing else.
         var meta = Books.refLabel(book, chapter, verse);
         var full = Books.name(book) + " " + chapter + ":" + verse;
-        var metaH = dc.getFontHeight(Fonts.headerCaps);
-        var metaY = (_metaBottom - metaH) / 2;
+        var metaFont = Graphics.FONT_XTINY;
+        var metaY = (_metaBottom - dc.getFontHeight(metaFont)) / 2;
         if (metaY < 2) {
             metaY = 2;
         }
-        var topChord = RoundLayout.rawChordWidth(metaY + metaH / 2, w, h);
-        var label = Fonts.letterspacedWidth(dc, full) <= topChord - 8 ? full : meta;
+        dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
+        // Prefer full name when it fits the top chord; else OSIS.
+        var topChord = RoundLayout.rawChordWidth(metaY + dc.getFontHeight(metaFont) / 2, w, h);
+        var label = dc.getTextWidthInPixels(full, metaFont) <= topChord - 8 ? full : meta;
         dc.setClip(0, 0, w, _metaBottom);
-        Fonts.drawLetterspacedCaps(dc, w / 2, metaY, label, Palette.GOLD);
+        dc.drawText(w / 2, metaY, metaFont, label, Graphics.TEXT_JUSTIFY_CENTER);
         dc.clearClip();
 
         // Progress arc (replaces scrollbar).
@@ -232,7 +290,7 @@ class ReaderView extends WatchUi.View {
         RoundLayout.drawProgressArc(dc, progress, bookmarkFracsFor(book, chapter));
 
         // Center band: clip everything to the band.
-        var lineH = dc.getFontHeight(Fonts.regular) + 2;
+        var lineH = dc.getFontHeight(_bodyFont) + 2;
         var bandH = _bandBottom - _bandTop;
         AppState.scroll.visibleCount = bandH / lineH;
         if (AppState.scroll.visibleCount < 1) {
@@ -282,13 +340,11 @@ class ReaderView extends WatchUi.View {
                 drawDivider(dc, y, lineH, ln.text);
                 prevWasVerse = false;
             } else if (ln.kind == ScrollModel.KIND_END) {
-                Fonts.drawLetterspacedCaps(dc, w / 2, y, ln.text, Palette.MUTED);
+                dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(w / 2, y, Graphics.FONT_TINY, ln.text, Graphics.TEXT_JUSTIFY_CENTER);
                 prevWasVerse = false;
             } else {
-                var usedH = drawVerseLine(dc, y, lineH, ln, book, chapter, verse);
-                if (usedH > lineH) {
-                    y += usedH - lineH;
-                }
+                drawVerseLine(dc, y, lineH, ln, book, chapter, verse);
                 prevWasVerse = true;
                 prevVerse = ln.verse;
             }
@@ -316,41 +372,44 @@ class ReaderView extends WatchUi.View {
         }
     }
 
-    //! Returns line height used (pull-quote may be taller).
     function drawVerseLine(dc as Graphics.Dc, y as Lang.Number, lineH as Lang.Number,
                            ln as ScrollModel.Line, focusBook as Lang.Number,
-                           focusChapter as Lang.Number, focusVerse as Lang.Number) as Lang.Number {
-        Fonts.ensureLoaded();
+                           focusChapter as Lang.Number, focusVerse as Lang.Number) as Void {
         var x = _colLeft;
         var isFocus = ln.book == focusBook && ln.chapter == focusChapter && ln.verse == focusVerse;
-        // Weight + color: focus = regular/#F2EFE9; surround = light/DIM_VERSE.
-        var bodyFont = Fonts.bodyForVerse(isFocus, ln.verseChars);
+        // Focus via color only (same system face) — BMFont weights reverted.
         var bodyColor = Palette.TEXT;
         if (!isFocus) {
             bodyColor = Palette.DIM_VERSE; // POKE: Palette.DIM_VERSE
         }
-        // POKE: WORDS_OF_JESUS — if markup existed, bodyColor/font → Palette.JESUS / Fonts.medium.
-        var usedH = dc.getFontHeight(bodyFont) + 2;
+        // POKE: WORDS_OF_JESUS — if markup existed, bodyColor → Palette.JESUS for those runs.
+        var bodyFace = _bodyFont;
+        if (ln.pullQuote) {
+            bodyFace = Graphics.FONT_TINY; // POKE: RoundLayout.SHORT_VERSE_CHARS size bump
+        }
         if (ln.isVerseStart) {
-            // Small bold gold verse number at line start.
+            // Gold system-font verse number (XTINY/TINY) — not a custom bold face.
             var num = ln.verse.toString();
             dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
-            var numY = y;
-            dc.drawText(x, numY, Fonts.numBold, num, Graphics.TEXT_JUSTIFY_LEFT);
-            x += dc.getTextWidthInPixels(num, Fonts.numBold) + 4;
+            var numY = y - 1;
+            if (numY < _bandTop) {
+                numY = y;
+            }
+            dc.drawText(x, numY, _numFont, num, Graphics.TEXT_JUSTIFY_LEFT);
+            x += dc.getTextWidthInPixels(num, _numFont) + 4;
         }
         dc.setColor(bodyColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(x, y, bodyFont, ln.text, Graphics.TEXT_JUSTIFY_LEFT);
-        return usedH > lineH ? usedH : lineH;
+        dc.drawText(x, y, bodyFace, ln.text, Graphics.TEXT_JUSTIFY_LEFT);
     }
 
     function drawDivider(dc as Graphics.Dc, y as Lang.Number, lineH as Lang.Number,
                          label as Lang.String) as Void {
-        // Spec: ~1 line pad via spacers; thin 1px rules; gold letterspaced caps label.
-        Fonts.ensureLoaded();
+        // Spec: ~1 line pad via spacers; thin 1px rules (DIVIDER_RULE) with 6–8px gap
+        // from gold centered label; fully inside band chord (clip already set).
         var padX = 8;
         var gap = 8; // POKE: divider label↔rule gap (6–8px)
-        var tw = Fonts.letterspacedWidth(dc, label);
+        var font = Graphics.FONT_TINY;
+        var tw = dc.getTextWidthInPixels(label, font);
         var midX = _colLeft + _colWidth / 2;
         var ruleY = y + lineH / 2;
         var labelLeft = midX - tw / 2 - gap;
@@ -363,8 +422,9 @@ class ReaderView extends WatchUi.View {
         if ((_colLeft + _colWidth - padX) - labelRight > 4) {
             dc.drawLine(labelRight, ruleY, _colLeft + _colWidth - padX, ruleY);
         }
-        var labelY = y + (lineH - dc.getFontHeight(Fonts.headerCaps)) / 2;
-        Fonts.drawLetterspacedCaps(dc, midX, labelY, label, Palette.GOLD);
+        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(midX, y + (lineH - dc.getFontHeight(font)) / 2, font, label,
+            Graphics.TEXT_JUSTIFY_CENTER);
     }
 
     function resolveFocus() as Lang.Dictionary {

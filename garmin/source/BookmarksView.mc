@@ -25,11 +25,12 @@ class BookmarksView extends WatchUi.View {
         Palette.applyBackground(dc);
         var w = dc.getWidth();
         var h = dc.getHeight();
-        Fonts.ensureLoaded();
+        var titleFont = Graphics.FONT_TINY;
         var rowFont = Graphics.FONT_SMALL;
         var y = RoundLayout.edgeMargin(w, h);
-        Fonts.drawLetterspacedCaps(dc, w / 2, y, "Bookmarks", Palette.GOLD);
-        y += dc.getFontHeight(Fonts.headerCaps) + 6;
+        dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
+        RoundLayout.drawCenteredInChord(dc, y, "Bookmarks", titleFont);
+        y += dc.getFontHeight(titleFont) + 6;
         var ruleLeft = RoundLayout.chordLeft(y - 4, w, h);
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(ruleLeft, y - 4, ruleLeft + RoundLayout.chordWidth(y - 4, w, h), y - 4);

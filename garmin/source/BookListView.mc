@@ -17,11 +17,12 @@ class BookListView extends WatchUi.View {
         Palette.applyBackground(dc);
         var w = dc.getWidth();
         var h = dc.getHeight();
-        Fonts.ensureLoaded();
+        var titleFont = Graphics.FONT_TINY;
         var rowFont = Graphics.FONT_SMALL;
         var y = RoundLayout.edgeMargin(w, h);
-        Fonts.drawLetterspacedCaps(dc, w / 2, y, "Bible BSB", Palette.GOLD);
-        y += dc.getFontHeight(Fonts.headerCaps) + 4;
+        dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
+        RoundLayout.drawCenteredInChord(dc, y, "Bible BSB", titleFont);
+        y += dc.getFontHeight(titleFont) + 4;
         var ruleLeft = RoundLayout.chordLeft(y, w, h);
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(ruleLeft, y, ruleLeft + RoundLayout.chordWidth(y, w, h), y);

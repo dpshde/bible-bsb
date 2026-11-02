@@ -40,10 +40,10 @@ function testNoJesusMarkupInSpikeSample(logger as Test.Logger) as Lang.Boolean {
 
 (:test)
 function testShortVerseThreshold(logger as Test.Logger) as Lang.Boolean {
-    // POKE: Fonts.SHORT_VERSE_CHARS
-    Test.assert(Fonts.SHORT_VERSE_CHARS >= 30);
-    Test.assert(Fonts.SHORT_VERSE_CHARS <= 50);
-    Test.assert("Jesus wept.".length() <= Fonts.SHORT_VERSE_CHARS);
+    // POKE: RoundLayout.SHORT_VERSE_CHARS (system-font size bump; BMFont path reverted)
+    Test.assert(RoundLayout.SHORT_VERSE_CHARS >= 30);
+    Test.assert(RoundLayout.SHORT_VERSE_CHARS <= 50);
+    Test.assert("Jesus wept.".length() <= RoundLayout.SHORT_VERSE_CHARS);
     return true;
 }
 

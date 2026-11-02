@@ -5,11 +5,7 @@ project.manifest = manifest.xml
 base.sourcePath = source;test
 base.resourcePath = resources
 
-# Full BMFont weight set in resources/fonts (see docs/font-budget.json).
-# Low-memory products overlay resources-lowmem (Light/Medium14 → Regular14).
-fr165.resourcePath = resources;resources-lowmem
-fr165m.resourcePath = resources;resources-lowmem
-venusq2.resourcePath = resources;resources-lowmem
-venusq2m.resourcePath = resources;resources-lowmem
-vivoactive5.resourcePath = resources;resources-lowmem
-# vivoactive6 / fr265 / fr965 / venu* / enduro3: full set (base resources only)
+# Round MIP / AMOLED can later add resource overlays (POKE: per-class fonts/insets)
+# enduro3.resourcePath = resources;resources-round
+# fr265.resourcePath = resources;resources-round
+# venusq2.resourcePath = resources;resources-rectangle
