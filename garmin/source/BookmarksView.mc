@@ -1,5 +1,6 @@
 using Toybox.Graphics;
 using Toybox.Lang;
+using Toybox.System;
 using Toybox.WatchUi;
 
 class BookmarksView extends WatchUi.View {
@@ -34,7 +35,7 @@ class BookmarksView extends WatchUi.View {
         dc.drawLine(ruleLeft, y - 4, ruleLeft + RoundLayout.chordWidth(y - 4, w, h), y - 4);
 
         if (items.size() == 0) {
-            RoundLayout.drawCenteredInChord(dc, h / 2, "No bookmarks", Graphics.FONT_SMALL);
+            drawEmptyState(dc, y, w, h);
             _rowTop = 0;
             _rowH = 0;
             return;
@@ -63,6 +64,62 @@ class BookmarksView extends WatchUi.View {
             }
             y += rowH;
         }
+    }
+
+    //! Quiet empty state (Flipper spirit: secondary type + short hint, not a hero headline).
+    function drawEmptyState(dc as Graphics.Dc, headerBottom as Lang.Number, w as Lang.Number, h as Lang.Number) as Void {
+        var bottom = h - RoundLayout.edgeMargin(w, h);
+        var col = RoundLayout.columnRect(w, h, headerBottom + 8, bottom);
+        var colLeft = col[:left] as Lang.Number;
+        var colW = col[:width] as Lang.Number;
+        var colMidX = colLeft + colW / 2;
+
+        var titleFont = Graphics.FONT_TINY;
+        var hintFont = Graphics.FONT_XTINY;
+        var titleH = dc.getFontHeight(titleFont);
+        var hintH = dc.getFontHeight(hintFont);
+        var iconH = 22;
+        var gap = 8;
+        var blockH = iconH + gap + titleH + gap + hintH;
+        var bandTop = col[:top] as Lang.Number;
+        var bandBottom = col[:bottom] as Lang.Number;
+        var blockTop = bandTop + ((bandBottom - bandTop) - blockH) / 2;
+        if (blockTop < bandTop) {
+            blockTop = bandTop;
+        }
+
+        drawBookmarkIcon(dc, colMidX, blockTop + iconH / 2, iconH);
+
+        var titleY = blockTop + iconH + gap;
+        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(colMidX, titleY, titleFont, "No bookmarks yet", Graphics.TEXT_JUSTIFY_CENTER);
+
+        // POKE: hint copy — button vs touch; try "Hold Select on a verse" on 5-btn-only.
+        var hint = "Hold on a verse to save it";
+        if (System.getDeviceSettings().isTouchScreen) {
+            hint = "Long-press a verse";
+        }
+        var hintY = titleY + titleH + gap;
+        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(colMidX, hintY, hintFont, hint, Graphics.TEXT_JUSTIFY_CENTER);
+        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
+    }
+
+    //! Small outline bookmark glyph (no bitmap asset required).
+    function drawBookmarkIcon(dc as Graphics.Dc, cx as Lang.Number, cy as Lang.Number, size as Lang.Number) as Void {
+        var hw = size / 3;
+        var top = cy - size / 2;
+        var bot = cy + size / 2;
+        var left = cx - hw;
+        var right = cx + hw;
+        var notch = cy + size / 6;
+        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+        // Ribbon outline: left, top, right, then V-notch at bottom.
+        dc.drawLine(left, top, right, top);
+        dc.drawLine(left, top, left, bot);
+        dc.drawLine(right, top, right, bot);
+        dc.drawLine(left, bot, cx, notch);
+        dc.drawLine(right, bot, cx, notch);
     }
 
     function rowAtY(y as Lang.Number) as Lang.Number {
