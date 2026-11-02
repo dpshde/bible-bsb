@@ -98,11 +98,67 @@ function testTallVerseStepsInsideBeforeCrossing(logger as Test.Logger) as Lang.B
         _line(ScrollModel.KIND_VERSE, 42, 3, 17, true)
     ];
     s.scrollOffset = 0;
+    // v3 SCROLL_STEP: a verse taller than the band pages (visibleCount - 1) inside itself,
+    // then the next press snaps to the next verse start once its tail is on screen.
     s.next();
     Test.assertEqual(s.scrollOffset, 1);
     s.next();
-    Test.assertEqual(s.scrollOffset, 2);
-    s.next();
     Test.assertEqual(s.scrollOffset, 3);
+    return true;
+}
+
+(:test)
+function testVerseStepMovesWholeVerse(logger as Test.Logger) as Lang.Boolean {
+    var s = new ScrollModel.State();
+    s.mode = ScrollModel.MODE_VERSE;
+    s.visibleCount = 6;
+    s.lines = [
+        _line(ScrollModel.KIND_VERSE, 42, 14, 2, true),
+        _line(ScrollModel.KIND_VERSE, 42, 14, 2, false),
+        _line(ScrollModel.KIND_VERSE, 42, 14, 2, false),
+        _line(ScrollModel.KIND_VERSE, 42, 14, 2, false),
+        _line(ScrollModel.KIND_VERSE, 42, 14, 3, true),
+        _line(ScrollModel.KIND_VERSE, 42, 14, 3, false)
+    ];
+    s.scrollOffset = 0;
+    s.next(); // one press = 4 lines (whole verse 2)
+    Test.assertEqual(s.scrollOffset, 4);
+    s.prev();
+    Test.assertEqual(s.scrollOffset, 0);
+    return true;
+}
+
+(:test)
+function testDividerNeverTopLine(logger as Test.Logger) as Lang.Boolean {
+    // Mal 4:6 -> Mat 1:1 buffer shape: verse, spacer, divider, spacer, verse.
+    var s = new ScrollModel.State();
+    s.visibleCount = 3;
+    s.lines = [
+        _line(ScrollModel.KIND_VERSE, 38, 4, 6, true),
+        _line(ScrollModel.KIND_SPACER, 39, 1, 0, false),
+        _line(ScrollModel.KIND_DIVIDER, 39, 1, 0, false),
+        _line(ScrollModel.KIND_SPACER, 39, 1, 0, false),
+        _line(ScrollModel.KIND_VERSE, 39, 1, 1, true),
+        _line(ScrollModel.KIND_VERSE, 39, 1, 1, false),
+        _line(ScrollModel.KIND_VERSE, 39, 1, 2, true)
+    ];
+    s.mode = ScrollModel.MODE_INCREMENTAL;
+    s.scrollOffset = 0;
+    s.next();
+    Test.assertEqual(s.scrollOffset, 1); // spacer above divider = padded
+    s.next();
+    Test.assertEqual(s.scrollOffset, 3); // skipped the divider line
+    s.prev();
+    Test.assertEqual(s.scrollOffset, 1);
+    s.mode = ScrollModel.MODE_VERSE;
+    s.scrollOffset = 0;
+    s.next();
+    Test.assertEqual(s.scrollOffset, 1); // boundary stop = spacer above divider
+    s.next();
+    Test.assertEqual(s.scrollOffset, 4); // Mat 1:1
+    s.prev();
+    Test.assertEqual(s.scrollOffset, 1);
+    s.prev();
+    Test.assertEqual(s.scrollOffset, 0);
     return true;
 }

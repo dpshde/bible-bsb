@@ -6,17 +6,19 @@ using Toybox.System;
 module Perf {
     var loads as Lang.Number = 0;
     var measures as Lang.Number = 0;
+    var texts as Lang.Number = 0; // drawText calls this frame (device-cost proxy: TTF raster)
 
     (:debug)
     function start() as Lang.Number {
         loads = 0;
         measures = 0;
+        texts = 0;
         return System.getTimer();
     }
 
     (:debug)
     function end(tag as Lang.String, t0 as Lang.Number) as Void {
-        System.println("PERF " + tag + " ms=" + (System.getTimer() - t0) + " loads=" + loads + " measures=" + measures);
+        System.println("PERF " + tag + " ms=" + (System.getTimer() - t0) + " loads=" + loads + " measures=" + measures + " texts=" + texts);
     }
 
     var _seg as Lang.String = "";

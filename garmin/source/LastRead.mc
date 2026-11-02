@@ -50,9 +50,28 @@ module LastReadApp {
     }
 
     //! Chapter to open a book at: last-read chapter if this is the last-read book, else 1.
-    function chapterFor(book as Lang.Number) as Lang.Number {
+    //! Stored [book, chapter, verse] if well formed and in range, else null (corrupt / old data).
+    function stored() as Lang.Array or Null {
         var p = Application.Storage.getValue(LastRead.KEY);
-        if (p instanceof Lang.Array && (p as Lang.Array).size() == 3 && (p as Lang.Array)[0] == book) {
+        if (!(p instanceof Lang.Array) || (p as Lang.Array).size() != 3) {
+            return null;
+        }
+        var a = p as Lang.Array;
+        var b = a[0];
+        var c = a[1];
+        var v = a[2];
+        if (!(b instanceof Lang.Number) || !(c instanceof Lang.Number) || !(v instanceof Lang.Number)) {
+            return null;
+        }
+        if (b < 0 || b >= Books.BOOK_COUNT || c < 1 || c > Books.chapterCount(b) || v < 1 || v > 200) {
+            return null;
+        }
+        return a;
+    }
+
+    function chapterFor(book as Lang.Number) as Lang.Number {
+        var p = stored();
+        if (p != null && (p as Lang.Array)[0] == book) {
             return (p as Lang.Array)[1] as Lang.Number;
         }
         return 1;
@@ -80,8 +99,8 @@ module LastReadApp {
 
     //! On start: restore book/chapter and the verse to resume at.
     function restore() as Void {
-        var p = Application.Storage.getValue(LastRead.KEY);
-        if (p instanceof Lang.Array && (p as Lang.Array).size() == 3) {
+        var p = stored();
+        if (p != null) {
             var a = p as Lang.Array;
             AppState.selectedBook = a[0] as Lang.Number;
             AppState.selectedChapter = a[1] as Lang.Number;

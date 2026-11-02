@@ -72,3 +72,99 @@ class ThemedMenuItem extends WatchUi.CustomMenuItem {
         }
     }
 }
+
+//! Menu item whose label may be long (Go to verse section headings): one row if it fits,
+//! else a pyramid two-row split (row 1 <= row 2), each row inside the circle chord; only
+//! as a last resort row 2 ends in an ellipsis. Split cached per font (no per-frame measure).
+class ThemedWrapItem extends WatchUi.CustomMenuItem {
+    var _label as Lang.String;
+    var _suffix as Lang.String; // " (1–25)": never cut off
+    var _rows as Lang.Dictionary = {}; // focused(0/1) -> [font, rows[]]
+
+    function initialize(title as Lang.String, suffix as Lang.String, id as Lang.Object) {
+        CustomMenuItem.initialize(id, {});
+        _label = title;
+        _suffix = suffix;
+    }
+
+    function rowsFor(dc as Graphics.Dc, focused as Lang.Boolean) as Lang.Array {
+        var key = focused ? 1 : 0;
+        var c = _rows[key];
+        if (c != null) {
+            return c as Lang.Array;
+        }
+        var w = dc.getWidth();
+        // POKE: GOTO_WRAP_ROOM — off-center items sit where the circle is narrower.
+        var room = focused ? (w * 0.80).toNumber() : (w * 0.72).toNumber();
+        var full = _label + _suffix;
+        var fonts = focused ? [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY]
+                            : [Graphics.FONT_TINY, Graphics.FONT_XTINY];
+        var out = null;
+        var k;
+        for (k = 0; k < fonts.size() && out == null; k++) {
+            var f = fonts[k] as Graphics.FontDefinition;
+            if (dc.getTextWidthInPixels(full, f) <= room) {
+                out = [f, [full]];
+            }
+        }
+        var wrapFonts = focused ? [Graphics.FONT_TINY, Graphics.FONT_XTINY] : [Graphics.FONT_XTINY];
+        for (k = 0; k < wrapFonts.size() && out == null; k++) {
+            var f2 = wrapFonts[k] as Graphics.FontDefinition;
+            var parts = RoundLayout.pyramidSplit(dc, full, f2, (room * 0.86).toNumber(), room);
+            if (parts != null) {
+                out = [f2, parts];
+            } else if (focused && f2 == Graphics.FONT_XTINY) {
+                // Focused item is taller: a third pyramid row before any truncation.
+                var three = RoundLayout.wrapThree(dc, full, f2, (room * 0.72).toNumber(),
+                                                  (room * 0.88).toNumber(), room);
+                if (three != null) {
+                    out = [f2, three];
+                }
+            }
+        }
+        if (out == null) {
+            // Last resort: shorten the TITLE, keep the verse span whole on row 2.
+            var f3 = Graphics.FONT_XTINY;
+            var sw = dc.getTextWidthInPixels(_suffix, f3);
+            var p2 = RoundLayout.pyramidSplitEllipsize(dc, _label, f3, (room * 0.86).toNumber(), room - sw);
+            out = [f3, [p2[0], (p2[1] as Lang.String) + _suffix]];
+        }
+        _rows[key] = out;
+        return out as Lang.Array;
+    }
+    function draw(dc as Graphics.Dc) as Void {
+        var w = dc.getWidth();
+        var h = dc.getHeight();
+        var focused = isFocused();
+        dc.setColor(Palette.BG, Palette.BG);
+        dc.clear();
+        var r = rowsFor(dc, focused);
+        var f = r[0] as Graphics.FontDefinition;
+        var rows = r[1] as Lang.Array;
+        var fh = dc.getFontHeight(f);
+        var lh = fh - 3;
+        var total = fh + (rows.size() - 1) * lh;
+        var y = (h - total) / 2;
+        if (focused) {
+            var tw = 0;
+            var i0;
+            for (i0 = 0; i0 < rows.size(); i0++) {
+                var rw = dc.getTextWidthInPixels(rows[i0] as Lang.String, f);
+                tw = rw > tw ? rw : tw;
+            }
+            tw += 20;
+            if (tw > w - 8) {
+                tw = w - 8;
+            }
+            dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_BG);
+            dc.fillRoundedRectangle((w - tw) / 2, y - 1, tw, total + 2, 6);
+            dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
+        } else {
+            dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
+        }
+        var i;
+        for (i = 0; i < rows.size(); i++) {
+            dc.drawText(w / 2, y + i * lh, f, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+        }
+    }
+}

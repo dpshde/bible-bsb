@@ -33,6 +33,7 @@ class BookListView extends WatchUi.View {
             _labels = labels;
         }
         _rowCount = Books.BOOK_COUNT;
+        focus = PickList.takeFocus(focus);
         PickList.draw(dc, "Bible BSB", _labels as Lang.Array, focus);
     }
 
@@ -55,6 +56,9 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onNextPage() as Lang.Boolean {
+        if (PickList.swallowSwipe()) {
+            return true;
+        }
         if (TouchGuard.consumePage()) {
             return true;
         }
@@ -65,6 +69,9 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onPreviousPage() as Lang.Boolean {
+        if (PickList.swallowSwipe()) {
+            return true;
+        }
         if (TouchGuard.consumePage()) {
             return true;
         }
@@ -93,6 +100,10 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
+    function onDrag(evt as WatchUi.DragEvent) as Lang.Boolean {
+        return PickList.onDrag(evt);
+    }
+
     function onTap(evt) as Lang.Boolean {
         var coords = evt.getCoordinates();
         var v = view();
@@ -106,6 +117,15 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
 
     function onSwipe(evt) as Lang.Boolean {
         var dir = evt.getDirection();
+        if (PickList.swallowSwipe() && (dir == WatchUi.SWIPE_UP || dir == WatchUi.SWIPE_DOWN)) {
+            return true; // the drag already moved the list
+        }
+        if (dir == WatchUi.SWIPE_LEFT) {
+            // Flipper home Right = Filter: swipe left opens all 22 filters.
+            var fv = new FilterGridView();
+            WatchUi.pushView(fv, new FilterGridDelegate(fv), WatchUi.SLIDE_LEFT);
+            return true;
+        }
         if (dir == WatchUi.SWIPE_UP) {
             TouchGuard.markPage();
             var v = view();

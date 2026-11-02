@@ -45,6 +45,10 @@ class ChapterGridView extends WatchUi.View {
         grid.setFocusIndex(focusIdx);
         _gridBook = AppState.selectedBook;
         _firstIdx = 0;
+        _top = -1;
+        _bodyKey = -1;
+        _hdrKey = -1;
+        _subKey = -1;
     }
 
     function onShow() as Void {
@@ -76,34 +80,107 @@ class ChapterGridView extends WatchUi.View {
     var _capTotal as Lang.Number = 0;
     var _labels as Lang.Array = [] as Lang.Array;
 
+    // DRAW-ONCE (v3): header (title + subtitle + rule) and body (every visible cell, unfocused)
+    // each render once into a BufferedBitmap; a focus move re-renders only the subtitle
+    // header and draws ONE cell (the focus pill). Keys include Palette.BG (theme).
+    var _hdrRef = null;
+    var _hdrKey as Lang.Number = -1;
+    var _bodyRef = null;
+    var _bodyKey as Lang.Number = -1;
+    var _top as Lang.Number = -1;
+    var _bottom as Lang.Number = 0;
+    var _subY as Lang.Number = 0;
+    var _theme as Lang.Number = -1;
+    // Tap feedback: tapped cell flashes gold for FLASH_MS, then the chapter opens.
+    var flashIdx as Lang.Number = -1;
+    var _flashTimer = null;
+    // POKE: TAP_FLASH_MS — gold flash before the reader opens (80-120 ms).
+    const FLASH_MS = Feedback.FLASH_MS;
+
+    function flashAndOpen(idx as Lang.Number) as Void {
+        if (flashIdx >= 0) {
+            return; // already opening
+        }
+        flashIdx = idx;
+        grid.setFocusIndex(idx);
+        Feedback.tick();
+        WatchUi.requestUpdate(); // flash paints on the very next frame
+        if (_flashTimer == null) {
+            _flashTimer = new Timer.Timer();
+        }
+        (_flashTimer as Timer.Timer).start(method(:onFlashDone), FLASH_MS, false);
+    }
+
+    function onFlashDone() as Void {
+        var idx = flashIdx;
+        flashIdx = -1;
+        openChapterIndex(idx);
+    }
+
+    function cellRect(idx as Lang.Number) as Lang.Array or Null {
+        var rel = idx - _firstIdx;
+        if (rel < 0) {
+            return null;
+        }
+        var r;
+        for (r = 0; r < grid.visibleRows; r++) {
+            var cap = _caps[r] as Lang.Number;
+            if (rel < cap) {
+                var cw = _cellWA[r] as Lang.Number;
+                return [(_rowLeftA[r] as Lang.Number) + rel * cw, _top + r * _cellH, cw];
+            }
+            rel -= cap;
+        }
+        return null;
+    }
+
     function onUpdateImpl(dc as Graphics.Dc) as Void {
-        Palette.applyBackground(dc);
         var w = dc.getWidth();
         var h = dc.getHeight();
         _screenW = w;
         _screenH = h;
+        if (_theme != Palette.BG) {
+            _theme = Palette.BG;
+            _hdrKey = -1;
+            _bodyKey = -1;
+        }
         var titleFont = Graphics.FONT_TINY;
         var titleY = RoundLayout.edgeMargin(w, h);
-        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
-        RoundLayout.drawCenteredInChord(dc, titleY, Books.name(AppState.selectedBook), titleFont);
-
-        // First section heading of the focused chapter as subtitle when bundled.
-        var subY = titleY + dc.getFontHeight(titleFont) + 1;
-        var focusCh = grid.focusedChapter();
         var sf = Graphics.FONT_XTINY;
         var sh = dc.getFontHeight(sf);
-        if (_subKey != AppState.selectedBook * 1000 + focusCh) {
-            _subKey = AppState.selectedBook * 1000 + focusCh;
+        var focusCh = grid.focusedChapter();
+        if (_top < 0 || _gridBook != _headsBook) {
+            // Fixed grid top per book: always reserve the 2-row subtitle when the book has
+            // headings, so a 1-row vs 2-row heading never shifts (and re-renders) the grid.
+            firstSectionTitle(_gridBook, 1);
+            _subY = titleY + dc.getFontHeight(titleFont) + 1;
+            _top = _subY + (_heads != null ? 2 * sh : 0) + 4;
+            _bottom = h - RoundLayout.edgeMargin(w, h);
+        }
+        var top = _top;
+        var cellH = (_bottom - top) / grid.visibleRows;
+        if (cellH < 18) {
+            cellH = 18;
+        }
+        _gridTop = top;
+        _cellH = cellH;
+        if (_layTop != top || _layCount != grid.itemCount) {
+            computeLayout(dc, top, cellH, w, h);
+            _bodyKey = -1;
+        }
+        var subKey = AppState.selectedBook * 1000 + focusCh;
+        if (_subKey != subKey) {
+            _subKey = subKey;
             _subParts = null;
             var firstSec = firstSectionTitle(AppState.selectedBook, focusCh);
             if (firstSec != null) {
                 var st = firstSec as Lang.String;
                 // POKE: GRID_SUBTITLE_WRAP — never clip: one line if it fits the chord, else pyramid two lines.
-                var c1 = RoundLayout.chordWidth(subY, w, h) - 12;
+                var c1 = RoundLayout.chordWidth(_subY, w, h) - 12;
                 if (dc.getTextWidthInPixels(st, sf) <= c1) {
                     _subParts = [st];
                 } else {
-                    var c2 = RoundLayout.chordWidth(subY + sh - 2, w, h) - 12;
+                    var c2 = RoundLayout.chordWidth(_subY + sh - 2, w, h) - 12;
                     var parts = RoundLayout.pyramidSplit(dc, st, sf, c1, c2);
                     if (parts == null) {
                         parts = RoundLayout.pyramidSplitEllipsize(dc, st, sf, c1, c2);
@@ -112,38 +189,9 @@ class ChapterGridView extends WatchUi.View {
                 }
             }
         }
-        if (_subParts != null) {
-            var sp = _subParts as Lang.Array;
-            dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(w / 2, subY, sf, sp[0] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
-            if (sp.size() > 1) {
-                dc.drawText(w / 2, subY + sh - 2, sf, sp[1] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
-                subY += 2 * sh;
-            } else {
-                subY += sh + 2;
-            }
-        }
-
-        var top = subY + 4;
-        var ruleLeft = RoundLayout.chordLeft(top - 4, w, h);
-        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(ruleLeft, top - 4, ruleLeft + RoundLayout.chordWidth(top - 4, w, h), top - 4);
-
-        var bottom = h - RoundLayout.edgeMargin(w, h);
-        var cellH = (bottom - top) / grid.visibleRows;
-        if (cellH < 18) {
-            cellH = 18;
-        }
-        _gridTop = top;
-        _cellH = cellH;
-
-        if (_layTop != top || _layCount != grid.itemCount) {
-            computeLayout(dc, top, cellH, w, h);
-        }
-        var caps = _caps;
+        // Window over the snake: keep focus visible.
         var total = _capTotal;
-        var r;
-        var step = caps[0] as Lang.Number;
+        var step = _caps[0] as Lang.Number;
         if (_firstIdx >= grid.itemCount) {
             _firstIdx = 0;
         }
@@ -157,35 +205,145 @@ class ChapterGridView extends WatchUi.View {
             _firstIdx += step;
         }
         _rowStart = [] as Lang.Array;
-        _rowCap = caps;
-        var idx = _firstIdx;
-        var c;
-        var smallH = dc.getFontHeight(Graphics.FONT_SMALL);
+        _rowCap = _caps;
+        var idx0 = _firstIdx;
+        var r;
         for (r = 0; r < grid.visibleRows; r++) {
-            _rowStart.add(idx);
-            var cap2 = caps[r] as Lang.Number;
-            var cellW = _cellWA[r] as Lang.Number;
-            var rowLeft = _rowLeftA[r] as Lang.Number;
-            for (c = 0; c < cap2; c++) {
+            _rowStart.add(idx0);
+            idx0 += _caps[r] as Lang.Number;
+        }
+        var bmps = Graphics has :createBufferedBitmap;
+        // Header
+        if (_hdrKey != subKey || _hdrRef == null || (_hdrRef as Graphics.BufferedBitmapReference).get() == null) {
+            _hdrRef = null;
+            if (bmps) {
+                var hr = Graphics.createBufferedBitmap({:width => w, :height => top});
+                var hb = (hr as Graphics.BufferedBitmapReference).get();
+                if (hb != null) {
+                    var hdc = (hb as Graphics.BufferedBitmap).getDc();
+                    hdc.setColor(Palette.BG, Palette.BG);
+                    hdc.clear();
+                    drawHeader(hdc, w, h, titleY, titleFont, sf, sh, top);
+                    _hdrRef = hr;
+                    _hdrKey = subKey;
+                }
+            }
+        }
+        // Body
+        var bodyKey = AppState.selectedBook * 1000 + _firstIdx;
+        if (_bodyKey != bodyKey || _bodyRef == null || (_bodyRef as Graphics.BufferedBitmapReference).get() == null) {
+            _bodyRef = null;
+            if (bmps) {
+                var br = Graphics.createBufferedBitmap({:width => w, :height => h - top});
+                var bb = (br as Graphics.BufferedBitmapReference).get();
+                if (bb != null) {
+                    var bdc = (bb as Graphics.BufferedBitmap).getDc();
+                    bdc.setColor(Palette.BG, Palette.BG);
+                    bdc.clear();
+                    drawCells(bdc, -top, -1);
+                    _bodyRef = br;
+                    _bodyKey = bodyKey;
+                }
+            }
+        }
+        Palette.applyBackground(dc);
+        if (_hdrRef != null) {
+            dc.drawBitmap(0, 0, _hdrRef as Graphics.BufferedBitmapReference);
+        } else {
+            drawHeader(dc, w, h, titleY, titleFont, sf, sh, top);
+        }
+        if (_bodyRef != null) {
+            dc.drawBitmap(0, top, _bodyRef as Graphics.BufferedBitmapReference);
+        } else {
+            drawCells(dc, 0, grid.focusIndex);
+        }
+        // Focus pill (1 text) + tap flash.
+        var smallH = dc.getFontHeight(Graphics.FONT_SMALL);
+        drawCell(dc, grid.focusIndex, smallH, 0, true);
+        if (flashIdx >= 0) {
+            var rc = cellRect(flashIdx);
+            if (rc != null) {
+                var x = rc[0] as Lang.Number;
+                var y = rc[1] as Lang.Number;
+                var cw = rc[2] as Lang.Number;
+                dc.setColor(Palette.GOLD, Palette.GOLD);
+                dc.fillRectangle(x - 1, y - 1, cw + 2, cellH + 2);
+                dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
+                dc.setPenWidth(2);
+                dc.drawRectangle(x - 1, y - 1, cw + 2, cellH + 2);
+                dc.setPenWidth(1);
+                dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
+                Perf.texts++;
+                dc.drawText(x + cw / 2, y + cellH / 2 - smallH / 2, Graphics.FONT_SMALL,
+                            _labels[flashIdx] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            }
+        }
+    }
+
+    function drawHeader(dc as Graphics.Dc, w as Lang.Number, h as Lang.Number, titleY as Lang.Number,
+                        titleFont as Graphics.FontDefinition, sf as Graphics.FontDefinition,
+                        sh as Lang.Number, top as Lang.Number) as Void {
+        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
+        Perf.texts++;
+        RoundLayout.drawCenteredInChord(dc, titleY, Books.name(AppState.selectedBook), titleFont);
+        if (_subParts != null) {
+            var sp = _subParts as Lang.Array;
+            dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
+            var y = sp.size() > 1 ? _subY : _subY + sh / 2 - 1;
+            Perf.texts++;
+            dc.drawText(w / 2, y, sf, sp[0] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            if (sp.size() > 1) {
+                Perf.texts++;
+                dc.drawText(w / 2, y + sh - 2, sf, sp[1] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            }
+        }
+        var ruleLeft = RoundLayout.chordLeft(top - 4, w, h);
+        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(ruleLeft, top - 4, ruleLeft + RoundLayout.chordWidth(top - 4, w, h), top - 4);
+    }
+
+    //! Every visible cell; dy shifts into bitmap space. focusIdx >= 0 draws that one as a pill.
+    function drawCells(dc as Graphics.Dc, dy as Lang.Number, focusIdx as Lang.Number) as Void {
+        var smallH = dc.getFontHeight(Graphics.FONT_SMALL);
+        var idx = _firstIdx;
+        var r;
+        for (r = 0; r < grid.visibleRows; r++) {
+            var cap = _caps[r] as Lang.Number;
+            var c;
+            for (c = 0; c < cap; c++) {
                 if (idx >= grid.itemCount) {
-                    break;
+                    return;
                 }
-                var ch = idx + 1;
-                var x = rowLeft + c * cellW;
-                var y = top + r * cellH;
-                var label = _labels[idx] as Lang.String;
-                var ty = y + cellH / 2 - smallH / 2;
-                if (idx == grid.focusIndex) {
-                    dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_FG);
-                    dc.fillRectangle(x + 1, y + 1, cellW - 2, cellH - 2);
-                    dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
-                } else {
-                    dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
+                if (idx != focusIdx) {
+                    drawCell(dc, idx, smallH, dy, false);
                 }
-                dc.drawText(x + cellW / 2, ty, Graphics.FONT_SMALL, label, Graphics.TEXT_JUSTIFY_CENTER);
                 idx++;
             }
         }
+        if (focusIdx >= 0) {
+            drawCell(dc, focusIdx, smallH, dy, true);
+        }
+    }
+
+    function drawCell(dc as Graphics.Dc, idx as Lang.Number, smallH as Lang.Number, dy as Lang.Number,
+                      focused as Lang.Boolean) as Void {
+        var rc = cellRect(idx);
+        if (rc == null) {
+            return;
+        }
+        var x = rc[0] as Lang.Number;
+        var y = (rc[1] as Lang.Number) + dy;
+        var cellW = rc[2] as Lang.Number;
+        if (focused) {
+            dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_FG);
+            dc.fillRectangle(x + 1, y + 1, cellW - 2, _cellH - 2);
+            dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
+        } else {
+            dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
+        }
+        Perf.texts++;
+        dc.drawText(x + cellW / 2, y + _cellH / 2 - smallH / 2, Graphics.FONT_SMALL,
+                    _labels[idx] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
     }
 
     //! PERF: per-row capacity / left / cell width for this grid top, computed once (not per frame).
@@ -358,7 +516,7 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
         var v = gridView();
         var idx = v.chapterAt(coords[0], coords[1]);
         if (idx >= 0) {
-            v.openChapterIndex(idx);
+            v.flashAndOpen(idx); // gold flash next frame + haptic, opens after FLASH_MS
         }
         return true;
     }

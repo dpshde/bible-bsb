@@ -56,8 +56,8 @@ module ScrollModel {
 
         function loadMode() as Lang.Number {
             var v = Application.Storage.getValue(STORAGE_KEY);
-            if (v == null) {
-                return MODE_VERSE; // default matches Flipper primary axis
+            if (!(v instanceof Lang.Number) || (v != MODE_VERSE && v != MODE_INCREMENTAL)) {
+                return MODE_VERSE; // default (also corrupt / old values)
             }
             return v as Lang.Number;
         }
@@ -143,10 +143,17 @@ module ScrollModel {
             return { :book => line.book, :chapter => line.chapter, :verse => line.verse };
         }
 
+        // POKE: SCROLL_STEP — v3 step sizes.
+        //   Verse mode: one press = next / previous verse START (a 5-line verse moves 5 lines).
+        //     Only a verse taller than the band pages inside itself (visibleCount - 1 lines).
+        //     Chapter boundary = one stop with the divider padded (spacer above it at the top).
+        //   Line mode: buttons = 1 line; swipe = page (visibleCount - 1 lines) via page().
+        //   Both: the scroll never rests ON a divider (it would butt against the header).
         function next() as Void {
             if (mode == MODE_INCREMENTAL) {
                 scrollOffset++;
                 clampOffset();
+                skipDivider(1);
                 return;
             }
             verseNext();
@@ -156,45 +163,102 @@ module ScrollModel {
             if (mode == MODE_INCREMENTAL) {
                 scrollOffset--;
                 clampOffset();
+                skipDivider(-1);
                 return;
             }
             versePrev();
         }
 
-        //! Verse mode: snap to verse starts; tall verses step by line inside (SPEC §9).
+        //! Line-mode page step (swipe). Verse mode: same as a verse step.
+        function page(dir as Lang.Number) as Void {
+            if (mode != MODE_INCREMENTAL) {
+                if (dir > 0) {
+                    verseNext();
+                } else {
+                    versePrev();
+                }
+                return;
+            }
+            var step = visibleCount > 2 ? visibleCount - 1 : 1;
+            scrollOffset += dir * step;
+            clampOffset();
+            skipDivider(dir);
+        }
+
+        //! Divider padding: an offset on a divider moves one line on in the step direction
+        //! (down -> spacer under it; up -> spacer above it), so ~1 blank line separates the
+        //! divider from the header and from the next text.
+        function skipDivider(dir as Lang.Number) as Void {
+            if (scrollOffset >= 0 && scrollOffset < lines.size()
+                && (lines[scrollOffset] as Line).kind == KIND_DIVIDER) {
+                scrollOffset += dir;
+                clampOffset();
+            }
+        }
+
+        //! Boundary stop = the spacer above a divider (or the divider when it has no spacer).
+        function boundaryStop(div as Lang.Number) as Lang.Number {
+            if (div > 0 && (lines[div - 1] as Line).kind == KIND_SPACER) {
+                return div - 1;
+            }
+            return div;
+        }
+
+        function verseStartOf(i as Lang.Number) as Lang.Number {
+            var ln = lines[i] as Line;
+            while (i > 0) {
+                var p = lines[i - 1] as Line;
+                if (ln.kind != KIND_VERSE || ln.isVerseStart || p.kind != KIND_VERSE
+                    || p.verse != ln.verse || p.chapter != ln.chapter || p.book != ln.book) {
+                    break;
+                }
+                i--;
+                ln = p;
+            }
+            return i;
+        }
+
+        function verseEndOf(i as Lang.Number) as Lang.Number {
+            while (i + 1 < lines.size() && !atVerseEnd(i)) {
+                i++;
+            }
+            return i;
+        }
+
         function verseNext() as Void {
-            // POKE: simplify tall-verse intra-line stepping after trying pure snap-only.
             if (lines.size() == 0) {
                 return;
             }
-            var cur = lines[scrollOffset < lines.size() ? scrollOffset : lines.size() - 1] as Line;
-            var i = scrollOffset + 1;
-            // If still inside same verse on non-start lines, step one line.
-            if (cur.kind == KIND_VERSE && !atVerseEnd(scrollOffset)) {
-                var nextLine = i < lines.size() ? lines[i] as Line : null;
-                if (nextLine != null && nextLine.kind == KIND_VERSE && nextLine.verse == cur.verse
-                    && nextLine.book == cur.book && nextLine.chapter == cur.chapter) {
-                    scrollOffset = i;
+            var n = lines.size();
+            var cur = lines[scrollOffset < n ? scrollOffset : n - 1] as Line;
+            if (cur.kind == KIND_VERSE) {
+                // Tall verse: page inside it until its tail is on screen.
+                var end = verseEndOf(scrollOffset);
+                var pageStep = visibleCount > 2 ? visibleCount - 1 : 1;
+                if (end - scrollOffset + 1 > visibleCount) {
+                    scrollOffset += pageStep;
                     clampOffset();
                     return;
                 }
             }
-            // Find next verse start OR divider (divider+v1 treated as one stop: land on divider).
-            while (i < lines.size()) {
+            var i = scrollOffset + 1;
+            var atBoundary = cur.kind == KIND_SPACER || cur.kind == KIND_DIVIDER;
+            while (i < n) {
                 var ln = lines[i] as Line;
-                if (ln.kind == KIND_DIVIDER) {
-                    scrollOffset = i;
-                    clampOffset();
-                    return;
-                }
-                if (ln.kind == KIND_VERSE && ln.isVerseStart) {
-                    if (cur.kind == KIND_DIVIDER || ln.verse != cur.verse || ln.chapter != cur.chapter || ln.book != cur.book) {
+                if (ln.kind == KIND_DIVIDER || (ln.kind == KIND_SPACER && i + 1 < n
+                        && (lines[i + 1] as Line).kind == KIND_DIVIDER)) {
+                    if (!atBoundary) {
+                        scrollOffset = boundaryStop(ln.kind == KIND_DIVIDER ? i : i + 1);
+                        clampOffset();
+                        return;
+                    }
+                } else if (ln.kind == KIND_VERSE && ln.isVerseStart) {
+                    if (atBoundary || ln.verse != cur.verse || ln.chapter != cur.chapter || ln.book != cur.book) {
                         scrollOffset = i;
                         clampOffset();
                         return;
                     }
-                }
-                if (ln.kind == KIND_END) {
+                } else if (ln.kind == KIND_END) {
                     scrollOffset = i;
                     clampOffset();
                     return;
@@ -210,30 +274,24 @@ module ScrollModel {
                 return;
             }
             var cur = lines[scrollOffset] as Line;
-            // Step back within tall verse first.
             if (cur.kind == KIND_VERSE && !cur.isVerseStart) {
-                scrollOffset--;
+                // Mid tall verse: page back, never above its own start.
+                var st = verseStartOf(scrollOffset);
+                var pageStep = visibleCount > 2 ? visibleCount - 1 : 1;
+                scrollOffset = scrollOffset - pageStep > st ? scrollOffset - pageStep : st;
                 return;
             }
+            var atBoundary = cur.kind == KIND_SPACER || cur.kind == KIND_DIVIDER;
             var i = scrollOffset - 1;
             while (i >= 0) {
                 var ln = lines[i] as Line;
                 if (ln.kind == KIND_DIVIDER) {
-                    // Prefer previous verse start before orphaning on divider when going back.
-                    var j = i - 1;
-                    while (j >= 0) {
-                        var p = lines[j] as Line;
-                        if (p.kind == KIND_VERSE && p.isVerseStart) {
-                            scrollOffset = j;
-                            return;
-                        }
-                        j--;
+                    if (!atBoundary) {
+                        scrollOffset = boundaryStop(i); // v1 -> padded divider stop
+                        return;
                     }
-                    scrollOffset = i;
-                    return;
-                }
-                if (ln.kind == KIND_VERSE && ln.isVerseStart) {
-                    scrollOffset = i;
+                } else if (ln.kind == KIND_VERSE) {
+                    scrollOffset = verseStartOf(i);  // previous verse's first line
                     return;
                 }
                 i--;

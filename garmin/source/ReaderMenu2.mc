@@ -64,6 +64,37 @@ module ReaderMenu2 {
         if (count < 1) {
             count = 1;
         }
+        // Dylan 3:01 PM: Go to verse lists the chapter's BSB section headings with their
+        // verse span, "The Creation (1–25)"; selecting one jumps to its first verse.
+        var data = ContentLoader.loadChapter(book, chapter);
+        var secs = data != null ? data[:sections] : null;
+        if (secs != null && (secs as Lang.Array).size() > 0) {
+            var sa = secs as Lang.Array;
+            var items = [] as Lang.Array;
+            var i;
+            for (i = 0; i < sa.size(); i++) {
+                var st = (sa[i] as Lang.Dictionary)[:startVerse] as Lang.Number;
+                var en = i + 1 < sa.size() ? ((sa[i + 1] as Lang.Dictionary)[:startVerse] as Lang.Number) - 1 : count;
+                if (en < st) {
+                    en = st;
+                }
+                var span = st == en ? st.toString() : st + "–" + en;
+                items.add([(sa[i] as Lang.Dictionary)[:title] as Lang.String, " (" + span + ")", st]);
+            }
+            // POKE: GOTO_VERSE_FALLBACK — direct verse picking stays one row away.
+            items.add(["Verse…", "", -1]);
+            var gv = new GotoSectionsView(reader, items, count);
+            WatchUi.pushView(gv, new GotoSectionsDelegate(gv), WatchUi.SLIDE_LEFT);
+            return;
+        }
+        // POKE: GOTO_VERSE_FALLBACK — no headings: straight to the verse picker.
+        openVerseList(reader, count, 0);
+    }
+
+    const ID_GOTO_ANY_VERSE = -1;
+
+    //! extraPops: menus under this picker to pop on a jump (section menu = 1).
+    function openVerseList(reader as ReaderView, count as Lang.Number, extraPops as Lang.Number) as Void {
         // POKE: GOTO_RANGE — chapters over GOTO_FLAT_MAX verses (Psalm 119 = 176) get a
         // range level first ("Verses 161-176"), so every verse is reachable in <= 2 lists.
         if (count > GOTO_FLAT_MAX) {
@@ -77,10 +108,10 @@ module ReaderMenu2 {
                 rm.addItem(new ThemedMenuItem("Verses " + s + "-" + e, null, s));
                 s = e + 1;
             }
-            WatchUi.pushView(rm, new VerseRangeDelegate(reader, count), WatchUi.SLIDE_LEFT);
+            WatchUi.pushView(rm, new VerseRangeDelegate(reader, count, extraPops), WatchUi.SLIDE_LEFT);
             return;
         }
-        pushVerseList(reader, 1, count, 1);
+        pushVerseList(reader, 1, count, 1 + extraPops);
     }
 
     const GOTO_FLAT_MAX = 40;
@@ -89,9 +120,15 @@ module ReaderMenu2 {
     function pushVerseList(reader as ReaderView, from as Lang.Number, to as Lang.Number,
                            pops as Lang.Number) as Void {
         var menu = new ThemedMenu("Go to verse");
+        // Only verses present in the BSB text (Matt 17 skips 21: ..., 20, 22, ...).
+        var f = reader.resolveFocus();
+        var nums = ContentLoader.verseNumbers(f[:book] as Lang.Number, f[:chapter] as Lang.Number);
         var i;
-        for (i = from; i <= to; i++) {
-            menu.addItem(new ThemedMenuItem("Verse " + i, null, i));
+        for (i = 0; i < nums.size(); i++) {
+            var vn = nums[i] as Lang.Number;
+            if (vn >= from && vn <= to) {
+                menu.addItem(new ThemedMenuItem("Verse " + vn, null, vn));
+            }
         }
         WatchUi.pushView(menu, new VersePickerDelegate(reader, pops), WatchUi.SLIDE_LEFT);
     }
@@ -155,11 +192,13 @@ class ReaderMenu2Delegate extends WatchUi.Menu2InputDelegate {
 class VerseRangeDelegate extends WatchUi.Menu2InputDelegate {
     var _reader as ReaderView;
     var _count as Lang.Number;
+    var _extra as Lang.Number;
 
-    function initialize(reader as ReaderView, count as Lang.Number) {
+    function initialize(reader as ReaderView, count as Lang.Number, extra as Lang.Number) {
         Menu2InputDelegate.initialize();
         _reader = reader;
         _count = count;
+        _extra = extra;
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
@@ -168,7 +207,7 @@ class VerseRangeDelegate extends WatchUi.Menu2InputDelegate {
         if (e > _count) {
             e = _count;
         }
-        ReaderMenu2.pushVerseList(_reader, s, e, 2);
+        ReaderMenu2.pushVerseList(_reader, s, e, 2 + _extra);
     }
 
     function onBack() as Void {
@@ -193,6 +232,32 @@ class VersePickerDelegate extends WatchUi.Menu2InputDelegate {
             WatchUi.popView(WatchUi.SLIDE_RIGHT);
         }
         _reader.jumpToVerse(verse);
+    }
+
+    function onBack() as Void {
+        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+    }
+}
+
+//! Section-heading Go to: item id = first verse of the section, or ID_GOTO_ANY_VERSE.
+class SectionGotoDelegate extends WatchUi.Menu2InputDelegate {
+    var _reader as ReaderView;
+
+    function initialize(reader as ReaderView) {
+        Menu2InputDelegate.initialize();
+        _reader = reader;
+    }
+
+    function onSelect(item as WatchUi.MenuItem) as Void {
+        var id = item.getId() as Lang.Number;
+        if (id == ReaderMenu2.ID_GOTO_ANY_VERSE) {
+            var f = _reader.resolveFocus();
+            var count = ContentLoader.verseCount(f[:book] as Lang.Number, f[:chapter] as Lang.Number);
+            ReaderMenu2.openVerseList(_reader, count < 1 ? 1 : count, 1);
+            return;
+        }
+        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+        _reader.jumpToVerse(id);
     }
 
     function onBack() as Void {

@@ -122,16 +122,40 @@ module ContentLoader {
         return active;
     }
 
+    //! LAST verse number, not the array size: 15 BSB chapters omit verses the source text
+    //! leaves out (Matt 17:21, Acts 8:37, ...), so Matt 17 has 26 entries ending at 27.
     function verseCount(book as Lang.Number, chapter as Lang.Number) as Lang.Number {
         var data = loadChapter(book, chapter);
         if (data == null) {
             return 0;
         }
+        return lastVerseOf(data);
+    }
+
+    function lastVerseOf(data as Lang.Dictionary) as Lang.Number {
         var verses = data[:verses];
-        if (verses == null) {
+        if (verses == null || (verses as Lang.Array).size() == 0) {
             return 0;
         }
-        return (verses as Lang.Array).size();
+        var va = verses as Lang.Array;
+        var n = va[va.size() - 1]["n"];
+        return n instanceof Lang.Number ? n as Lang.Number : va.size();
+    }
+
+    //! Verse numbers present in the chapter (gaps where BSB omits a verse).
+    function verseNumbers(book as Lang.Number, chapter as Lang.Number) as Lang.Array {
+        var out = [] as Lang.Array;
+        var data = loadChapter(book, chapter);
+        if (data == null) {
+            return out;
+        }
+        var va = data[:verses] as Lang.Array;
+        var i;
+        for (i = 0; i < va.size(); i++) {
+            var n = va[i]["n"];
+            out.add(n instanceof Lang.Number ? n : i + 1);
+        }
+        return out;
     }
 
     function verseText(book as Lang.Number, chapter as Lang.Number, verse as Lang.Number) as Lang.String or Null {

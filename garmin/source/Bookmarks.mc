@@ -36,7 +36,20 @@ module Bookmarks {
         if (v == null || !(v instanceof Lang.Array)) {
             v = [];
         }
-        _cache = v as Lang.Array;
+        // Corrupt / old data: keep only packed ids that decode to a real book + chapter.
+        var clean = [] as Lang.Array;
+        var i;
+        for (i = 0; i < (v as Lang.Array).size(); i++) {
+            var id = (v as Lang.Array)[i];
+            if (id instanceof Lang.Number) {
+                var b = unpackBook(id);
+                var c = unpackChapter(id);
+                if (b < Books.BOOK_COUNT && c >= 1 && c <= Books.chapterCount(b) && clean.indexOf(id) < 0) {
+                    clean.add(id);
+                }
+            }
+        }
+        _cache = clean;
         return _cache as Lang.Array;
     }
 

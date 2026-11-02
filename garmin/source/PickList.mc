@@ -1,5 +1,7 @@
 using Toybox.Graphics;
 using Toybox.Lang;
+using Toybox.System;
+using Toybox.Timer;
 using Toybox.WatchUi;
 
 //! Round, scrolling pick list shared by every filter/browse level (Flipper parity).
@@ -9,12 +11,16 @@ module PickList {
     const FILTER_LABELS = ["All", "A", "C", "D", "E", "G", "H", "I", "J", "K", "L",
         "M", "N", "O", "P", "R", "S", "T", "Z", "1", "2", "3"];
 
-    //! Flipper get_filtered_books(): "All" = 66 books; else books whose name starts with the label.
+    //! Flipper get_filtered_books(): "All" = 66 books; letters = books whose name starts with it;
+    //! "1", "2", "3" (Flipper parity) each match EVERY numbered book (first char 1-3).
     function booksForFilter(idx as Lang.Number) as Lang.Array {
         var out = [] as Lang.Array;
         var b;
         for (b = 0; b < Books.BOOK_COUNT; b++) {
-            if (idx == 0 || Books.name(b).substring(0, 1).equals(FILTER_LABELS[idx])) {
+            var c0 = Books.name(b).substring(0, 1);
+            var numeric = idx >= 19; // "1", "2", "3"
+            var isNum = c0.equals("1") || c0.equals("2") || c0.equals("3");
+            if (idx == 0 || (numeric && isNum) || (!numeric && c0.equals(FILTER_LABELS[idx]))) {
                 out.add(b);
             }
         }
@@ -30,19 +36,19 @@ module PickList {
         return out;
     }
 
-    // Last drawn layout (touch hit-test): first row y, row height, first index, visible rows.
+    // Last drawn layout (touch hit-test): list top, row height, pixel scroll, visible rows.
     var lastTop as Lang.Number = 0;
     var lastRowH as Lang.Number = 0;
     var lastStart as Lang.Number = 0;
     var lastVis as Lang.Number = 0;
+    var lastBottom as Lang.Number = 0;
 
     function indexAtY(y as Lang.Number, n as Lang.Number) as Lang.Number {
-        if (lastRowH <= 0 || y < lastTop) {
+        if (lastRowH <= 0 || y < lastTop || y >= lastBottom) {
             return -1;
         }
-        var r = (y - lastTop) / lastRowH;
-        var i = lastStart + r;
-        return (r < lastVis && i < n) ? i : -1;
+        var i = (y - lastTop + _px.toNumber()) / lastRowH;
+        return (i >= 0 && i < n) ? i : -1;
     }
 
     // POKE: PICKLIST_PAD — px kept clear on each side of a row inside its chord.
@@ -119,29 +125,49 @@ module PickList {
         return t + "...";
     }
 
-    // PERF cache: one list layout per (title, labels) — title pyramid, row geometry per
-    // visible slot, and each label's fitted font/text per slot filled lazily. Scrolling a
-    // list then costs only draw calls (no text measuring, no chord math per frame).
+    // ---------------------------------------------------------------------------------
+    // DRAW-ONCE LIST (v3). Layout per (title, labels): title rendered once into a bitmap,
+    // every row rendered once (normal + focused) into a row bitmap, rows blitted at a PIXEL
+    // scroll offset so touch drag follows the finger. A frame = 1 title blit + ~vis row blits;
+    // text is rasterized only for rows never seen before. Falls back to direct drawText
+    // when BufferedBitmap is unavailable.
+    // ---------------------------------------------------------------------------------
     var _cTitle as Lang.String or Null = null;
     var _cLabels as Lang.Array or Null = null;
-    var _cTitleRows as Lang.Array = [] as Lang.Array; // [text, y, font] ...
+    var _cTitleRows as Lang.Array = [] as Lang.Array; // [text, y, font]
+    var _cTitleH as Lang.Number = 0;
+    var _titleBmp = null;
     var _cTop as Lang.Number = 0;
+    var _cBottom as Lang.Number = 0;
     var _cRowH as Lang.Number = 0;
     var _cVis as Lang.Number = 1;
-    var _cLeft as Lang.Array = [] as Lang.Array;
-    var _cCw as Lang.Array = [] as Lang.Array;
-    var _cFit as Lang.Array = [] as Lang.Array; // n * vis entries: null or [font, text]
+    var _cRoom as Lang.Number = 0;   // text room = narrowest list chord - 2*ROW_PAD
+    var _cPillW as Lang.Number = 0;
+    var _rowBmp as Lang.Dictionary = {}; // idx*2 + focused -> BufferedBitmapReference
+    var _fit as Lang.Dictionary = {};    // idx -> [font, text, fontH]
+    const ROW_CACHE_MAX = 16;
+
+    // Scroll state (pixels). _px = top of the list window in content space.
+    var _px as Lang.Float = 0.0;
+    var _lastFocus as Lang.Number = -1;
+    var _dragging as Lang.Boolean = false;
+    var _dragY0 as Lang.Number = 0;
+    var _dragPx0 as Lang.Float = 0.0;
+    var _lastDragY as Lang.Number = 0;
+    var _vel as Lang.Float = 0.0;       // px per momentum tick
+    var _momTimer = null;
+    var _focusOut as Lang.Number = -1;  // focus chosen by drag/momentum, taken by the view
+    var _n as Lang.Number = 0;
+    var _cBg as Lang.Number = -1;
 
     function layoutList(dc as Graphics.Dc, title as Lang.String, labels as Lang.Array) as Void {
         var w = dc.getWidth();
         var h = dc.getHeight();
-        // Title: render once into a cheap list of draw ops by drawing to the real dc is not
-        // possible here, so measure via drawTitle's logic into _cTitleRows.
         _cTitleRows = [] as Lang.Array;
         var y = titleLayout(dc, title, RoundLayout.edgeMargin(w, h)) + 4;
-        var font = Graphics.FONT_SMALL;
-        var rowH = dc.getFontHeight(font) + 4;
-        // POKE: PICKLIST_BOTTOM — last row must sit where the chord is >= 62% of the width.
+        _cTitleH = y;
+        var rowH = dc.getFontHeight(Graphics.FONT_SMALL) + 4;
+        // POKE: PICKLIST_BOTTOM — list window ends where the chord is >= 62% of the width.
         var bottom = h - RoundLayout.edgeMargin(w, h);
         while (bottom > y + rowH && RoundLayout.chordWidth(bottom, w, h) < (w * 0.62).toNumber()) {
             bottom -= 2;
@@ -150,22 +176,23 @@ module PickList {
         if (vis < 1) {
             vis = 1;
         }
+        bottom = y + vis * rowH;
         _cTop = y;
+        _cBottom = bottom;
         _cRowH = rowH;
         _cVis = vis;
-        _cLeft = [] as Lang.Array;
-        _cCw = [] as Lang.Array;
-        var r;
-        for (r = 0; r < vis; r++) {
-            var rowY = y + r * rowH;
-            // Narrowest edge of the row decides fit.
-            var edgeY = rowY < h / 2 ? rowY : rowY + rowH;
-            _cCw.add(RoundLayout.chordWidth(edgeY, w, h));
-            _cLeft.add(RoundLayout.chordLeft(edgeY, w, h));
-        }
-        _cFit = new [labels.size() * vis];
+        // Rows slide through every y in the window: fit to the narrowest chord in it.
+        var cTop = RoundLayout.chordWidth(y, w, h);
+        var cBot = RoundLayout.chordWidth(bottom, w, h);
+        var cMin = cTop < cBot ? cTop : cBot;
+        _cRoom = cMin - 2 * ROW_PAD;
+        _cPillW = cMin - ROW_PAD;
+        _rowBmp = {};
+        _fit = {};
+        _titleBmp = null;
         _cTitle = title;
         _cLabels = labels;
+        _n = labels.size();
     }
 
     function titleLayout(dc as Graphics.Dc, title as Lang.String, y as Lang.Number) as Lang.Number {
@@ -196,73 +223,296 @@ module PickList {
         return y + dc.getFontHeight(ff);
     }
 
+    function fitFor(dc as Graphics.Dc, idx as Lang.Number, label as Lang.String) as Lang.Array {
+        var f = _fit[idx];
+        if (f != null) {
+            return f as Lang.Array;
+        }
+        var fonts = [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY];
+        var face = Graphics.FONT_XTINY;
+        var k;
+        for (k = 0; k < fonts.size(); k++) {
+            if (dc.getTextWidthInPixels(label, fonts[k] as Graphics.FontDefinition) <= _cRoom) {
+                face = fonts[k] as Graphics.FontDefinition;
+                break;
+            }
+        }
+        var out = [face, ellipsize(dc, label, face, _cRoom), dc.getFontHeight(face)]; // ellipsis = last resort
+        _fit[idx] = out;
+        return out;
+    }
+
+    //! Row content at (x0, y0) of dc: pill (if focused) + centered label.
+    function drawRow(dc as Graphics.Dc, cx as Lang.Number, y0 as Lang.Number, fit as Lang.Array,
+                     focused as Lang.Boolean, bg as Lang.Number) as Void {
+        Perf.texts++;
+        if (focused) {
+            dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_BG);
+            dc.fillRectangle(cx - _cPillW / 2, y0, _cPillW, _cRowH - 2);
+            dc.setColor(Palette.FOCUS_FG, Palette.FOCUS_BG);
+        } else {
+            dc.setColor(Palette.TEXT, bg);
+        }
+        dc.drawText(cx, y0 + (_cRowH - 2 - (fit[2] as Lang.Number)) / 2, fit[0] as Graphics.FontDefinition,
+                    fit[1] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+    }
+
+    function rowBitmap(dc as Graphics.Dc, idx as Lang.Number, label as Lang.String, focused as Lang.Boolean) {
+        var key = idx * 2 + (focused ? 1 : 0);
+        var ref = _rowBmp[key];
+        if (ref != null) {
+            var got = (ref as Graphics.BufferedBitmapReference).get();
+            if (got != null) {
+                return ref;
+            }
+        }
+        if (_rowBmp.size() >= ROW_CACHE_MAX) {
+            evictRows();
+        }
+        var bw = _cPillW + 2;
+        ref = Graphics.createBufferedBitmap({:width => bw, :height => _cRowH});
+        var bmp = (ref as Graphics.BufferedBitmapReference).get();
+        if (bmp == null) {
+            return null;
+        }
+        var bdc = (bmp as Graphics.BufferedBitmap).getDc();
+        bdc.setColor(Palette.BG, Palette.BG);
+        bdc.clear();
+        drawRow(bdc, bw / 2, 0, fitFor(dc, idx, label), focused, Palette.BG);
+        _rowBmp[key] = ref;
+        return ref;
+    }
+
+    function evictRows() as Void {
+        var first = (_px / (_cRowH > 0 ? _cRowH : 1)).toNumber();
+        var keys = _rowBmp.keys();
+        var i;
+        for (i = 0; i < keys.size(); i++) {
+            var ri = (keys[i] as Lang.Number) / 2;
+            if (ri < first - 2 || ri > first + _cVis + 2) {
+                _rowBmp.remove(keys[i]);
+            }
+        }
+        if (_rowBmp.size() >= ROW_CACHE_MAX) {
+            _rowBmp = {};
+        }
+    }
+
+    function maxPx() as Lang.Float {
+        // Focus may ride the middle row down to the last item (blank rows below it).
+        var m = (_n - 1 - (_cVis - 1) / 2) * _cRowH;
+        return (m > 0 ? m : 0).toFloat();
+    }
+
+    function clampPx() as Void {
+        if (_px < 0) {
+            _px = 0.0;
+        }
+        var m = maxPx();
+        if (_px > m) {
+            _px = m;
+        }
+    }
+
+    function centerIndex() as Lang.Number {
+        var i = ((_px + (_cVis * _cRowH) / 2) / _cRowH).toNumber();
+        if (i < 0) {
+            i = 0;
+        }
+        if (i >= _n) {
+            i = _n - 1;
+        }
+        return i;
+    }
+
+    //! Views call this first in onUpdate: focus chosen by a drag / momentum wins.
+    function takeFocus(focus as Lang.Number) as Lang.Number {
+        if (_focusOut >= 0) {
+            var f = _focusOut;
+            _focusOut = -1;
+            _lastFocus = f;
+            return f;
+        }
+        return focus;
+    }
+
+    // POKE: PICKLIST_DRAG — list follows the finger 1:1; release keeps velocity, decays
+    // by MOMENTUM_DECAY per 50 ms tick, then focus = row under the middle.
+    const MOMENTUM_DECAY = 0.80;
+    const MOMENTUM_TICK_MS = 50;
+
+    function onDrag(evt as WatchUi.DragEvent) as Lang.Boolean {
+        var y = evt.getCoordinates()[1];
+        var t = evt.getType();
+        if (t == WatchUi.DRAG_TYPE_START) {
+            stopMomentum();
+            _dragging = true;
+            _dragY0 = y;
+            _lastDragY = y;
+            _dragPx0 = _px;
+            _vel = 0.0;
+            return true;
+        }
+        if (!_dragging) {
+            return false;
+        }
+        if (y - _dragY0 > 6 || _dragY0 - y > 6) {
+            _movedAt = System.getTimer();
+        }
+        _vel = (_lastDragY - y).toFloat();
+        _lastDragY = y;
+        _px = _dragPx0 + (_dragY0 - y);
+        clampPx();
+        _focusOut = centerIndex();
+        if (t == WatchUi.DRAG_TYPE_STOP) {
+            _dragging = false;
+            if (_vel > 2 || _vel < -2) {
+                startMomentum();
+            } else {
+                snapPx();
+            }
+        }
+        WatchUi.requestUpdate();
+        return true;
+    }
+
+    var _movedAt as Lang.Number = -100000;
+
+    //! A real drag just happened: the swipe/page behavior the OS derives from the same
+    //! gesture must not move focus a second time.
+    function swallowSwipe() as Lang.Boolean {
+        return _dragging || System.getTimer() - _movedAt < 350;
+    }
+
+    function dragActive() as Lang.Boolean {
+        return _dragging || _momTimer != null;
+    }
+
+    function startMomentum() as Void {
+        if (_momTimer == null) {
+            _momTimer = new Timer.Timer();
+        }
+        (_momTimer as Timer.Timer).start(new Lang.Method(PickList, :onMomentum), MOMENTUM_TICK_MS, true);
+    }
+
+    function stopMomentum() as Void {
+        if (_momTimer != null) {
+            (_momTimer as Timer.Timer).stop();
+            _momTimer = null;
+        }
+    }
+
+    //! Settle on a row boundary (crisp final frame, no sliced rows).
+    function snapPx() as Void {
+        _px = ((_px / _cRowH + 0.5).toNumber() * _cRowH).toFloat();
+        clampPx();
+        _focusOut = centerIndex();
+    }
+
+    function onMomentum() as Void {
+        _vel = _vel * MOMENTUM_DECAY;
+        _px = _px + _vel;
+        var before = _px;
+        clampPx();
+        _focusOut = centerIndex();
+        if ((_vel < 0.6 && _vel > -0.6) || before != _px) {
+            stopMomentum();
+            snapPx();
+        }
+        WatchUi.requestUpdate();
+    }
+
     function draw(dc as Graphics.Dc, title as Lang.String, labels as Lang.Array, focus as Lang.Number) as Void {
         Palette.applyBackground(dc);
         var w = dc.getWidth();
-        var h = dc.getHeight();
+        if (_cBg != Palette.BG) {
+            _cBg = Palette.BG; // theme toggled: every cached row/title bitmap is stale
+            invalidate();
+        }
         if (_cLabels == null || _cLabels != labels || _cTitle == null || !(_cTitle as Lang.String).equals(title)) {
             layoutList(dc, title, labels);
+            _lastFocus = -1;
+            stopMomentum();
+            _dragging = false;
         }
+        var bmps = Graphics has :createBufferedBitmap;
+        // Title: one blit (rendered once per layout).
+        if (bmps && _titleBmp == null) {
+            var tr0 = Graphics.createBufferedBitmap({:width => w, :height => _cTitleH});
+            var tb = (tr0 as Graphics.BufferedBitmapReference).get();
+            if (tb != null) {
+                var tdc = (tb as Graphics.BufferedBitmap).getDc();
+                tdc.setColor(Palette.BG, Palette.BG);
+                tdc.clear();
+                drawTitleRows(tdc, w);
+                _titleBmp = tr0;
+            }
+        }
+        if (_titleBmp != null && (_titleBmp as Graphics.BufferedBitmapReference).get() != null) {
+            dc.drawBitmap(0, 0, _titleBmp as Graphics.BufferedBitmapReference);
+        } else {
+            drawTitleRows(dc, w);
+        }
+        // Buttons moved focus -> re-center the window on it (instant, no animation).
+        if (!dragActive() && focus != _lastFocus) {
+            _px = ((focus - (_cVis - 1) / 2) * _cRowH).toFloat();
+            clampPx();
+            _lastFocus = focus;
+        }
+        var n = labels.size();
+        var rowH = _cRowH;
+        var pxi = _px.toNumber();
+        var first = pxi / rowH;
+        var off = pxi - first * rowH;
+        lastTop = _cTop;
+        lastBottom = _cBottom;
+        lastRowH = rowH;
+        lastStart = first;
+        lastVis = _cVis;
+        dc.setClip(0, _cTop, w, _cBottom - _cTop);
+        var r;
+        for (r = 0; r <= _cVis; r++) {
+            var i = first + r;
+            if (i >= n) {
+                break;
+            }
+            var y = _cTop + r * rowH - off;
+            var label = labels[i] as Lang.String;
+            var ref = bmps ? rowBitmap(dc, i, label, i == focus) : null;
+            if (ref != null) {
+                dc.drawBitmap(w / 2 - (_cPillW + 2) / 2, y, ref);
+            } else {
+                drawRow(dc, w / 2, y, fitFor(dc, i, label), i == focus, Graphics.COLOR_TRANSPARENT);
+            }
+        }
+        dc.clearClip();
+        dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
+        if (off != 0) {
+            return;
+        }
+        if (pxi > 0) {
+            dc.fillPolygon([[w / 2 - 5, _cTop - 1], [w / 2 + 5, _cTop - 1], [w / 2, _cTop - 5]]);
+        }
+        if (first + _cVis < n) {
+            dc.fillPolygon([[w / 2 - 5, _cBottom], [w / 2 + 5, _cBottom], [w / 2, _cBottom + 4]]);
+        }
+    }
+
+    function drawTitleRows(dc as Graphics.Dc, w as Lang.Number) as Void {
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         var t;
         for (t = 0; t < _cTitleRows.size(); t++) {
             var tr = _cTitleRows[t] as Lang.Array;
+            Perf.texts++;
             dc.drawText(w / 2, tr[1] as Lang.Number, tr[2] as Graphics.FontDefinition, tr[0] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
         }
-        var y = _cTop;
-        var rowH = _cRowH;
-        var vis = _cVis;
-        var n = labels.size();
-        // Focus rides the middle (widest) rows; near the end the list scrolls past its
-        // last item (blank rows below) instead of pushing the pill onto the narrow edge.
-        var start = focus - (vis - 1) / 2;
-        if (start < 0) {
-            start = 0;
-        }
-        lastTop = y;
-        lastRowH = rowH;
-        lastStart = start;
-        lastVis = vis;
-        var r;
-        for (r = 0; r < vis && start + r < n; r++) {
-            var i = start + r;
-            var rowY = y + r * rowH;
-            var cw = _cCw[r] as Lang.Number;
-            var left = _cLeft[r] as Lang.Number;
-            var fit = _cFit[i * vis + r];
-            if (fit == null) {
-                var room = cw - 2 * ROW_PAD;
-                var label = labels[i] as Lang.String;
-                var fonts = [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY];
-                var f = Graphics.FONT_XTINY;
-                var k;
-                for (k = 0; k < fonts.size(); k++) {
-                    if (dc.getTextWidthInPixels(label, fonts[k] as Graphics.FontDefinition) <= room) {
-                        f = fonts[k] as Graphics.FontDefinition;
-                        break;
-                    }
-                }
-                fit = [f, ellipsize(dc, label, f, room), dc.getFontHeight(f)]; // ellipsis = last resort only
-                _cFit[i * vis + r] = fit;
-            }
-            var ff = fit[0] as Graphics.FontDefinition;
-            if (i == focus) {
-                dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_FG);
-                dc.fillRectangle(left + ROW_PAD / 2, rowY, cw - ROW_PAD, rowH - 2);
-                dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
-            } else {
-                dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
-            }
-            dc.drawText(w / 2, rowY + (rowH - 2 - (fit[2] as Lang.Number)) / 2, ff, fit[1] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
-        }
-        dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
-        if (start > 0) {
-            dc.fillPolygon([[w / 2 - 5, y - 1], [w / 2 + 5, y - 1], [w / 2, y - 5]]);
-        }
-        if (start + vis < n) {
-            var by = y + vis * rowH;
-            dc.fillPolygon([[w / 2 - 5, by], [w / 2 + 5, by], [w / 2, by + 4]]);
-        }
+    }
+
+    //! Theme toggled: drop every cached bitmap so rows redraw in the new palette.
+    function invalidate() as Void {
+        _cLabels = null;
+        _rowBmp = {};
+        _titleBmp = null;
     }
 
     //! Open a book like Flipper: single-chapter books skip the 1-cell chapter grid.
@@ -289,6 +539,7 @@ class PickListView extends WatchUi.View {
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
+        focus = PickList.takeFocus(focus);
         PickList.draw(dc, title, labels, focus);
     }
 }
@@ -307,6 +558,9 @@ class PickListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onNextPage() as Lang.Boolean {
+        if (PickList.swallowSwipe()) {
+            return true;
+        }
         var n = _view.labels.size();
         if (n > 0) {
             _view.focus = (_view.focus + 1) % n;
@@ -316,6 +570,9 @@ class PickListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onPreviousPage() as Lang.Boolean {
+        if (PickList.swallowSwipe()) {
+            return true;
+        }
         var n = _view.labels.size();
         if (n > 0) {
             _view.focus = (_view.focus + n - 1) % n;
@@ -351,6 +608,10 @@ class PickListDelegate extends WatchUi.BehaviorDelegate {
         }
         PickList.openBook(_books[_view.focus] as Lang.Number);
         return true;
+    }
+
+    function onDrag(evt as WatchUi.DragEvent) as Lang.Boolean {
+        return PickList.onDrag(evt);
     }
 
     //! Tap: hit-test the rows PickList.draw just laid out; open the TAPPED row.
@@ -393,7 +654,7 @@ class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
         var menu = new ThemedMenu("Browse");
         menu.addItem(new ThemedMenuItem("Bookmarks", null, :bookmarks));
         menu.addItem(new ThemedMenuItem("By Testament", null, :testament));
-        menu.addItem(new ThemedMenuItem("By letter", "All, A-Z, 1-3", :letter));
+        menu.addItem(new ThemedMenuItem("Filter books", "All, A to Z, 1 to 3", :letter));
         menu.addItem(new ThemedMenuItem("All books", null, :all));
         menu.addItem(new ThemedMenuItem("Theme: " + Palette.themeLabel(), "Dark / Light", :theme));
         WatchUi.pushView(menu, new HomeMenu2Delegate(), WatchUi.SLIDE_UP);
@@ -407,10 +668,11 @@ class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
         } else if (id == :testament) {
             WatchUi.pushView(new TestamentListView(), new TestamentListDelegate(), WatchUi.SLIDE_LEFT);
         } else if (id == :letter) {
-            var v = new PickListView("Filter", PickList.FILTER_LABELS);
-            WatchUi.pushView(v, new PickListDelegate(v, 1, [] as Lang.Array), WatchUi.SLIDE_LEFT);
+            var fv = new FilterGridView();
+            WatchUi.pushView(fv, new FilterGridDelegate(fv), WatchUi.SLIDE_LEFT);
         } else if (id == :theme) {
             Palette.toggleTheme();
+            PickList.invalidate();
             WatchUi.requestUpdate();
         } else if (id == :all) {
             var books = PickList.booksForFilter(0);

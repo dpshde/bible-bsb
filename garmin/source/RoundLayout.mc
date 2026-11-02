@@ -250,6 +250,39 @@ module RoundLayout {
         return parts;
     }
 
+    //! Three rows, row 1 <= row 2 (pyramid), each inside its chord. Null if no fit.
+    function wrapThree(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontDefinition,
+                       c1 as Lang.Number, c2 as Lang.Number, c3 as Lang.Number) as Lang.Array or Null {
+        var words = ContentLoader.splitWords(text);
+        var best = null;
+        var bestScore = 0;
+        var k;
+        var a = "";
+        for (k = 1; k < words.size() - 1; k++) {
+            a = a.length() == 0 ? words[k - 1] as Lang.String : a + " " + words[k - 1];
+            var wa = dc.getTextWidthInPixels(a, font);
+            if (wa > c1) {
+                break;
+            }
+            var rest = "";
+            var i;
+            for (i = k; i < words.size(); i++) {
+                rest = rest.length() == 0 ? words[i] as Lang.String : rest + " " + words[i];
+            }
+            var two = pyramidSplit(dc, rest, font, c2, c3);
+            if (two == null) {
+                continue;
+            }
+            var wb = dc.getTextWidthInPixels(two[0] as Lang.String, font);
+            var score = wa <= wb ? 100000 + wa : 50000 - (wa - wb);
+            if (best == null || score > bestScore) {
+                best = [a, two[0], two[1]];
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
     function ellipsize(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontDefinition,
                        maxW as Lang.Number) as Lang.String {
         if (dc.getTextWidthInPixels(text, font) <= maxW) {

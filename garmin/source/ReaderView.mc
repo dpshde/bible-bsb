@@ -369,6 +369,7 @@ class ReaderView extends WatchUi.View {
     function onUpdate(dc as Graphics.Dc) as Void {
         var t0 = Perf.start();
         onUpdateImpl(dc);
+        schedulePrerender();
         Perf.end("reader", t0);
     }
 
@@ -408,7 +409,7 @@ class ReaderView extends WatchUi.View {
             } else {
                 var fd = ContentLoader.loadChapter(book, chapter);
                 _focSections = fd != null ? fd[:sections] as Lang.Array : [] as Lang.Array;
-                _focCount = fd != null ? (fd[:verses] as Lang.Array).size() : 0;
+                _focCount = fd != null ? ContentLoader.lastVerseOf(fd) : 0;
             }
         }
         var sticky = ContentLoader.stickySectionTitle(_focSections, verse);
@@ -593,11 +594,12 @@ class ReaderView extends WatchUi.View {
     // drawText). Each wrapped line is rendered once per (line, focused?) into a
     // BufferedBitmap; frames blit. A scroll step rasterizes only lines that are new or whose
     // focus state flipped. Keyed idx*2+focus; cleared when lines are rebuilt / theme shown.
-    const LINE_CACHE_MAX = 14;
+    const LINE_CACHE_MAX = 30; // v3: visible window + next verse-step window, both colors
     var _lineBmp as Lang.Dictionary = {};
     var _lineBmpGen as Lang.Number = 0;
 
     function clearLineCache() as Void {
+        _preIdx = [] as Lang.Array;
         _lineBmp = {};
     }
 
@@ -608,44 +610,123 @@ class ReaderView extends WatchUi.View {
             drawVerseLine(dc, y, lineH, ln, focusBook, focusChapter, focusVerse);
             return;
         }
+        var ref = ensureLineBmp(idx, ln, lineH, focusBook, focusChapter, focusVerse);
+        if (ref == null) {
+            drawVerseLine(dc, y, lineH, ln, focusBook, focusChapter, focusVerse);
+            return;
+        }
+        dc.drawBitmap(_colLeft, y - 1, ref as Graphics.BufferedBitmapReference);
+    }
+
+    //! Cached bitmap for line idx in its focus state; renders it on a miss. Null = no bitmap.
+    function ensureLineBmp(idx as Lang.Number, ln as ScrollModel.Line, lineH as Lang.Number,
+                           focusBook as Lang.Number, focusChapter as Lang.Number, focusVerse as Lang.Number) {
+        _lineHC = lineH;
         var isFocus = ln.book == focusBook && ln.chapter == focusChapter && ln.verse == focusVerse;
         var key = idx * 2 + (isFocus ? 1 : 0);
         var ref = _lineBmp[key];
-        var bmp = null;
-        if (ref != null) {
-            bmp = (ref as Graphics.BufferedBitmapReference).get();
+        if (ref != null && (ref as Graphics.BufferedBitmapReference).get() != null) {
+            return ref;
         }
+        if (_lineBmp.size() >= LINE_CACHE_MAX) {
+            evictLines();
+        }
+        ref = Graphics.createBufferedBitmap({:width => _colWidth, :height => lineH + 1});
+        var bmp = (ref as Graphics.BufferedBitmapReference).get();
         if (bmp == null) {
-            if (_lineBmp.size() >= LINE_CACHE_MAX) {
-                evictLines();
-            }
-            ref = Graphics.createBufferedBitmap({:width => _colWidth, :height => lineH + 1});
-            bmp = (ref as Graphics.BufferedBitmapReference).get();
-            if (bmp == null) {
-                drawVerseLine(dc, y, lineH, ln, focusBook, focusChapter, focusVerse);
-                return;
-            }
-            var bdc = (bmp as Graphics.BufferedBitmap).getDc();
-            bdc.setColor(Palette.BG, Palette.BG);
-            bdc.clear();
-            // Draw at (0, 1) in bitmap space: same glyphs as the direct path (numY = y - 1).
-            var saveLeft = _colLeft;
-            var saveTop = _bandTop;
-            _colLeft = 0;
-            _bandTop = 0;
-            drawVerseLine(bdc, 1, lineH, ln, focusBook, focusChapter, focusVerse);
-            _colLeft = saveLeft;
-            _bandTop = saveTop;
-            _lineBmp[key] = ref;
+            return null;
         }
-        dc.drawBitmap(_colLeft, y - 1, ref as Graphics.BufferedBitmapReference);
+        var bdc = (bmp as Graphics.BufferedBitmap).getDc();
+        bdc.setColor(Palette.BG, Palette.BG);
+        bdc.clear();
+        // Draw at (0, 1) in bitmap space: same glyphs as the direct path (numY = y - 1).
+        var saveLeft = _colLeft;
+        var saveTop = _bandTop;
+        _colLeft = 0;
+        _bandTop = 0;
+        drawVerseLine(bdc, 1, lineH, ln, focusBook, focusChapter, focusVerse);
+        _colLeft = saveLeft;
+        _bandTop = saveTop;
+        _lineBmp[key] = ref;
+        return ref;
+    }
+
+    // PRERENDER (v3): a verse step changes which verse is bright, so every visible line of
+    // the next verse needs its other color variant. After each frame, idle ticks render the
+    // lines the NEXT press will show (2 lines per tick), so the press itself is all blits.
+    // POKE: PRERENDER_LINES_PER_TICK
+    const PRERENDER_PER_TICK = 2;
+    var _preTimer = null;
+    var _preIdx as Lang.Array = [] as Lang.Array;
+    var _preF as Lang.Dictionary or Null = null;
+    var _lineHC as Lang.Number = 0;
+
+    function schedulePrerender() as Void {
+        if (toast != null || _lineHC == 0 || AppState.scroll.mode != ScrollModel.MODE_VERSE
+            || !(Graphics has :createBufferedBitmap)) {
+            return;
+        }
+        var sc = AppState.scroll;
+        var save = sc.scrollOffset;
+        sc.verseNext();
+        var nOff = sc.scrollOffset;
+        var f = resolveFocus();
+        sc.scrollOffset = save;
+        if (nOff == save) {
+            return;
+        }
+        var fb = f[:book] as Lang.Number;
+        var fc = f[:chapter] as Lang.Number;
+        var fv = f[:verse] as Lang.Number;
+        var list = [] as Lang.Array;
+        var i;
+        for (i = nOff; i <= nOff + sc.visibleCount && i < sc.lines.size(); i++) {
+            var ln = sc.lines[i] as ScrollModel.Line;
+            if (ln.kind != ScrollModel.KIND_VERSE) {
+                continue;
+            }
+            var isF = ln.book == fb && ln.chapter == fc && ln.verse == fv;
+            var ref = _lineBmp[i * 2 + (isF ? 1 : 0)];
+            if (ref == null || (ref as Graphics.BufferedBitmapReference).get() == null) {
+                list.add(i);
+            }
+        }
+        _preIdx = list;
+        _preF = f;
+        if (list.size() > 0) {
+            if (_preTimer == null) {
+                _preTimer = new Timer.Timer();
+            }
+            (_preTimer as Timer.Timer).start(method(:onPrerender), 50, false);
+        }
+    }
+
+    function onPrerender() as Void {
+        var f = _preF;
+        if (f == null || toast != null) {
+            return;
+        }
+        var lines = AppState.scroll.lines;
+        var n = 0;
+        while (_preIdx.size() > 0 && n < PRERENDER_PER_TICK) {
+            var i = _preIdx[0] as Lang.Number;
+            _preIdx = _preIdx.slice(1, null);
+            if (i < lines.size()) {
+                ensureLineBmp(i, lines[i] as ScrollModel.Line, _lineHC, f[:book] as Lang.Number,
+                              f[:chapter] as Lang.Number, f[:verse] as Lang.Number);
+            }
+            n++;
+        }
+        if (_preIdx.size() > 0) {
+            (_preTimer as Timer.Timer).start(method(:onPrerender), 50, false);
+        }
     }
 
     //! Drop cached lines farthest from the viewport.
     function evictLines() as Void {
         var keys = _lineBmp.keys();
         var lo = AppState.scroll.scrollOffset - 2;
-        var hi = AppState.scroll.scrollOffset + AppState.scroll.visibleCount + 3;
+        var hi = AppState.scroll.scrollOffset + 2 * AppState.scroll.visibleCount + 6;
         var i;
         for (i = 0; i < keys.size(); i++) {
             var li = (keys[i] as Lang.Number) / 2;
@@ -816,7 +897,8 @@ class ReaderView extends WatchUi.View {
         var i;
         for (i = 0; i < lines.size(); i++) {
             var ln = lines[i] as ScrollModel.Line;
-            if (ln.kind == ScrollModel.KIND_VERSE && ln.isVerseStart && ln.verse == verse
+            // >= : a verse the BSB omits (Matt 17:21) lands on the next one present.
+            if (ln.kind == ScrollModel.KIND_VERSE && ln.isVerseStart && ln.verse >= verse
                 && ln.book == AppState.selectedBook && ln.chapter == AppState.selectedChapter) {
                 AppState.scroll.scrollOffset = i;
                 AppState.scroll.clampOffset();
@@ -980,21 +1062,25 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
         _view = view;
     }
 
+    // POKE: SCROLL_STEP — buttons (onKey UP/DOWN) = one step (line, or verse start);
+    // swipe = page in line mode. The page behaviors return false so the OS hands the
+    // raw key / swipe to onKey / onSwipe and nothing steps twice (no TouchGuard flags).
     function onNextPage() as Lang.Boolean {
-        if (TouchGuard.consumePage()) {
-            return true;
-        }
-        AppState.scroll.next();
-        syncCurrentFromFocus();
-        WatchUi.requestUpdate();
-        return true;
+        return false;
     }
 
     function onPreviousPage() as Lang.Boolean {
-        if (TouchGuard.consumePage()) {
-            return true;
+        return false;
+    }
+
+    function step(dir as Lang.Number, page as Lang.Boolean) as Lang.Boolean {
+        if (page) {
+            AppState.scroll.page(dir);
+        } else if (dir > 0) {
+            AppState.scroll.next();
+        } else {
+            AppState.scroll.prev();
         }
-        AppState.scroll.prev();
         syncCurrentFromFocus();
         WatchUi.requestUpdate();
         return true;
@@ -1014,9 +1100,16 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onKey(evt as WatchUi.KeyEvent) as Lang.Boolean {
-        if (evt.getKey() == WatchUi.KEY_ENTER) {
+        var k = evt.getKey();
+        if (k == WatchUi.KEY_ENTER) {
             _view.openMenu();
             return true;
+        }
+        if (k == WatchUi.KEY_DOWN) {
+            return step(1, false);
+        }
+        if (k == WatchUi.KEY_UP) {
+            return step(-1, false);
         }
         return false;
     }
@@ -1034,18 +1127,10 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
     function onSwipe(evt) as Lang.Boolean {
         var dir = evt.getDirection();
         if (dir == WatchUi.SWIPE_UP) {
-            TouchGuard.markPage();
-            AppState.scroll.next();
-            syncCurrentFromFocus();
-            WatchUi.requestUpdate();
-            return true;
+            return step(1, true);
         }
         if (dir == WatchUi.SWIPE_DOWN) {
-            TouchGuard.markPage();
-            AppState.scroll.prev();
-            syncCurrentFromFocus();
-            WatchUi.requestUpdate();
-            return true;
+            return step(-1, true);
         }
         if (dir == WatchUi.SWIPE_RIGHT) {
             // POKE: swipe-right = back

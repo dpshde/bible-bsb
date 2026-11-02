@@ -13,6 +13,7 @@ class TestamentListView extends WatchUi.View {
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
+        focus = PickList.takeFocus(focus);
         PickList.draw(dc, "Testament", Genres.TESTAMENT_LABELS, focus);
     }
 }
@@ -27,6 +28,9 @@ class TestamentListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onNextPage() as Lang.Boolean {
+        if (PickList.swallowSwipe()) {
+            return true;
+        }
         var v = view();
         v.focus = (v.focus + 1) % Genres.TESTAMENT_COUNT;
         WatchUi.requestUpdate();
@@ -34,6 +38,9 @@ class TestamentListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onPreviousPage() as Lang.Boolean {
+        if (PickList.swallowSwipe()) {
+            return true;
+        }
         var v = view();
         v.focus = (v.focus + Genres.TESTAMENT_COUNT - 1) % Genres.TESTAMENT_COUNT;
         WatchUi.requestUpdate();
@@ -60,6 +67,10 @@ class TestamentListDelegate extends WatchUi.BehaviorDelegate {
             new GenreListDelegate(view().focus),
             WatchUi.SLIDE_LEFT);
         return true;
+    }
+
+    function onDrag(evt as WatchUi.DragEvent) as Lang.Boolean {
+        return PickList.onDrag(evt);
     }
 
     //! Tap: hit-test the rows PickList.draw just laid out; open the TAPPED row.
@@ -98,6 +109,7 @@ class GenreListView extends WatchUi.View {
     var _labels as Lang.Array = [] as Lang.Array;
 
     function onUpdate(dc as Graphics.Dc) as Void {
+        focus = PickList.takeFocus(focus);
         PickList.draw(dc, testament == 0 ? "Old Testament" : "New Testament", _labels, focus);
     }
 }
@@ -115,6 +127,9 @@ class GenreListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onNextPage() as Lang.Boolean {
+        if (PickList.swallowSwipe()) {
+            return true;
+        }
         var v = view();
         if (v.genreIndexes.size() == 0) {
             return true;
@@ -125,6 +140,9 @@ class GenreListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onPreviousPage() as Lang.Boolean {
+        if (PickList.swallowSwipe()) {
+            return true;
+        }
         var v = view();
         if (v.genreIndexes.size() == 0) {
             return true;
@@ -161,6 +179,10 @@ class GenreListDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
+    function onDrag(evt as WatchUi.DragEvent) as Lang.Boolean {
+        return PickList.onDrag(evt);
+    }
+
     //! Tap: hit-test the rows PickList.draw just laid out; open the TAPPED row.
     function onTap(evt as WatchUi.ClickEvent) as Lang.Boolean {
         var idx = PickList.indexAtY(evt.getCoordinates()[1], view().genreIndexes.size());
@@ -194,6 +216,7 @@ class GenreBookListView extends WatchUi.View {
         if (_labels == null) {
             _labels = PickList.bookLabels(bookIndexes); // PERF: once
         }
+        focus = PickList.takeFocus(focus);
         PickList.draw(dc, Genres.headerName(genreIdx), _labels as Lang.Array, focus);
     }
 }
@@ -211,6 +234,9 @@ class GenreBookListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onNextPage() as Lang.Boolean {
+        if (PickList.swallowSwipe()) {
+            return true;
+        }
         var v = view();
         if (v.bookIndexes.size() == 0) {
             return true;
@@ -221,6 +247,9 @@ class GenreBookListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onPreviousPage() as Lang.Boolean {
+        if (PickList.swallowSwipe()) {
+            return true;
+        }
         var v = view();
         if (v.bookIndexes.size() == 0) {
             return true;
@@ -248,6 +277,10 @@ class GenreBookListDelegate extends WatchUi.BehaviorDelegate {
         var v = view();
         PickList.openBook(v.bookIndexes[v.focus] as Lang.Number);
         return true;
+    }
+
+    function onDrag(evt as WatchUi.DragEvent) as Lang.Boolean {
+        return PickList.onDrag(evt);
     }
 
     //! Tap: hit-test the rows PickList.draw just laid out; open the TAPPED row.
