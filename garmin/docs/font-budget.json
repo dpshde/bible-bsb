@@ -1,0 +1,109 @@
+{
+  "full": [
+    {
+      "face": "BsbLight14",
+      "size_px": 14,
+      "chars": 95,
+      "png_bytes": 6281,
+      "fnt_bytes": 10367,
+      "atlas": "512x31",
+      "png": "resources/fonts/body_light_14_0.png",
+      "fnt": "resources/fonts/body_light_14.fnt"
+    },
+    {
+      "face": "BsbRegular14",
+      "size_px": 14,
+      "chars": 95,
+      "png_bytes": 6643,
+      "fnt_bytes": 10371,
+      "atlas": "512x32",
+      "png": "resources/fonts/body_regular_14_0.png",
+      "fnt": "resources/fonts/body_regular_14.fnt"
+    },
+    {
+      "face": "BsbMedium14",
+      "size_px": 14,
+      "chars": 95,
+      "png_bytes": 7022,
+      "fnt_bytes": 10369,
+      "atlas": "512x31",
+      "png": "resources/fonts/body_medium_14_0.png",
+      "fnt": "resources/fonts/body_medium_14.fnt"
+    },
+    {
+      "face": "BsbMedium16",
+      "size_px": 16,
+      "chars": 95,
+      "png_bytes": 7973,
+      "fnt_bytes": 10369,
+      "atlas": "512x35",
+      "png": "resources/fonts/body_medium_16_0.png",
+      "fnt": "resources/fonts/body_medium_16.fnt"
+    },
+    {
+      "face": "BsbNumBold11",
+      "size_px": 11,
+      "chars": 10,
+      "png_bytes": 902,
+      "fnt_bytes": 1357,
+      "atlas": "512x10",
+      "png": "resources/fonts/num_bold_11_0.png",
+      "fnt": "resources/fonts/num_bold_11.fnt"
+    },
+    {
+      "face": "BsbHeaderCaps11",
+      "size_px": 11,
+      "chars": 41,
+      "png_bytes": 2047,
+      "fnt_bytes": 4649,
+      "atlas": "512x12",
+      "png": "resources/fonts/header_caps_11_0.png",
+      "fnt": "resources/fonts/header_caps_11.fnt"
+    }
+  ],
+  "lowmem": [
+    {
+      "face": "BsbRegular14",
+      "size_px": 14,
+      "chars": 95,
+      "png_bytes": 6643,
+      "fnt_bytes": 10371,
+      "atlas": "512x32",
+      "png": "resources-lowmem/fonts/body_regular_14_0.png",
+      "fnt": "resources-lowmem/fonts/body_regular_14.fnt"
+    },
+    {
+      "face": "BsbMedium16",
+      "size_px": 16,
+      "chars": 95,
+      "png_bytes": 8925,
+      "fnt_bytes": 10369,
+      "atlas": "512x35",
+      "png": "resources-lowmem/fonts/body_medium_16_0.png",
+      "fnt": "resources-lowmem/fonts/body_medium_16.fnt"
+    },
+    {
+      "face": "BsbNumBold11",
+      "size_px": 11,
+      "chars": 10,
+      "png_bytes": 902,
+      "fnt_bytes": 1357,
+      "atlas": "512x10",
+      "png": "resources-lowmem/fonts/num_bold_11_0.png",
+      "fnt": "resources-lowmem/fonts/num_bold_11.fnt"
+    },
+    {
+      "face": "BsbHeaderCaps11",
+      "size_px": 11,
+      "chars": 41,
+      "png_bytes": 2047,
+      "fnt_bytes": 4649,
+      "atlas": "512x12",
+      "png": "resources-lowmem/fonts/header_caps_11_0.png",
+      "fnt": "resources-lowmem/fonts/header_caps_11.fnt"
+    }
+  ],
+  "full_total_bytes": 78350,
+  "lowmem_total_bytes": 45263,
+  "notes": "Full set: Light14 + Regular14 + Medium14 + Medium16 + NumBold11 + HeaderCaps11. Low-mem devices: Regular14 + Medium16 + NumBold11 + HeaderCaps11; Light/Medium14 fall back to Regular14 (color dim still separates focus)."
+}

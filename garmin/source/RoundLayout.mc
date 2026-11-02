@@ -31,8 +31,8 @@ module RoundLayout {
     const DIVIDER_PAD_LINES = 1; // ~1 line air above/below continuation header
     const TOAST_MS = 1000;
     const MODE_BANNER_ONLY = true;
-    // POKE: VERSE_GAP_FRAC — vertical gap between verses as a fraction of line height (0.4–0.5).
-    const VERSE_GAP_FRAC = 0.45;
+    // POKE: VERSE_GAP_FRAC — air between verses; bold gold nums carry most separation (0.3–0.45).
+    const VERSE_GAP_FRAC = 0.35;
 
     // Legacy RECT constants (still used if READER_LAYOUT_RECT).
     const COLUMN_WIDTH_FRAC = 0.80;

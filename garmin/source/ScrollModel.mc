@@ -25,6 +25,8 @@ module ScrollModel {
         var verse as Lang.Number; // 0 for divider/end
         var text as Lang.String;
         var isVerseStart as Lang.Boolean;
+        var pullQuote as Lang.Boolean; // short verse → heavier/larger face
+        var verseChars as Lang.Number; // full verse char count (for font pick)
 
         function initialize(kind as Lang.Number, book as Lang.Number, chapter as Lang.Number,
                             verse as Lang.Number, text as Lang.String, isVerseStart as Lang.Boolean) {
@@ -34,6 +36,8 @@ module ScrollModel {
             me.verse = verse;
             me.text = text;
             me.isVerseStart = isVerseStart;
+            me.pullQuote = false;
+            me.verseChars = 0;
         }
     }
 

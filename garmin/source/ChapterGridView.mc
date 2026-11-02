@@ -56,12 +56,12 @@ class ChapterGridView extends WatchUi.View {
         var h = dc.getHeight();
         _screenW = w;
         _screenH = h;
-        var titleFont = Graphics.FONT_TINY;
+        Fonts.ensureLoaded();
         var titleY = RoundLayout.edgeMargin(w, h);
-        dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
-        RoundLayout.drawCenteredInChord(dc, titleY, Books.name(AppState.selectedBook), titleFont);
+        // Chapter header: letterspaced small caps gold (never deep blue/green).
+        Fonts.drawLetterspacedCaps(dc, w / 2, titleY, Books.name(AppState.selectedBook), Palette.GOLD);
 
-        var top = titleY + dc.getFontHeight(titleFont) + 6;
+        var top = titleY + dc.getFontHeight(Fonts.headerCaps) + 6;
         var ruleLeft = RoundLayout.chordLeft(top - 4, w, h);
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(ruleLeft, top - 4, ruleLeft + RoundLayout.chordWidth(top - 4, w, h), top - 4);

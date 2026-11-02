@@ -14,8 +14,7 @@ module ContentLoader {
     //! targets reader open <300ms equivalent with no watchdog raise.
     const WRAP_COST_NOTE = "word-measure wrap; eager=focus chapter only; defer continuation";
 
-    // Word-width memo for one chapter wrap pass (cleared by clearWordCache).
-    // Avoids re-measuring the same short tokens (e.g. "the", "and") hundreds of times.
+    // Word-width memo keyed by "faceKey:word" (custom fonts aren't Lang.Number).
     var _wordCache as Lang.Dictionary = {};
 
     function resourceFor(book as Lang.Number, chapter as Lang.Number) as Lang.ResourceId or Null {
@@ -102,13 +101,37 @@ module ContentLoader {
     }
 
     function wordWidth(dc as Graphics.Dc, font as Graphics.FontDefinition, word as Lang.String) as Lang.Number {
-        var hit = _wordCache[word];
+        return wordWidthKeyed(dc, font, word, 0);
+    }
+
+    function wordWidthKeyed(dc as Graphics.Dc, font as Graphics.FontDefinition, word as Lang.String,
+                            faceKey as Lang.Number) as Lang.Number {
+        var key = faceKey + ":" + word;
+        var hit = _wordCache[key];
         if (hit != null) {
             return hit as Lang.Number;
         }
         var w = dc.getTextWidthInPixels(word, font);
-        _wordCache[word] = w;
+        _wordCache[key] = w;
         return w;
+    }
+
+    //! Spike BSB JSON is plain `{n,t}` only — no USFM \wj / red-letter spans.
+    //! POKE: WORDS_OF_JESUS — when pack carries markup, return true and split runs.
+    function hasJesusMarkup(text as Lang.String) as Lang.Boolean {
+        if (text.find("\\wj") != null) {
+            return true;
+        }
+        if (text.find("<wj>") != null) {
+            return true;
+        }
+        return false;
+    }
+
+    //! Returns plain text with any future \wj tags stripped (identity today).
+    function plainVerseText(text as Lang.String) as Lang.String {
+        // No markup in bundled spike chapters — return as-is.
+        return text;
     }
 
     //! Split on spaces into words (O(n) single pass, no per-char Dc calls).
@@ -172,18 +195,26 @@ module ContentLoader {
     //! One getTextWidthInPixels per distinct word (cached), never per character.
     function wrapVerseToWidth(dc as Graphics.Dc, font as Graphics.FontDefinition, verseNum as Lang.Number,
                               text as Lang.String, maxWidth as Lang.Number) as Lang.Array {
+        return wrapVerseToWidthKeyed(dc, font, verseNum, text, maxWidth, 0);
+    }
+
+    function wrapVerseToWidthKeyed(dc as Graphics.Dc, font as Graphics.FontDefinition, verseNum as Lang.Number,
+                                   text as Lang.String, maxWidth as Lang.Number,
+                                   faceKey as Lang.Number) as Lang.Array {
         var out = [];
+        var plain = plainVerseText(text);
         var numStr = verseNum.toString();
-        var numW = wordWidth(dc, font, numStr) + wordWidth(dc, font, " ");
-        var spaceW = wordWidth(dc, font, " ");
-        var words = splitWords(text);
+        // Number width uses num face at paint; reserve approx via body font digits.
+        var numW = wordWidthKeyed(dc, font, numStr, faceKey) + wordWidthKeyed(dc, font, " ", faceKey);
+        var spaceW = wordWidthKeyed(dc, font, " ", faceKey);
+        var words = splitWords(plain);
         var line = "";
         var lineW = 0;
         var isFirstLine = true;
         var wi;
         for (wi = 0; wi < words.size(); wi++) {
             var word = words[wi] as Lang.String;
-            var wordW = wordWidth(dc, font, word);
+            var wordW = wordWidthKeyed(dc, font, word, faceKey);
             var budget = maxWidth;
             if (isFirstLine) {
                 budget = maxWidth - numW;

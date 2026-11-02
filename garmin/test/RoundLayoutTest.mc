@@ -102,8 +102,8 @@ function testEdgeMarginFloor(logger as Test.Logger) as Lang.Boolean {
 
 (:test)
 function testVerseGapFracInTuneRange(logger as Test.Logger) as Lang.Boolean {
-    // POKE: VERSE_GAP_FRAC — Dylan range 0.4–0.5.
-    Test.assert(RoundLayout.VERSE_GAP_FRAC >= 0.4);
-    Test.assert(RoundLayout.VERSE_GAP_FRAC <= 0.5);
+    // POKE: VERSE_GAP_FRAC — bold nums carry separation; keep a little air (0.3–0.45).
+    Test.assert(RoundLayout.VERSE_GAP_FRAC >= 0.3);
+    Test.assert(RoundLayout.VERSE_GAP_FRAC <= 0.45);
     return true;
 }

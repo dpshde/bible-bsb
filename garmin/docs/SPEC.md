@@ -330,7 +330,7 @@ Everything **not** listed here should match Flipper behavior/spirit from `flippe
 | Flipper behavior | Garmin behavior | Why (hardware) | Devices |
 |------------------|-----------------|----------------|---------|
 | 128×64 mono, ~4 text lines | More verses visible; larger type | Higher res displays | All |
-| FontPrimary 6×8 bitmap | System / vector fonts where available | Readable on 280–454 px | AMOLED first; MIP best available |
+| FontPrimary 6×8 bitmap | See **Custom BMFont** row below (weights replace system-font-only approach) | — | — |
 | No color | Accent focus + divider color; MIP: 1–2 muted colors if supported | AMOLED color; MIP limited palette | AMOLED full; MIP limited |
 | No always-on app mode | `onEnterSleep`/`onExitSleep`: simplify reader chrome in sleep; avoid static bright header burn-in | AOD / low-power; AMOLED burn-in | AMOLED especially; MIP opportunistic |
 | 5-col chapter D-pad (±1/±5) | Snake ±1 linear default; hold = ±row | 5-btn watches often want single-axis; touch taps still 2D | All; Enduro 3 primary |
@@ -343,7 +343,9 @@ Everything **not** listed here should match Flipper behavior/spirit from `flippe
 | Toast software frames @30fps | Toast + `Attention.vibrate` | Haptics exist on Garmin | Devices with Attention |
 | SceneManager stack | `WatchUi.pushView`/`popView` | CIQ navigation model | All |
 | Fixed 128px column / 2px margins | Default **center-band lens** (`RoundLayout.lensBand`, band 20–80% H, width ≥0.75 D, straight left, clipped). RECT / CENTERED_CHORD kept behind `// POKE: READER_LAYOUT` for A/B. | Dylan rejected RECT (unused mid-band, cramped column); lens is the round reading default | All round; square uses rectangular band |
-| 1-bit mono (black/white) | AMOLED palette `#000` / `#F2EFE9` / gold `#C89D54` across reader, grid, lists, empty | Color watches; Flipper has no gray/gold | AMOLED primary; MIP best-effort |
+| 1-bit mono (black/white) | AMOLED palette `#000` / `#F2EFE9` / gold `#C89D54` (+ burnt orange `#C8642A` secondary only). **No green, no deep blue** anywhere (grid focus, headers, dividers, menu). | Color watches; Flipper has no gray/gold | AMOLED primary; MIP best-effort |
+| FontPrimary 6×8 bitmap only | **Custom BMFont** weights (Light/Regular/Medium/Bold nums/Header caps) via `resources/fonts`; low-mem devices alias Light/Medium→Regular (`resources-lowmem`). Focus=Regular+`#F2EFE9`; surround=Light+`DIM_VERSE`; verse nums=Bold gold; headers=letterspaced small caps gold; short verses (≤`SHORT_VERSE_CHARS`) step to Medium-16. | System fonts lack weight axis; Dylan text-weighting pass | All; see `docs/font-budget.json` (~78 KB full / ~45 KB low-mem) |
+| N/A (no red-letter in Flipper UI) | Words-of-Jesus warm tint `#E8C9A0` + Medium face **hook only** — spike BSB JSON has no `\wj`/red-letter spans (`ContentLoader.hasJesusMarkup`) | Data gap; do not invent spans | When pack grows markup |
 | Left-aligned headers / bottom hints | Top-arc OSIS meta only; bottom-arc counter/preview; bezel progress arc | Circle radius + lens zones | Round primarily |
 | N/A (Flipper had no mode chip) | No permanent `V`/`L` corner letter; ~1s centered **“Verse scroll” / “Line scroll”** banner on change (`showModeBanner`) | Corner letter was unclear on Enduro 3 | All |
 | Custom menu item sublabels OK on 128×64 | Menu2 items use **title only** (ref folded into bookmark title; no sublabel) | Enduro 3 Menu2 clipped `John 3:1` sublabel at left (v3/v4) | Round primarily |

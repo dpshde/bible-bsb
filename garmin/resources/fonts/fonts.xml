@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Full weight set (Enduro 3, fr265/965, venu*). See docs/font-budget.json. -->
+<fonts>
+    <!-- POKE: body size 14 — band body. -->
+    <font id="BodyLight14" filename="body_light_14.fnt" antialias="true"/>
+    <font id="BodyRegular14" filename="body_regular_14.fnt" antialias="true"/>
+    <font id="BodyMedium14" filename="body_medium_14.fnt" antialias="true"/>
+    <!-- POKE: short-verse bump size 16. -->
+    <font id="BodyMedium16" filename="body_medium_16.fnt" antialias="true"/>
+    <!-- POKE: verse-number bold 11. -->
+    <font id="NumBold11" filename="num_bold_11.fnt" antialias="true" filter="0123456789"/>
+    <!-- POKE: header small-caps 11 (letterspaced at draw time). -->
+    <font id="HeaderCaps11" filename="header_caps_11.fnt" antialias="true"/>
+</fonts>

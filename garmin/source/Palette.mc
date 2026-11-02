@@ -1,7 +1,8 @@
 using Toybox.Graphics;
 using Toybox.Lang;
 
-//! Dark AMOLED reading palette (center-band lens). Flipper was 1-bit mono — see SPEC divergences.
+//! Dark AMOLED reading palette (center-band lens). No green, no deep blue (Dylan).
+//! Flipper was 1-bit mono — see SPEC divergences.
 module Palette {
     const BG = 0x000000;
     const TEXT = 0xF2EFE9;
@@ -9,12 +10,16 @@ module Palette {
     // POKE: DIM_VERSE — non-focused verse body in verse-snap mode (Dylan tune).
     const DIM_VERSE = 0x9A968F;
     const GOLD = 0xC89D54;
+    // Secondary accent only — never green / deep blue.
+    const BURNT_ORANGE = 0xC8642A;
+    // POKE: JESUS_TINT — warm (not red) for \wj spans when markup exists.
+    const JESUS = 0xE8C9A0;
     const DIVIDER = 0xC89D54;
     // POKE: DIVIDER_RULE — thin continuation rules (~40% gold / dark warm).
     const DIVIDER_RULE = 0x3A3631;
     const FOCUS_BG = 0xC89D54;
     const FOCUS_FG = 0x000000;
-    const SCRIM = 0x000000;       // full-screen toast overlay (no gray band)
+    const SCRIM = 0x000000;
     const TOAST_PILL = 0xC89D54;
     const TOAST_FG = 0x000000;
 

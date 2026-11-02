@@ -30,6 +30,24 @@ function testWrapVerseWordBasedUnderCharBudget(logger as Test.Logger) as Lang.Bo
 }
 
 (:test)
+function testNoJesusMarkupInSpikeSample(logger as Test.Logger) as Lang.Boolean {
+    // Bundled BSB spike verses are plain {n,t} — no \wj / <wj>.
+    Test.assert(!ContentLoader.hasJesusMarkup("Jesus wept."));
+    Test.assert(ContentLoader.hasJesusMarkup("\\wj Jesus wept.\\wj*"));
+    Test.assertEqual(ContentLoader.plainVerseText("Jesus wept."), "Jesus wept.");
+    return true;
+}
+
+(:test)
+function testShortVerseThreshold(logger as Test.Logger) as Lang.Boolean {
+    // POKE: Fonts.SHORT_VERSE_CHARS
+    Test.assert(Fonts.SHORT_VERSE_CHARS >= 30);
+    Test.assert(Fonts.SHORT_VERSE_CHARS <= 50);
+    Test.assert("Jesus wept.".length() <= Fonts.SHORT_VERSE_CHARS);
+    return true;
+}
+
+(:test)
 function testWrapCostJohn3StaysBounded(logger as Test.Logger) as Lang.Boolean {
     // Proxy for watchdog cost: wrapping every John 3 verse at a 28-char budget
     // is O(words), not O(chars * measure). Bound total emitted lines.
