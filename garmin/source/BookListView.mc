@@ -48,6 +48,7 @@ class BookListView extends WatchUi.View {
     }
 
     function onShow() as Void {
+        PickList.dropBitmaps(); // cached rows may be blank after views above used the pool
         Feedback.refresh(); // pick up a changed watch vibration setting / our Settings
         Nav.takeLaunch(); // first show after launch: jump to the last-read verse (once)
     }

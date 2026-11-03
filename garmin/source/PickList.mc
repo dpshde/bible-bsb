@@ -727,6 +727,17 @@ module PickList {
         _titleBmp = null;
     }
 
+    //! A view above the list was shown: drop the cached row/title bitmaps (keep the layout).
+    //! On fr265 the views above (reader, grid, P1 menus) push these out of the graphics pool,
+    //! and a purged BufferedBitmapReference can come back non-null but blank: Home after
+    //! BACK from a chapter grid drew only its scroll arrows. Re-rendering costs one frame of
+    //! direct draws; the idle warm-up rebuilds the cache.
+    function dropBitmaps() as Void {
+        stopWarm();
+        _rowBmp = {};
+        _titleBmp = null;
+    }
+
     //! Open a book like Flipper: single-chapter books skip the 1-cell chapter grid.
     function openBook(bi as Lang.Number) as Void {
         AppState.selectedBook = bi;
@@ -753,6 +764,10 @@ class PickListView extends WatchUi.View {
     function onUpdate(dc as Graphics.Dc) as Void {
         focus = PickList.takeFocus(focus, labels);
         PickList.draw(dc, title, labels, focus);
+    }
+
+    function onShow() as Void {
+        PickList.dropBitmaps();
     }
 
     function onHide() as Void {
