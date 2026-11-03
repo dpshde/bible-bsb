@@ -92,3 +92,89 @@ function testHwMergeAndEdit(logger as Test.Logger) as Lang.Boolean {
     Test.assertEqual(HwJson.stringify(gone), "{\"kind\":\"highlight\",\"ref\":\"ROM.5.3\",\"updated\":1900000001,\"deleted\":true}");
     return true;
 }
+
+//! Forge prod review 1 (SPEC §3): equal `updated` -> the JSON text larger as UTF-8 bytes wins,
+//! byte by byte, then the longer text when one is a prefix of the other; local writes beat the
+//! version they replace even with a clock that's behind.
+(:test)
+function testHwTieBreak(logger as Test.Logger) as Lang.Boolean {
+    var a = "{\"kind\":\"highlight\",\"ref\":\"JHN.3.16\",\"updated\":10,\"highlights\":[{\"color\":\"yellow\"}]}";
+    var b = "{\"kind\":\"highlight\",\"ref\":\"JHN.3.16\",\"updated\":10,\"highlights\":[{\"color\":\"blue\"}]}";
+    var oa = HwJson.parse(a) as HwObj; var ob = HwJson.parse(b) as HwObj;
+    Test.assert(HwMap.compare(oa, a, ob, b) > 0);  // 'y' > 'b' though a is only 2 bytes longer
+    Test.assert(HwMap.compare(ob, b, oa, a) < 0);  // symmetric: every device keeps the same one
+    var p = "{\"kind\":\"highlight\",\"ref\":\"JHN.3.16\",\"updated\":10}";
+    var q = "{\"kind\":\"highlight\",\"ref\":\"JHN.3.16\",\"updated\":10} ";
+    Test.assert(HwMap.compare(HwJson.parse(q) as HwObj, q, HwJson.parse(p) as HwObj, p) > 0); // prefix: more bytes win
+    // Multi-byte UTF-8 compares as bytes: "é" (C3 A9) beats "z" (7A).
+    var u = "{\"kind\":\"note\",\"ref\":\"JHN.3.16\",\"updated\":10,\"body\":\"é\"}";
+    var z = "{\"kind\":\"note\",\"ref\":\"JHN.3.16\",\"updated\":10,\"body\":\"z\"}";
+    Test.assert(HwMap.compare(HwJson.parse(u) as HwObj, u, HwJson.parse(z) as HwObj, z) > 0);
+    // Missing / non-integer updated counts as 0.
+    var m = "{\"kind\":\"highlight\",\"ref\":\"JHN.3.16\",\"updated\":\"9\"}";
+    var one = "{\"kind\":\"highlight\",\"ref\":\"JHN.3.16\",\"updated\":1}";
+    Test.assert(HwMap.compare(HwJson.parse(one) as HwObj, one, HwJson.parse(m) as HwObj, m) > 0);
+    // Writes: updated = max(now, prev + 1).
+    var later = HwMap.edit(oa, "JHN.3.16", "c-bm", true, 5l);
+    Test.assertEqual(HwMap.num(later.get("updated")), 11l);
+    Test.assertEqual(HwMap.num(HwMap.edit(oa, "JHN.3.16", "c-bm", true, 50l).get("updated")), 50l);
+    return true;
+}
+
+//! Forge prod review 2+3: new color record shape, and picking among duplicate "Bookmarks" colors.
+(:test)
+function testHwDuplicateBookmarksColors(logger as Test.Logger) as Lang.Boolean {
+    var c = HwMap.newColor("c-0a1b2c3d", 1793000000l);
+    Test.assertEqual(HwJson.stringify(c),
+        "{\"kind\":\"color\",\"ref\":\"c-0a1b2c3d\",\"updated\":1793000000,\"name\":\"Bookmarks\",\"hex\":\"#C89D54\",\"created\":1793000000}");
+    Test.assert(HwMap.isBookmarksColor(c));
+    Test.assert(!HwMap.isBookmarksColor(HwJson.parse("{\"kind\":\"color\",\"ref\":\"c-x\",\"name\":\"Bookmarks\",\"deleted\":true}") as HwObj));
+    Test.assert(!HwMap.isBookmarksColor(HwJson.parse("{\"kind\":\"color\",\"ref\":\"c-y\",\"name\":\"Prayer\",\"hex\":\"#3a7bd5\"}") as HwObj));
+    // Lowest created wins, whatever order the records arrived in.
+    Test.assertEqual(HwMap.pickColor({"c-watch" => 1793000500l, "c-phone" => 1793000000l, "c-web" => 1793000900l}), "c-phone");
+    // Tie on created -> lowest ref (byte order).
+    Test.assertEqual(HwMap.pickColor({"c-b2" => 100, "c-a9" => 100, "c-b1" => 100}), "c-a9");
+    // Missing created counts as 0 (oldest).
+    Test.assertEqual(HwMap.pickColor({"c-new" => 1793000000l, "c-old" => null}), "c-old");
+    Test.assert(HwMap.pickColor({}) == null);
+    // Duplicates are never merged: bookmarking in the chosen color keeps the other color's part.
+    var y = HwJson.parse("{\"kind\":\"highlight\",\"ref\":\"ROM.8.1\",\"updated\":5,\"highlights\":[{\"color\":\"c-watch\",\"created\":4}]}") as HwObj;
+    var on = HwMap.edit(y, "ROM.8.1", "c-phone", true, 6l);
+    Test.assert(HwMap.inColor(on, "c-phone") && HwMap.inColor(on, "c-watch"));
+    Test.assert(HwMap.inColor(HwMap.edit(on, "ROM.8.1", "c-phone", false, 7l), "c-watch"));
+    return true;
+}
+
+//! Forge prod review 5 (SPEC §5.3): padding, and an item that decrypts but whose kind+ref don't
+//! hash to its id is skipped. The blob below is a JHN.3.16 record sealed by the reference client
+//! under the id of ROM.5.3 (as AAD), so the GCM tag verifies and only the id check catches it.
+(:test)
+function testHwItemIdMismatchSkipped(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(HwMap.pad("").size(), 256);
+    Test.assertEqual(HwMap.pad("{}").size(), 256);
+    var t = "";
+    for (var i = 0; i < 257; i++) { t += "a"; }
+    var pt = HwMap.pad(t);
+    Test.assertEqual(pt.size(), 512);
+    Test.assertEqual(pt[257], 0x20);
+    Test.assertEqual(pt[511], 0x20);
+    HwSync.derive(HwB.parseKey("000G-40R4-0M30-E209-185G-R38E-1YZ0") as Lang.ByteArray);
+    var id = "mf7noQVxpGfA4OZlWr9-Az";
+    Test.assertEqual(HwSync.itemId("highlight", "ROM.5.3"), id);
+    var blob = "BwcHBwcHBwcHBwcH1VrqVwIbhOd1FxPIvSXlUJizi04S7GMuejzt_ueLj_cezVOtjVEKIdWx3YLT8cTZmiVeFEMjKtufpPe-9v52ShQFtQTDwbfjH03v1Rp6huKhuXay3mXrMPiXVoe8OWtBYisvqsHcVBqzq7V4rrLoEIYYVZegQjSgJNQdNzgWT-nmuoRY-wHuffeAYVEaeo_HUBudu1Y8_owbXvQhwFuJhl7Wn80350LbSNcf9JkyNIds1t4EuEZEli9BNwpMQLcrT_DgQulblRtHsJ3LSwmZqG-f1YX_m9XaaPI1868TR_tKKdSBIkaF-44JGZwmm52Dq1w4RYG_BqKyZfbpTfZ46X6TU-H9oEz8POfnvsvKAWE";
+    Test.assertEqual(blob.length(), 379); // 12 + 256 + 16 bytes, base64url without padding
+    Test.assert(HwSync.openItem(id, blob) == null);
+    Test.assert(HwSync.openItem(id, "AAAA") == null); // too short to be an item
+    return true;
+}
+
+//! The SPEC §10 vector item opens through openItem (tag, padding strip, id check all pass).
+(:test)
+function testHwOpenItemVector(logger as Test.Logger) as Lang.Boolean {
+    HwSync.derive(HwB.parseKey("000G-40R4-0M30-E209-185G-R38E-1YZ0") as Lang.ByteArray);
+    var got = HwSync.openItem("cq_pOilWI_5HRaH6ll9W2d", "AAECAwQFBgcICQoLq8SFwYE8sb0Q7Nvj0LOe6lpQU5r-sMxoBjyo4EP05KSuW7lN79F32bdn56D8EI6iKnaePNLsnxzid7fKUGOpfZj3sFrmQjSdPoLtPeZuBPTPkoPjGnFYloQ4bWNIzu5XtH1NRhcrxGcWHplpjj9yfs6ReI6P7PGUUNUiImUrSskqfI1GJ0vLEVI-puqVYS-90vel6nLEeWTQt-NtECi4kTBs5trpW4Jk4XEpXDi3LePDSOgRuKCRdYWoa-ex8xIGmroNWKFyMhN1M4ngPeikW99IPDk0NOH1wzEaR-KC-CyCflE-P7Dgw3a6BNwzJp3y4twt8SaCmBEDle1zni80Tdr7tecLTIweeXP8LioMAAI");
+    Test.assert(got != null);
+    Test.assertEqual((got as Lang.Array)[0], "{\"kind\":\"highlight\",\"ref\":\"JHN.3.16\",\"updated\":1793000000,\"highlights\":[{\"color\":\"yellow\",\"created\":1792000000}]}");
+    Test.assertEqual(((got as Lang.Array)[1] as HwObj).get("ref"), "JHN.3.16");
+    return true;
+}

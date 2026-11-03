@@ -9,6 +9,7 @@ Monkey C recreation spike of the Flipper Zero `bible_bsb` app. **Docs first, thi
 | `docs/flipper-baseline.md` | Flipper screens/inputs/pack/collection/scroll axes |
 | `docs/SPEC.md` | Garmin input, snake grid, bookmarks, continuation, scroll modes, divergences, screenshot matrix |
 | `docs/PLAN.md` | Pair milestones + teach-backs + screenshot capture steps |
+| `docs/HW_SYNC.md` | Hidden Word bookmark sync: the v1 contract the watch follows, incl. the watch-only refill exception |
 | `docs/BUILD.md` | SDK install / blockers / Dylan Mac commands |
 | `docs/screens/` | Simulator PNGs (`<device>/<state>.png`) — see `MISSING.md` |
 | `source/` | App, views, SnakeGrid, Bookmarks, ContentLoader, ScrollModel, ChapterNav |

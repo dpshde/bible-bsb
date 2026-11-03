@@ -118,17 +118,62 @@ module HwMap {
         return out;
     }
 
-    //! SPEC §3: > 0 when version a beats b (larger updated; tie -> larger UTF-8 JSON text).
+    //! SPEC §3: > 0 when version a beats b. Larger `updated` wins (missing / non-integer = 0).
+    //! On a tie the JSON text that is larger as a sequence of UTF-8 bytes wins: compared byte by
+    //! byte, and when one text is a prefix of the other, the longer (more bytes) wins. Same as the
+    //! reference client's compareVersions (public/sync.js). Texts are exactly as their writers
+    //! serialized them (the item plaintext without padding), never re-serialized.
     function compare(a as HwObj, aText as Lang.String, b as HwObj, bText as Lang.String) as Lang.Number {
         var d = num(a.get("updated")) - num(b.get("updated"));
         if (d != 0) { return d > 0 ? 1 : -1; }
-        var x = HwB.utf8(aText);
-        var y = HwB.utf8(bText);
+        return cmpBytes(HwB.utf8(aText), HwB.utf8(bText));
+    }
+
+    //! Unsigned lexicographic byte order; > 0 when x sorts after y.
+    function cmpBytes(x as Lang.ByteArray, y as Lang.ByteArray) as Lang.Number {
         var n = x.size() < y.size() ? x.size() : y.size();
         for (var i = 0; i < n; i++) {
             if (x[i] != y[i]) { return x[i] - y[i]; }
         }
         return x.size() - y.size();
+    }
+
+    //! A color record that can be "the" Bookmarks color: live and named Bookmarks.
+    function isBookmarksColor(r as HwObj) as Lang.Boolean {
+        return "color".equals(r.get("kind")) && r.get("deleted") != true && COLOR_NAME.equals(r.get("name"));
+    }
+
+    //! Which of several "Bookmarks" colors the watch uses (Forge, prod review (b)): the lowest
+    //! `created` (missing = 0, like `updated`), then the lowest ref. `cands` is color ref -> created.
+    //! Every device picks the same one; duplicates are never deleted or merged.
+    function pickColor(cands as Lang.Dictionary) as Lang.String or Null {
+        var ks = cands.keys();
+        var best = null;
+        var bestAt = 0l;
+        for (var i = 0; i < ks.size(); i++) {
+            var r = ks[i] as Lang.String;
+            var at = num(cands[r]);
+            if (best == null || at < bestAt || (at == bestAt && cmpBytes(HwB.utf8(r), HwB.utf8(best as Lang.String)) < 0)) {
+                best = r;
+                bestAt = at;
+            }
+        }
+        return best;
+    }
+
+    //! SPEC §5.3 plaintext: UTF-8 JSON padded with spaces to a multiple of 256 bytes, at least 256.
+    function pad(text as Lang.String) as Lang.ByteArray {
+        var pt = HwB.utf8(text);
+        var size = ((pt.size() + 255) / 256) * 256;
+        if (size < 256) { size = 256; }
+        while (pt.size() < size) { pt.add(0x20); }
+        return pt;
+    }
+
+    //! A new Bookmarks color record (SPEC §1.4): random `c-` id, gold hex, created.
+    function newColor(r as Lang.String, now as Lang.Long) as HwObj {
+        return new HwObj().put("kind", "color").put("ref", r).put("updated", now)
+            .put("name", COLOR_NAME).put("hex", COLOR_HEX).put("created", now);
     }
 
     function num(v) as Lang.Long {
@@ -174,7 +219,20 @@ module HwMap {
     }
 }
 
-//! Server sync (SPEC §5). Off unless Garmin Connect settings give a server, a sync key and
+//! Server sync (SPEC §5), hardened to Forge's prod review of the v1 contract (2026-11-03):
+//! - Merge (§3): see HwMap.compare; local writes use updated = max(now, prev.updated + 1) (HwMap.edit).
+//! - Items (§5.3): openItem / sealItem. Blob = base64url(nonce(12) ‖ ciphertext ‖ tag(16)), AAD =
+//!   ASCII item id, plaintext space-padded to a multiple of 256 (min 256), trailing spaces stripped
+//!   on read; an item whose decrypted kind+ref doesn't HMAC back to its id is skipped.
+//! - Pages: GET asks for `limit=PAGE` (additive; servers without it send up to 500) and follows
+//!   `more`. POSTs carry at most POST_MAX items (server cap 100).
+//! - Bookmarks color: chosen only after a complete pull, lowest `created` then lowest ref among live
+//!   colors named Bookmarks (HwMap.pickColor); created by the watch only when none exists.
+//! - Refill (§5.6 step 3, watch exception agreed with Forge): after an epoch change or seq going
+//!   back the watch re-pushes only its own records, i.e. the highlight records of verses in its
+//!   Bookmarks color plus that color record. The watch never stores notes, x- kinds, other colors'
+//!   records or tombstones it didn't need, so phones and the web refill those.
+//! Off unless Garmin Connect settings give a server, a sync key and
 //! "Sync bookmarks" = on: then no network call is ever made. Work is paced 1–2 records per
 //! timer tick (the watchdog trips around the third 256-byte GCM op in one event).
 module HwSync {
@@ -188,6 +246,9 @@ module HwSync {
     const S_CUR = "hwCur";
     const S_SEQ = "hwSeq";
     const S_EPOCH = "hwEpoch";
+    const S_CANDS = "hwCands"; // live "Bookmarks" color refs -> created
+    const PAGE = 40;      // items per GET page (~500 chars each: ~20 KB, under the watch's response cap)
+    const POST_MAX = 40;  // items per POST (server cap 100; 40 keeps the sealed batch small in memory)
     const PER_TICK = 2;
     const TICK_MS = 50;
 
@@ -203,7 +264,7 @@ module HwSync {
     var _removed as Lang.Array<Lang.String> = [];
     var _more as Lang.Boolean = false;
     var _t0 as Lang.Number = 0;
-    var _stats as Lang.Array<Lang.Number> = [0, 0];
+    var _stats as Lang.Array<Lang.Number> = [0, 0, 0, 0]; // pulled, pushed, skipped, pages
     var lastMs as Lang.Number = -1;
     var lastResult as Lang.String = "";
 
@@ -227,11 +288,42 @@ module HwSync {
         var k = HwB.parseKey(kt as Lang.String);
         if (k == null) { lastResult = "key typo"; return null; }
         _keyText = kt as Lang.String;
+        derive(k as Lang.ByteArray);
+        return _keys;
+    }
+
+    //! SPEC §5.2: HKDF-SHA256, empty salt, from the 16 key bytes.
+    function derive(k as Lang.ByteArray) as Void {
         _keys = [HwB.hex(HwKdf.hkdf(k, null, HwB.utf8("hidden-word/v1/lib"), 16)),
                  HwB.b64url(HwKdf.hkdf(k, null, HwB.utf8("hidden-word/v1/auth"), 32)),
                  HwKdf.hkdf(k, null, HwB.utf8("hidden-word/v1/enc"), 32),
                  HwKdf.hkdf(k, null, HwB.utf8("hidden-word/v1/mac"), 32)];
-        return _keys;
+    }
+
+    //! SPEC §5.3 read: [text, record] or null (bad blob, tag fails, not JSON, no kind/ref, or the
+    //! decrypted kind+ref doesn't hash to `id`, which a reader MUST skip).
+    function openItem(id as Lang.String, blob as Lang.String) as Lang.Array or Null {
+        var b = HwB.fromB64url(blob);
+        if (b.size() < 12 + 16 + 256) { return null; } // nonce + tag + at least one 256-byte block
+        var pt = HwGcm.open((_keys as Lang.Array)[2] as Lang.ByteArray, b.slice(0, 12), HwB.utf8(id), b.slice(12, null));
+        if (pt == null) { return null; }
+        var text = trimEnd(HwB.text(pt as Lang.ByteArray));
+        var r = HwJson.parse(text);
+        if (!(r instanceof HwObj)) { return null; }
+        var kind = (r as HwObj).get("kind");
+        var rf = (r as HwObj).get("ref");
+        if (!(kind instanceof Lang.String) || !(rf instanceof Lang.String)) { return null; }
+        if (!id.equals(itemId(kind as Lang.String, rf as Lang.String))) { return null; }
+        return [text, r];
+    }
+
+    //! SPEC §5.3 write: base64url(nonce ‖ AES-256-GCM(enc, nonce, padded text, aad = id) ‖ tag).
+    function sealItem(id as Lang.String, text as Lang.String) as Lang.String {
+        var nonce = Cryptography.randomBytes(12);
+        var blob = []b;
+        blob.addAll(nonce);
+        blob.addAll(HwGcm.seal((_keys as Lang.Array)[2] as Lang.ByteArray, nonce, HwB.utf8(id), HwMap.pad(text)));
+        return HwB.b64url(blob);
     }
 
     function itemId(kind as Lang.String, r as Lang.String) as Lang.String {
@@ -248,7 +340,7 @@ module HwSync {
     function settingsChanged() as Void {
         var kt = prop(PROP_KEY);
         if (_keyText != null && !(_keyText as Lang.String).equals(kt)) {
-            var ks = [S_RECS, S_DIRTY, S_BM, S_COLOR, S_CUR, S_SEQ, S_EPOCH];
+            var ks = [S_RECS, S_DIRTY, S_BM, S_COLOR, S_CUR, S_SEQ, S_EPOCH, S_CANDS];
             for (var i = 0; i < ks.size(); i++) { Application.Storage.deleteValue(ks[i]); }
         }
         _keys = null;
@@ -265,7 +357,7 @@ module HwSync {
         if (keys() == null) { return; }
         if (_phase != :idle) { _again = true; return; }
         _t0 = System.getTimer();
-        _stats = [0, 0];
+        _stats = [0, 0, 0, 0];
         _added = [];
         _removed = [];
         _phase = :pull;
@@ -282,7 +374,7 @@ module HwSync {
     }
 
     function pull() as Void {
-        Communications.makeWebRequest(url() + "?after=" + get(S_CUR, 0), null,
+        Communications.makeWebRequest(url() + "?after=" + get(S_CUR, 0) + "&limit=" + PAGE, null,
             {:method => Communications.HTTP_REQUEST_METHOD_GET, :headers => headers(),
              :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON}, new Lang.Method(HwSync, :onPull));
     }
@@ -298,20 +390,36 @@ module HwSync {
     function lost(ans as Lang.Dictionary) as Lang.Boolean {
         var ep = get(S_EPOCH, null);
         var seq = ans["seq"];
-        return (ep != null && ans["epoch"] != null && !ep.equals(ans["epoch"]))
+        return (ep != null && !ep.equals(ans["epoch"])) // a null epoch: the library is gone
             || (seq instanceof Lang.Number && seq < (get(S_SEQ, 0) as Lang.Number));
     }
 
+    //! Watch refill (see module doc): only its own records go back, not every record it holds.
     function refill(ans as Lang.Dictionary) as Void {
         Application.Storage.setValue(S_CUR, 0);
         Application.Storage.setValue(S_SEQ, 0);
         Application.Storage.setValue(S_EPOCH, ans["epoch"]);
-        Application.Storage.setValue(S_DIRTY, (get(S_RECS, {}) as Lang.Dictionary).keys());
+        var recs = get(S_RECS, {}) as Lang.Dictionary;
+        var own = [] as Lang.Array;
+        var color = get(S_COLOR, null);
+        if (color != null) {
+            var cid = itemId("color", color as Lang.String);
+            if (recs[cid] != null) { own.add(cid); }
+        }
+        var bm = get(S_BM, []) as Lang.Array;
+        for (var i = 0; i < bm.size(); i++) {
+            var id = itemId("highlight", bm[i] as Lang.String);
+            if (recs[id] != null && own.indexOf(id) < 0) { own.add(id); }
+        }
+        var dirty = get(S_DIRTY, []) as Lang.Array; // unsent local edits (e.g. tombstones) stay queued
+        for (var i = 0; i < dirty.size(); i++) { if (own.indexOf(dirty[i]) < 0) { own.add(dirty[i]); } }
+        Application.Storage.setValue(S_DIRTY, own);
     }
 
     function onPull(code as Lang.Number, data as Null or Lang.Dictionary or Lang.String or Lang.ByteArray or PersistedContent.Iterator) as Void {
         if (code != 200 || !(data instanceof Lang.Dictionary)) { fail(code); return; }
         var ans = data as Lang.Dictionary;
+        _stats[3] = _stats[3] + 1;
         if (lost(ans)) { refill(ans); pull(); return; }
         if (ans["epoch"] != null) { Application.Storage.setValue(S_EPOCH, ans["epoch"]); }
         var items = ans["items"] as Lang.Array;
@@ -339,23 +447,22 @@ module HwSync {
         var dirty = get(S_DIRTY, []) as Lang.Array;
         var bm = get(S_BM, []) as Lang.Array;
         var cur = get(S_CUR, 0);
+        var cands = get(S_CANDS, {}) as Lang.Dictionary;
         for (var n = 0; n < PER_TICK && _queue.size() > 0; n++) {
             var it = _queue[0] as Lang.Dictionary;
             _queue = _queue.slice(1, null);
             cur = it["seq"];
             _stats[0] = _stats[0] + 1;
-            var id = it["id"] as Lang.String;
-            var b = HwB.fromB64url(it["blob"] as Lang.String);
-            var pt = b.size() > 28 ? HwGcm.open((_keys as Lang.Array)[2] as Lang.ByteArray, b.slice(0, 12), HwB.utf8(id), b.slice(12, null)) : null;
-            if (pt == null) { continue; }
-            var text = trimEnd(HwB.text(pt));
-            var r = HwJson.parse(text);
-            if (!(r instanceof HwObj)) { continue; }
-            var kind = (r as HwObj).get("kind");
-            var rf = (r as HwObj).get("ref");
-            if (!(kind instanceof Lang.String) || !(rf instanceof Lang.String)) { continue; }
+            var id = it["id"];
+            var bl = it["blob"];
+            if (!(id instanceof Lang.String) || !(bl instanceof Lang.String)) { continue; }
+            var got = openItem(id as Lang.String, bl as Lang.String); // includes the §5.3 id check
+            if (got == null) { _stats[2] = _stats[2] + 1; continue; }
+            var text = got[0] as Lang.String;
+            var r = got[1] as HwObj;
+            var kind = r.get("kind") as Lang.String;
+            var rf = r.get("ref") as Lang.String;
             if (!"highlight".equals(kind) && !"color".equals(kind)) { continue; } // notes etc. aren't needed on the watch
-            if (!id.equals(itemId(kind as Lang.String, rf as Lang.String))) { continue; } // SPEC §5.3 id check
             var mine = recs[id] as Lang.String or Null;
             var mineObj = mine == null ? null : HwJson.parse(mine as Lang.String) as HwObj;
             var c = mineObj == null ? 1 : HwMap.compare(r as HwObj, text, mineObj as HwObj, mine as Lang.String);
@@ -363,9 +470,8 @@ module HwSync {
             if (c == 0) { continue; }
             recs[id] = text;
             if ("color".equals(kind)) {
-                if (get(S_COLOR, null) == null && (r as HwObj).get("deleted") != true && HwMap.COLOR_NAME.equals((r as HwObj).get("name"))) {
-                    Application.Storage.setValue(S_COLOR, rf);
-                }
+                // Picked once the pull is complete (chooseColor), not first-seen.
+                if (HwMap.isBookmarksColor(r as HwObj)) { cands[rf] = HwMap.num((r as HwObj).get("created")); } else { cands.remove(rf); }
                 continue;
             }
             var color = get(S_COLOR, null);
@@ -378,12 +484,29 @@ module HwSync {
         Application.Storage.setValue(S_DIRTY, dirty);
         Application.Storage.setValue(S_BM, bm);
         Application.Storage.setValue(S_CUR, cur);
+        Application.Storage.setValue(S_CANDS, cands);
         if (_queue.size() > 0) { tickSoon(); return; }
         if (_more) { pull(); return; }
+        // The pull is complete: only now pick (or switch) the Bookmarks color.
+        var switched = chooseColor();
         // Highlights that arrived before their color record: one scan once the color is known.
-        if (get(S_COLOR, null) != null && _stats[0] > 0) { rescan(); }
+        if (get(S_COLOR, null) != null && (_stats[0] > 0 || switched)) { rescan(); }
         apply();
         diff();
+    }
+
+    //! After a complete pull: the Bookmarks color every device agrees on. On a switch (e.g. the
+    //! watch made its own color offline and an older one turns up) the watch's bookmarks are kept:
+    //! verses in the new color are added, and diff() gives the watch's other bookmarks a part in the
+    //! new color. Parts in the old color stay as they are (never deleted or merged).
+    function chooseColor() as Lang.Boolean {
+        var pick = HwMap.pickColor(get(S_CANDS, {}) as Lang.Dictionary);
+        var cur = get(S_COLOR, null);
+        if (pick == null || pick.equals(cur)) { return false; }
+        Application.Storage.setValue(S_COLOR, pick);
+        Application.Storage.setValue(S_BM, []);
+        if (cur != null) { System.println("HWSYNC Bookmarks color -> the oldest of the duplicates"); }
+        return true;
     }
 
     function noteDelta(r as Lang.String, on as Lang.Boolean) as Void {
@@ -429,12 +552,14 @@ module HwSync {
         var now = Time.now().value().toLong();
         var color = get(S_COLOR, null);
         if (color == null && want.size() > 0) {
-            color = "c-" + HwB.hex(Cryptography.randomBytes(3));
-            var cr = new HwObj().put("kind", "color").put("ref", color).put("updated", now)
-                .put("name", HwMap.COLOR_NAME).put("hex", HwMap.COLOR_HEX).put("created", now);
+            // Only reached after a complete pull found no live Bookmarks color.
+            color = "c-" + HwB.hex(Cryptography.randomBytes(4));
             var cid = itemId("color", color as Lang.String);
-            recs[cid] = HwJson.stringify(cr);
+            recs[cid] = HwJson.stringify(HwMap.newColor(color as Lang.String, now));
             dirty.add(cid);
+            var cands = get(S_CANDS, {}) as Lang.Dictionary;
+            cands[color] = now;
+            Application.Storage.setValue(S_CANDS, cands);
             Application.Storage.setValue(S_COLOR, color);
         }
         var edits = [] as Lang.Array;
@@ -452,7 +577,7 @@ module HwSync {
         Application.Storage.setValue(S_RECS, recs);
         Application.Storage.setValue(S_DIRTY, dirty);
         Application.Storage.setValue(S_BM, bm);
-        _queue = dirty.slice(0, 100);
+        _queue = dirty.slice(0, POST_MAX);
         _out = [];
         if (_queue.size() == 0) { done(); return; }
         _phase = :seal;
@@ -466,16 +591,10 @@ module HwSync {
             _queue = _queue.slice(1, null);
             var text = recs[id] as Lang.String or Null;
             if (text == null) { continue; }
-            var pt = HwB.utf8(text as Lang.String);
-            var size = ((pt.size() + 255) / 256) * 256;
-            while (pt.size() < size) { pt.add(0x20); }
-            var nonce = Cryptography.randomBytes(12);
-            var blob = []b;
-            blob.addAll(nonce);
-            blob.addAll(HwGcm.seal((_keys as Lang.Array)[2] as Lang.ByteArray, nonce, HwB.utf8(id), pt));
-            _out.add({"id" => id, "blob" => HwB.b64url(blob)});
+            _out.add({"id" => id, "blob" => sealItem(id, text as Lang.String)});
         }
         if (_queue.size() > 0) { tickSoon(); return; }
+        if (_out.size() == 0) { done(); return; }
         _phase = :post;
         Communications.makeWebRequest(url(), {"items" => _out},
             {:method => Communications.HTTP_REQUEST_METHOD_POST, :headers => headers(),
@@ -496,14 +615,14 @@ module HwSync {
         var seq = ans["seq"];
         if (seq instanceof Lang.Number && seq > (get(S_SEQ, 0) as Lang.Number)) { Application.Storage.setValue(S_SEQ, seq); }
         _stats[1] = _stats[1] + _out.size();
-        if (left.size() > 0) { _queue = left.slice(0, 100); _out = []; _phase = :seal; tickSoon(); return; }
+        if (left.size() > 0) { _queue = left.slice(0, POST_MAX); _out = []; _phase = :seal; tickSoon(); return; }
         done();
     }
 
     function done() as Void {
         lastMs = System.getTimer() - _t0;
         lastResult = "ok";
-        System.println("HWSYNC done ms=" + lastMs + " pulled=" + _stats[0] + " pushed=" + _stats[1]
+        System.println("HWSYNC done ms=" + lastMs + " pulled=" + _stats[0] + " pushed=" + _stats[1] + " skipped=" + _stats[2] + " pages=" + _stats[3]
             + " bookmarks=" + Bookmarks.load().size());
         _phase = :idle;
         if (_again) { _again = false; start(); }
