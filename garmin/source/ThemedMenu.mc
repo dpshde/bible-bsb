@@ -169,6 +169,7 @@ class ThemedMenuItem extends WatchUi.CustomMenuItem {
     function invalidate() as Void {
         _lay = null;
         _bmp = {};
+        UiMenu.rowRev++;
     }
 
     function layout(dc as Graphics.Dc) as Lang.Array {
@@ -365,8 +366,11 @@ class ThemedWrapItem extends WatchUi.CustomMenuItem {
     }
 
     function draw(dc as Graphics.Dc) as Void {
+        paint(dc, isFocused());
+    }
+
+    function paint(dc as Graphics.Dc, focused as Lang.Boolean) as Void {
         var h = dc.getHeight();
-        var focused = isFocused();
         dc.setColor(Palette.BG, Palette.BG);
         dc.clear();
         var r = rowsFor(dc, focused);
@@ -399,7 +403,25 @@ module UiMenu {
     // POKE: MENU_P1 — true (Dylan 2:56 PM): every list is a P1Menu (native Menu2 layout, P1
     // colors, follows Dark/Light) on every target. false: Menu2 + MENU_THEME_ORANGE as before.
     const MENU_P1 = true;
+    // POKE: MENU_FAST — true (0.9.6, Dylan: "much snappier"): lists are a FastMenu (FastMenu.mc):
+    // same rows and layout, a step is one instant redraw from cached row bitmaps. false: the
+    // 0.9.5 WatchUi.CustomMenu (firmware slide animation, every row redrawn each frame).
+    const MENU_FAST = true;
     var lastFocusId = null; // id of the P1 row drawn focused last (Menu2 has no getFocus)
+    var rowRev as Lang.Number = 0; // bumped when any row's text changes (FastMenu repaints)
+
+    //! The delegate to push with `view`: a FastMenu gets its button/touch wrapper.
+    function delegateFor(view, delegate) {
+        return view instanceof FastMenu ? new FastMenuDelegate(view as FastMenu, delegate) : delegate;
+    }
+
+    //! The reader's "Go to verse" headings list (ThemedMenu rows / title).
+    function themed(title as Lang.String) {
+        if (MENU_FAST) {
+            return new FastMenu(title, (MeasureDc.screenH() * Zoom.THEMED_ROW_FRAC).toNumber(), true);
+        }
+        return new ThemedMenu(title);
+    }
 
     function isNative() as Lang.Boolean {
         return MENU_NATIVE && MenuStyle.DARK_NATIVE && (WatchUi has :MENU_THEME_ORANGE);
@@ -407,7 +429,7 @@ module UiMenu {
 
     function create(title as Lang.String) {
         if (MENU_P1) {
-            return new P1Menu(title);
+            return MENU_FAST ? new FastMenu(title, Zoom.menuRowH(), false) : new P1Menu(title);
         }
         if (isNative()) {
             return new WatchUi.Menu2({:title => title, :theme => WatchUi.MENU_THEME_ORANGE});

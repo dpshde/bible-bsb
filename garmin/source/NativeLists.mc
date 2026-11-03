@@ -151,7 +151,7 @@ module NativeLists {
             (fresh as WatchUi.Menu2).setFocus(fi >= 0 ? fi : 0);
             bmMenu = fresh;
             bmVer = Bookmarks.version;
-            WatchUi.switchToView(fresh, new BookmarksMenuDelegate(), WatchUi.SLIDE_IMMEDIATE); // replaces: depth unchanged
+            Nav.swap(fresh, new BookmarksMenuDelegate(), WatchUi.SLIDE_IMMEDIATE); // replaces: depth unchanged
             return;
         }
         var si = (m as WatchUi.Menu2).findItemById(ID_SYNC);
@@ -264,7 +264,7 @@ module NativeLists {
             }
         }
         (m as WatchUi.Menu2).setFocus(focus);
-        WatchUi.switchToView(m, new GenrePickDelegate(), WatchUi.SLIDE_IMMEDIATE);
+        Nav.swap(m, new GenrePickDelegate(), WatchUi.SLIDE_IMMEDIATE);
     }
 
     function showBookmarks(focusId) as Void {
@@ -273,7 +273,7 @@ module NativeLists {
         (fresh as WatchUi.Menu2).setFocus(fi >= 0 ? fi : 0);
         bmMenu = fresh;
         bmVer = Bookmarks.version;
-        WatchUi.switchToView(fresh, new BookmarksMenuDelegate(), WatchUi.SLIDE_IMMEDIATE);
+        Nav.swap(fresh, new BookmarksMenuDelegate(), WatchUi.SLIDE_IMMEDIATE);
     }
 
     function openBookmark(id as Lang.Number) as Void {
@@ -325,7 +325,7 @@ module NativeLists {
         }
         var m = buildRange(rangeId);
         rangeMenu = m;
-        WatchUi.switchToView(m, new RangeVersesDelegate(), WatchUi.SLIDE_IMMEDIATE);
+        Nav.swap(m, new RangeVersesDelegate(), WatchUi.SLIDE_IMMEDIATE);
     }
 
     //! Leaving the sub-list: Bookmarks underneath is rebuilt when a verse changed.
@@ -350,7 +350,7 @@ module NativeLists {
         for (var i = 0; i < cs.size(); i++) {
             m.addItem(UiMenu.item((cs[i] as Lang.Array)[1] as Lang.String, null, (cs[i] as Lang.Array)[0]));
         }
-        WatchUi.switchToView(m, new RecolorDelegate(), WatchUi.SLIDE_IMMEDIATE); // replaces the action menu
+        Nav.swap(m, new RecolorDelegate(), WatchUi.SLIDE_IMMEDIATE); // replaces the action menu
     }
 
     // ---- Go to verse (section headings) -------------------------------------------------
@@ -359,7 +359,7 @@ module NativeLists {
     //! round edge, while ThemedWrapItem wraps each heading to a 2-row pyramid and keeps the
     //! verse range " (1–4)" whole on the last row (gold text focus, no pill).
     function openSections(reader as ReaderView, items as Lang.Array) as Void {
-        var m = new ThemedMenu("Go to verse");
+        var m = UiMenu.themed("Go to verse");
         var i;
         for (i = 0; i < items.size(); i++) {
             var it = items[i] as Lang.Array;
@@ -527,7 +527,7 @@ class SettingsDelegate extends WatchUi.Menu2InputDelegate {
             // Repaint the whole menu in the new Dark/Light palette (menu background included).
             var m = NativeLists.buildSettings();
             m.setFocus(1);
-            WatchUi.switchToView(m, new SettingsDelegate(), WatchUi.SLIDE_IMMEDIATE);
+            Nav.swap(m, new SettingsDelegate(), WatchUi.SLIDE_IMMEDIATE);
             return;
         }
         WatchUi.requestUpdate();

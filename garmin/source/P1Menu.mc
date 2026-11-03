@@ -57,12 +57,14 @@ class P1MenuItem extends WatchUi.CustomMenuItem {
     function setSubLabel(s as Lang.String or Lang.ResourceId or Null) as Void {
         _sub = s instanceof Lang.String || s == null ? s as Lang.String or Null : WatchUi.loadResource(s as Lang.ResourceId) as Lang.String;
         _lay = null;
+        UiMenu.rowRev++;
         WatchUi.requestUpdate();
     }
 
     function setLabel(s as Lang.String or Lang.ResourceId) as Void {
         _label = s instanceof Lang.String ? s as Lang.String : WatchUi.loadResource(s as Lang.ResourceId) as Lang.String;
         _lay = null;
+        UiMenu.rowRev++;
         WatchUi.requestUpdate();
     }
 
@@ -80,15 +82,19 @@ class P1MenuItem extends WatchUi.CustomMenuItem {
 
     function draw(dc as Graphics.Dc) as Void {
         var t0 = Perf.now();
-        drawRow(dc);
+        var focused = isFocused();
+        if (focused) {
+            UiMenu.lastFocusId = getId();
+        }
+        paint(dc, focused);
         Perf.rowN++;
         Perf.rowMs += Perf.now() - t0;
     }
 
-    function drawRow(dc as Graphics.Dc) as Void {
+    //! The row in one state on an item-sized dc (CustomMenu's item dc, or FastMenu's bitmap).
+    function paint(dc as Graphics.Dc, focused as Lang.Boolean) as Void {
         var w = dc.getWidth();
         var h = dc.getHeight();
-        var focused = isFocused();
         dc.setColor(Palette.BG, Palette.BG);
         dc.clear(); // over any system focus band (fr265: teal gradient)
         // POKE: P1_ROW_INSET — text starts where Menu2 starts it, just right of its focus bar.
@@ -113,7 +119,6 @@ class P1MenuItem extends WatchUi.CustomMenuItem {
         var total = lh * rows.size() + sh;
         var y = (h - total) / 2;
         if (focused) {
-            UiMenu.lastFocusId = getId();
             dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
             dc.fillRectangle(x - 7, y + 3, 3, total - 5);
         }
@@ -164,7 +169,7 @@ class BookmarkItem extends P1MenuItem {
         return sn == null ? color : (color as Lang.String) + " · " + sn;
     }
 
-    function drawRow(dc as Graphics.Dc) as Void {
+    function paint(dc as Graphics.Dc, focused as Lang.Boolean) as Void {
         if (_pending) {
             _pending = false;
             var id = getId() as Lang.Number;
@@ -175,7 +180,7 @@ class BookmarkItem extends P1MenuItem {
             _sub = join(_color, sn);
             _lay = null;
         }
-        P1MenuItem.drawRow(dc);
+        P1MenuItem.paint(dc, focused);
     }
 }
 

@@ -165,7 +165,7 @@ module Perf {
     (:debug)
     function rowsDone() as Void {
         if (rowN > 0) {
-            System.println("ROWS n=" + rowN + " ms=" + rowMs);
+            System.println("ROWS n=" + rowN + " ms=" + rowMs + " t=" + System.getTimer());
         }
         rowN = 0;
         rowMs = 0;

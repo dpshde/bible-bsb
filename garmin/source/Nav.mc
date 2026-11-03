@@ -15,7 +15,12 @@ module Nav {
 
     function push(view as WatchUi.Views, delegate as WatchUi.InputDelegates, t as WatchUi.SlideType) as Void {
         depth++;
-        WatchUi.pushView(view, delegate, t);
+        WatchUi.pushView(view, UiMenu.delegateFor(view, delegate), t);
+    }
+
+    //! Replace the top view (same depth). Lists go through here so a FastMenu keeps its keys.
+    function swap(view as WatchUi.Views, delegate as WatchUi.InputDelegates, t as WatchUi.SlideType) as Void {
+        WatchUi.switchToView(view, UiMenu.delegateFor(view, delegate), t);
     }
 
     //! Pop the top view. At Home this exits the app (same as before).
