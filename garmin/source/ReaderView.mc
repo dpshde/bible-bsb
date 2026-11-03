@@ -9,14 +9,16 @@ using Toybox.WatchUi;
 //! directly; the rest of the chapter, the next chapter and the per-line bitmaps are built
 //! by one idle Timer in short time-boxed slices that never repaint (v6: instant open).
 //! Every verse starts on a new line (no run-on paragraph); gold inline numbers.
-//! System fonts only (BMFont weighting reverted — see docs/font-budget.md).
+//! Built-in watch fonts only (BMFont weighting reverted — see docs/font-budget.md); v7 headings
+//! are a heavier built-in face than the verse body (Faces).
 class ReaderView extends WatchUi.View {
     var toast as Lang.String or Null = null;
     var _toastTimer as Timer.Timer or Null = null;
     var _laidOut as Lang.Boolean = false;
     var _bmpBg as Lang.Number = -1; // Palette.BG the cached line bitmaps were drawn on
-    var _bodyFont as Graphics.FontDefinition = Graphics.FONT_XTINY;
-    var _numFont as Graphics.FontDefinition = Graphics.FONT_XTINY;
+    // v7: verse text in the regular body face, headings heavier (Faces).
+    var _bodyFont as Graphics.FontType = Graphics.FONT_XTINY;
+    var _numFont as Graphics.FontType = Graphics.FONT_XTINY;
     var _colLeft as Lang.Number = 0;
     var _colWidth as Lang.Number = 0;
     var _bandTop as Lang.Number = 0;
@@ -212,8 +214,8 @@ class ReaderView extends WatchUi.View {
         applyLens(dc);
         _wrapBook = AppState.selectedBook;
         _wrapChapter = AppState.selectedChapter;
-        _bodyFont = Graphics.FONT_XTINY;
-        _numFont = Graphics.FONT_XTINY;
+        _bodyFont = Faces.body();
+        _numFont = _bodyFont;
 
         var lines = [] as Lang.Array;
         clearLineCache();
@@ -459,7 +461,10 @@ class ReaderView extends WatchUi.View {
         if (AppState.scroll.mode != ScrollModel.MODE_VERSE) {
             return;
         }
-        var larger = RoundLayout.growFont(_bodyFont);
+        if (!(_bodyFont instanceof Lang.Number)) {
+            return; // vector body face: no system size ladder to grow along
+        }
+        var larger = RoundLayout.growFont(_bodyFont as Graphics.FontDefinition);
         if (larger == _bodyFont) {
             return;
         }
@@ -658,14 +663,14 @@ class ReaderView extends WatchUi.View {
         // POKE: HEAD_COLOR — heading gold (upstream) vs MUTED, since the bottom ref is gold too.
         dc.setColor(tc(Palette.GOLD), Palette.BG);
         if ((_headRows[0] as Lang.String).length() > 0) {
-            dc.drawText(cx, _row1Y - yOff, headFont, _headRows[0] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            Faces.drawHead(dc, cx, _row1Y - yOff, headFont, _headRows[0] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
         }
         if ((_headRows[1] as Lang.String).length() > 0) {
-            dc.drawText(cx, _row2Y - yOff, headFont, _headRows[1] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            Faces.drawHead(dc, cx, _row2Y - yOff, headFont, _headRows[1] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
         }
         var three = _headThree;
         if (three != null && (three[2] as Lang.String).length() > 0) {
-            dc.drawText(cx, _row3Y - yOff, headFont, three[2] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            Faces.drawHead(dc, cx, _row3Y - yOff, headFont, three[2] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
         }
     }
 
@@ -1111,7 +1116,7 @@ class ReaderView extends WatchUi.View {
             dc.drawLine(labelRight, ruleY, _colLeft + _colWidth - padX, ruleY);
         }
         dc.setColor(tc(Palette.GOLD), Graphics.COLOR_TRANSPARENT);
-        dc.drawText(midX, y + (lineH - dc.getFontHeight(font)) / 2, font, label,
+        Faces.drawHead(dc, midX, y + (lineH - dc.getFontHeight(font)) / 2, font, label,
             Graphics.TEXT_JUSTIFY_CENTER);
     }
 
@@ -1417,12 +1422,16 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
         if (dir > 0) {
             _view.ensureAhead();
         }
+        var before = AppState.scroll.scrollOffset;
         if (page) {
             AppState.scroll.page(dir);
         } else if (dir > 0) {
             AppState.scroll.next();
         } else {
             AppState.scroll.prev();
+        }
+        if (AppState.scroll.scrollOffset != before) {
+            Feedback.step(); // a detent per verse / line actually moved, none at the ends
         }
         syncCurrentFromFocus();
         WatchUi.requestUpdate();

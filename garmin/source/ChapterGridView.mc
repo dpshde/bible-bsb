@@ -4,7 +4,14 @@ using Toybox.System;
 using Toybox.Timer;
 using Toybox.WatchUi;
 
+//! Chapter grid, and (v7, Dylan) the Filter-by-letter grid: same cells, look, snake
+//! navigation, tap flash and haptics; mode FILTER shows Flipper's 22 filters ("All", A–Z,
+//! 1–3) with the focused filter's books as the subtitle, and opens that filtered list.
+const GRID_CHAPTERS = 0;
+const GRID_FILTER = 1;
+
 class ChapterGridView extends WatchUi.View {
+    var mode as Lang.Number = GRID_CHAPTERS;
     var grid as SnakeGrid.Model;
     var holdTimer as Timer.Timer or Null = null;
     var holding as Lang.Boolean = false;
@@ -25,6 +32,12 @@ class ChapterGridView extends WatchUi.View {
         rebuildGridFromState();
     }
 
+    //! Turn this view into the Filter-by-letter grid (call right after new).
+    function setFilterMode() as Void {
+        mode = GRID_FILTER;
+        rebuildGridFromState();
+    }
+
     //! Rebuild snake model from AppState — fixes Back-from-continuation leaving
     //! Malachi's grid while selectedBook is Matthew (VALIDATION Genes 1:1 bug).
     function rebuildGridFromState() as Void {
@@ -33,9 +46,10 @@ class ChapterGridView extends WatchUi.View {
         var h = settings.screenHeight;
         var cols = SnakeGrid.columnsForDisplayWidth(w);
         var rows = SnakeGrid.visibleRowsForHeight(h);
-        var n = Books.chapterCount(AppState.selectedBook);
+        var filter = mode == GRID_FILTER;
+        var n = filter ? PickList.FILTER_LABELS.size() : Books.chapterCount(AppState.selectedBook);
         grid = new SnakeGrid.Model(n, cols, rows);
-        var focusIdx = AppState.selectedChapter - 1;
+        var focusIdx = filter ? NativeLists.filterFocus : AppState.selectedChapter - 1;
         if (focusIdx < 0) {
             focusIdx = 0;
         }
@@ -43,7 +57,7 @@ class ChapterGridView extends WatchUi.View {
             focusIdx = n > 0 ? n - 1 : 0;
         }
         grid.setFocusIndex(focusIdx);
-        _gridBook = AppState.selectedBook;
+        _gridBook = filter ? -1 : AppState.selectedBook;
         _firstIdx = 0;
         _top = -1;
         _bodyKey = -1;
@@ -52,6 +66,9 @@ class ChapterGridView extends WatchUi.View {
     }
 
     function onShow() as Void {
+        if (mode == GRID_FILTER) {
+            return;
+        }
         // Spec: Back to grid focuses the continued chapter's book.
         if (_gridBook != AppState.selectedBook
             || grid.focusedChapter() != AppState.selectedChapter
@@ -65,7 +82,7 @@ class ChapterGridView extends WatchUi.View {
         onUpdateImpl(dc);
         Perf.end("grid", t0);
         // v6: lay the focused chapter's reader out while focus rests here (instant open).
-        if (flashIdx < 0 && _gridBook >= 0) {
+        if (flashIdx < 0 && _gridBook >= 0 && mode == GRID_CHAPTERS) {
             ReaderPrep.want(_gridBook, grid.focusedChapter());
         }
     }
@@ -157,20 +174,29 @@ class ChapterGridView extends WatchUi.View {
         var sf = Graphics.FONT_XTINY;
         var sh = dc.getFontHeight(sf);
         var focusCh = grid.focusedChapter();
-        if (_top < 0 || _gridBook != _headsBook) {
+        var filter = mode == GRID_FILTER;
+        if (_top < 0 || (!filter && _gridBook != _headsBook)) {
             // Fixed grid top per book: always reserve the 2-row subtitle when the book has
             // headings, so a 1-row vs 2-row heading never shifts (and re-renders) the grid.
-            firstSectionTitle(_gridBook, 1);
+            if (!filter) {
+                firstSectionTitle(_gridBook, 1);
+            }
             layoutTitle(dc, w, h, titleFont);
             _subY = _titleY + dc.getFontHeight(titleFont) + 1;
-            _subRows = subRowsFor(dc, w, h, sf, sh);
+            _subRows = filter ? 2 : subRowsFor(dc, w, h, sf, sh);
             // POKE: GRID_INSETS — the rule stays under the subtitle (top - 9); cells start 5px lower so the focus pill clears it, and
             // the bottom inset keeps the last row clear of the round edge.
-            _top = _subY + (_heads != null ? _subRows * (sh - 2) + 2 : 0) + 4 + 5;
+            _top = _subY + ((filter || _heads != null) ? _subRows * (sh - 2) + 2 : 0) + 4 + 5;
             _bottom = h - RoundLayout.edgeMargin(w, h) - (h * 0.04).toNumber();
         }
         var top = _top;
         var titleY = _titleY;
+        // POKE: GRID_MIN_CELL — a cell is never shorter than its label (Venu Sq 2's tall
+        // font + 2-row subtitle overlapped rows): drop visible rows; the window scrolls.
+        var minCell = (dc.getFontHeight(Graphics.FONT_SMALL) * 4) / 5;
+        while (grid.visibleRows > 1 && (_bottom - top) / grid.visibleRows < minCell) {
+            grid.visibleRows -= 1;
+        }
         var cellH = (_bottom - top) / grid.visibleRows;
         if (cellH < 18) {
             cellH = 18;
@@ -181,11 +207,12 @@ class ChapterGridView extends WatchUi.View {
             computeLayout(dc, top, cellH, w, h);
             _bodyKey = -1;
         }
-        var subKey = AppState.selectedBook * 1000 + focusCh;
+        var subKey = filter ? 900000 + focusCh : AppState.selectedBook * 1000 + focusCh;
         if (_subKey != subKey) {
             _subKey = subKey;
             _subParts = null;
-            var firstSec = firstSectionTitle(AppState.selectedBook, focusCh);
+            var firstSec = filter ? NativeLists.filterSummary(grid.focusIndex)
+                : firstSectionTitle(AppState.selectedBook, focusCh);
             if (firstSec != null) {
                 var st = firstSec as Lang.String;
                 // POKE: GRID_SUBTITLE_WRAP — never clip: one line if it fits the chord, else pyramid two lines.
@@ -245,7 +272,7 @@ class ChapterGridView extends WatchUi.View {
             }
         }
         // Body
-        var bodyKey = AppState.selectedBook * 1000 + _firstIdx;
+        var bodyKey = (filter ? 900000 : AppState.selectedBook * 1000) + _firstIdx;
         if (_bodyKey != bodyKey || _bodyRef == null || (_bodyRef as Graphics.BufferedBitmapReference).get() == null) {
             _bodyRef = null;
             if (bmps) {
@@ -302,7 +329,7 @@ class ChapterGridView extends WatchUi.View {
     var _titleText as Lang.String = "";
 
     function layoutTitle(dc as Graphics.Dc, w as Lang.Number, h as Lang.Number, f as Graphics.FontDefinition) as Void {
-        var name = Books.name(_gridBook);
+        var name = mode == GRID_FILTER ? NativeLists.FILTER_TITLE : Books.name(_gridBook);
         var y = RoundLayout.edgeMargin(w, h);
         var maxY = y + dc.getFontHeight(f);
         var tw = dc.getTextWidthInPixels(name, f);
@@ -322,7 +349,7 @@ class ChapterGridView extends WatchUi.View {
                         sh as Lang.Number, top as Lang.Number) as Void {
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         Perf.texts++;
-        dc.drawText(w / 2, titleY, titleFont, _titleText, Graphics.TEXT_JUSTIFY_CENTER);
+        Faces.drawHead(dc, w / 2, titleY, titleFont, _titleText, Graphics.TEXT_JUSTIFY_CENTER);
         if (_subParts != null) {
             var sp = _subParts as Lang.Array;
             dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
@@ -390,8 +417,10 @@ class ChapterGridView extends WatchUi.View {
         // Per-row capacity from the chord at that row's y (outer rows hold fewer cells).
         // POKE: GRID_CELL_PAD — px of air around a label when sizing row capacity.
         var cellPad = 14;
-        // Size cells to the widest label in this book ("150" for Psalms), not "00".
-        var minCellW = dc.getTextWidthInPixels(grid.itemCount >= 100 ? "000" : "00", Graphics.FONT_SMALL) + cellPad;
+        // Size cells to the widest label in this book ("150" for Psalms), not "00"; the
+        // filter grid to its widest label ("All").
+        var widest = mode == GRID_FILTER ? "All" : (grid.itemCount >= 100 ? "000" : "00");
+        var minCellW = dc.getTextWidthInPixels(widest, Graphics.FONT_SMALL) + cellPad;
         _caps = [] as Lang.Array;
         _rowLeftA = [] as Lang.Array;
         _cellWA = [] as Lang.Array;
@@ -414,7 +443,9 @@ class ChapterGridView extends WatchUi.View {
             _cellWA.add(rowW / cap);
             _capTotal += cap;
         }
-        if (_labels.size() != grid.itemCount) {
+        if (mode == GRID_FILTER) {
+            _labels = PickList.FILTER_LABELS;
+        } else if (_labels.size() != grid.itemCount) {
             _labels = [] as Lang.Array;
             var i;
             for (i = 1; i <= grid.itemCount; i++) {
@@ -457,6 +488,11 @@ class ChapterGridView extends WatchUi.View {
 
     function openChapterIndex(idx as Lang.Number) as Void {
         grid.setFocusIndex(idx);
+        if (mode == GRID_FILTER) {
+            NativeLists.filterFocus = idx;
+            NativeLists.openFiltered(idx);
+            return;
+        }
         AppState.selectedBook = _gridBook >= 0 ? _gridBook : AppState.selectedBook;
         AppState.selectedChapter = grid.focusedChapter();
         ReaderView.openFor(AppState.selectedBook, AppState.selectedChapter);
@@ -526,6 +562,7 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
             return true;
         }
         gridView().grid.next();
+        Feedback.step();
         WatchUi.requestUpdate();
         return true;
     }
@@ -538,6 +575,7 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
             return true;
         }
         gridView().grid.prev();
+        Feedback.step();
         WatchUi.requestUpdate();
         return true;
     }
@@ -568,8 +606,8 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
     function onHold(evt) as Lang.Boolean {
         var coords = evt.getCoordinates();
         var v = gridView();
-        if (v.flashIdx >= 0) {
-            return true;
+        if (v.flashIdx >= 0 || v.mode == GRID_FILTER) {
+            return true; // filters have nothing to bookmark
         }
         var idx = v.chapterAt(coords[0], coords[1]);
         if (idx >= 0) {
@@ -599,18 +637,20 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
         if (dir == WatchUi.SWIPE_UP) {
             TouchGuard.markPage();
             gridView().grid.next();
+            Feedback.step();
             WatchUi.requestUpdate();
             return true;
         }
         if (dir == WatchUi.SWIPE_DOWN) {
             TouchGuard.markPage();
             gridView().grid.prev();
+            Feedback.step();
             WatchUi.requestUpdate();
             return true;
         }
         if (dir == WatchUi.SWIPE_RIGHT) {
             TouchGuard.markBack();
-            AppState.selectedChapter = gridView().grid.focusedChapter();
+            leave();
             WatchUi.popView(WatchUi.SLIDE_RIGHT);
             return true;
         }
@@ -621,8 +661,18 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
         if (TouchGuard.consumeBack()) {
             return true;
         }
-        AppState.selectedChapter = gridView().grid.focusedChapter();
+        leave();
         WatchUi.popView(WatchUi.SLIDE_RIGHT);
         return true;
+    }
+
+    //! Leaving the grid: remember where focus was (chapter, or the filter cell).
+    function leave() as Void {
+        var v = gridView();
+        if (v.mode == GRID_FILTER) {
+            NativeLists.filterFocus = v.grid.focusIndex;
+        } else {
+            AppState.selectedChapter = v.grid.focusedChapter();
+        }
     }
 }

@@ -28,6 +28,36 @@ module Perf {
             + " totalKB=" + (st.totalMemory / 1024));
     }
 
+    //! Light probe (no memory stats): "PERF <tag> ms=<n>" — custom menu rows, title, mask.
+    (:debug)
+    function lite(tag as Lang.String, t0 as Lang.Number) as Void {
+        System.println("PERF " + tag + " ms=" + (System.getTimer() - t0));
+    }
+
+    (:release)
+    function lite(tag as Lang.String, t0 as Lang.Number) as Void {
+    }
+
+    //! Non-frame probe: "<tag> ms=<n>" (e.g. VIBE: cost of one Attention.vibrate call).
+    (:debug)
+    function probe(tag as Lang.String, t0 as Lang.Number) as Void {
+        System.println(tag + " ms=" + (System.getTimer() - t0));
+    }
+
+    (:release)
+    function probe(tag as Lang.String, t0 as Lang.Number) as Void {
+    }
+
+    (:debug)
+    function now() as Lang.Number {
+        return System.getTimer();
+    }
+
+    (:release)
+    function now() as Lang.Number {
+        return 0;
+    }
+
     var _seg as Lang.String = "";
     var _segT as Lang.Number = 0;
 

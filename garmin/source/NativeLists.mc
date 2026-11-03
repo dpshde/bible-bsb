@@ -32,6 +32,8 @@ module NativeLists {
                                        Palette.theme != Palette.THEME_LIGHT, :theme));
         m.addItem(new ThemedToggleItem("Tap vibration", "Buzz on tap", "No buzz",
                                        Feedback.enabled(), :vibe));
+        m.addItem(new ThemedToggleItem("Vibrate on scroll", "Tick on each step", "No tick",
+                                       Feedback.stepEnabled(), :vibeScroll));
         return m;
     }
 
@@ -51,6 +53,11 @@ module NativeLists {
             Feedback.setEnabled(on);
             if (on) {
                 Feedback.tick();
+            }
+        } else if (id == :vibeScroll) {
+            Feedback.setStepEnabled(on);
+            if (on) {
+                Feedback.step(); // a sample detent
             }
         }
     }
@@ -97,26 +104,34 @@ module NativeLists {
     }
 
     // ---- Filter books (Flipper's 22 options) -----------------------------------------
+    //! v7 (Dylan): a cell grid like the chapter grid (ChapterGridView, mode GRID_FILTER).
+    const FILTER_TITLE = "Filter books";
+    var filterFocus as Lang.Number = 0; // last focused filter cell (this session)
+
     function openFilter() as Void {
-        var m = UiMenu.create("Filter books");
-        var i;
-        for (i = 0; i < PickList.FILTER_LABELS.size(); i++) {
-            var books = PickList.booksForFilter(i);
-            var sub;
-            if (books.size() == 0) {
-                sub = "No books";
-            } else if (books.size() <= 3) {
-                sub = "";
-                var k;
-                for (k = 0; k < books.size(); k++) {
-                    sub += (k > 0 ? ", " : "") + Books.name(books[k] as Lang.Number);
-                }
-            } else {
-                sub = books.size() + " books";
-            }
-            m.addItem(UiMenu.item(PickList.FILTER_LABELS[i] as Lang.String, sub, i));
+        var v = new ChapterGridView();
+        v.setFilterMode();
+        WatchUi.pushView(v, new ChapterGridDelegate(), WatchUi.SLIDE_LEFT);
+    }
+
+    //! Grid subtitle for a filter cell: its books by name when few, else the count.
+    function filterSummary(idx as Lang.Number) as Lang.String {
+        var books = PickList.booksForFilter(idx);
+        if (books.size() == 0) {
+            return "No books";
         }
-        WatchUi.pushView(m, new FilterMenuDelegate(), WatchUi.SLIDE_LEFT);
+        if (idx == 0) {
+            return "All " + books.size() + " books";
+        }
+        if (books.size() <= 3) {
+            var sub = "";
+            var k;
+            for (k = 0; k < books.size(); k++) {
+                sub += (k > 0 ? ", " : "") + Books.name(books[k] as Lang.Number);
+            }
+            return sub;
+        }
+        return books.size() + " books";
     }
 
     function openFiltered(idx as Lang.Number) as Void {
@@ -251,20 +266,6 @@ class BrowseBookDelegate extends WatchUi.Menu2InputDelegate {
 
     function onSelect(item as WatchUi.MenuItem) as Void {
         PickList.openBook(item.getId() as Lang.Number);
-    }
-
-    function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
-    }
-}
-
-class FilterMenuDelegate extends WatchUi.Menu2InputDelegate {
-    function initialize() {
-        Menu2InputDelegate.initialize();
-    }
-
-    function onSelect(item as WatchUi.MenuItem) as Void {
-        NativeLists.openFiltered(item.getId() as Lang.Number);
     }
 
     function onBack() as Void {

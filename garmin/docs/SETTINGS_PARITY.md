@@ -17,18 +17,19 @@ behaviors and where it lives on Garmin.
 | Saved passages (`collection.json`; long-press quick-save, "Save to collection") | none | — | Bookmarks: long-press a verse; Menu > Bookmarks (native list, Open / Remove) | match (spirit) |
 | Verse select mode for saving (`verse_select_mode`: All / Start / End) | All, Start, End | All | Single-verse bookmarks only | divergence: ranges need a two-step picker that does not suit watch buttons |
 | Browse hierarchy (`genre_mode_enabled`: Testament → Genre → Book) | off / on (Right on home toggles it; not saved) | off | Browse > By Testament (native) | divergence: a menu entry instead of a hidden toggle; same hierarchy and genres |
-| Book filter (22 options) | All, A to Z, 1, 2, 3 | All | Browse > Filter books (native) | match (see FILTER_PARITY.md) |
+| Book filter (22 options) | All, A to Z, 1, 2, 3 | All | Menu > Filter books: a cell grid like the chapter grid (v7); the subtitle names the focused filter's books | match (see FILTER_PARITY.md) |
 | Share via NFC (`bible_nfc`) | — | — | none | divergence: Connect IQ apps cannot emit NFC |
 | Header marquee (pause, then scroll) | fixed | — | Two-row pyramid section header | divergence (layout): round screens wrap instead of scrolling |
 | Scrolling | fixed: one line per press | line | **Settings > Jump by verse**: on = "One verse per press", off = "One line per press" (`POKE: SCROLL_LABEL`) | Garmin addition; off = Flipper behavior |
 | Theme | fixed: monochrome LCD | — | **Settings > Dark theme**: on = "Light on black", off = "Dark on white" | Garmin addition |
 | Haptics | none (no motor) | — | **Settings > Tap vibration**: on = "Buzz on tap", off = "No buzz"; the watch's own vibration setting still wins | Garmin addition |
+| Scroll haptics | none (no motor) | — | **Settings > Vibrate on scroll** (v7): on = "Tick on each step", off = "No tick". A 12 ms, 25% detent per book, chapter, filter or verse step, at most one per 45 ms (`POKE: STEP_VIBE`) | Garmin addition |
 
-All three Garmin settings live in **Settings** (reached from Browse and from the reader menu), a
+All four Garmin settings live in **Settings** (reached from Browse and from the reader menu), a
 gold CustomMenu on every target: Menu2's ToggleMenuItem draws a green system switch and its
 off-focus rows clip at the round edge. Each row's sublabel states the current value, so no
 switch is drawn. The reader menu keeps "Jump by verse" as a quick native row (same sublabels). Values persist in
-`Application.Storage` (`scrollMode`, `theme`, `vibe`). Corrupt or missing values fall back to the
+`Application.Storage` (`scrollMode`, `theme`, `vibe`, `vibeScroll`). Corrupt or missing values fall back to the
 defaults (`testSettingsPersist`, plus the existing storage-hardening tests).
 
 ## Persistence test (toggle, kill, relaunch)

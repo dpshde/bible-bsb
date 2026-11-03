@@ -1,15 +1,19 @@
 using Toybox.Graphics;
 using Toybox.Lang;
 using Toybox.System;
+using Toybox.Timer;
 using Toybox.WatchUi;
 
 //! POKE: MENU_THEME — native Menu2 is system-themed (always dark), so every app menu is a
 //! CustomMenu drawn with Palette (follows Dark/Light). Same Menu2InputDelegate API.
 class ThemedMenu extends WatchUi.CustomMenu {
     var _title as Lang.String;
+    var _titleBmp = null;      // v7: title rendered once, then blitted
+    var _titleBg as Lang.Number = -1;
+    var items as Lang.Array = [] as Lang.Array; // our rows, for the idle pre-paint (MenuWarm)
 
     function initialize(title as Lang.String) {
-        var h = System.getDeviceSettings().screenHeight;
+        var h = MeasureDc.screenH();
         // POKE: MENU_ROW_H — 30% rows: only the rows above/below focus are on screen, both
         // where the circle is still wide, so no row runs into the bezel.
         CustomMenu.initialize((h * 0.30).toNumber(), Palette.BG, {
@@ -20,16 +24,105 @@ class ThemedMenu extends WatchUi.CustomMenu {
         _title = title;
     }
 
+    function addItem(item as WatchUi.CustomMenuItem) as Void {
+        CustomMenu.addItem(item);
+        items.add(item);
+    }
+
     function drawTitle(dc as Graphics.Dc) as Void {
+        MenuWarm.start(me);
+        var t0 = Perf.now();
+        var ref = _titleBmp;
+        if (ref == null || _titleBg != Palette.BG || (ref as Graphics.BufferedBitmapReference).get() == null) {
+            ref = MenuBmp.render(dc.getWidth(), dc.getHeight(), method(:paintTitle));
+            _titleBmp = ref;
+            _titleBg = Palette.BG;
+        }
+        if (ref != null) {
+            dc.drawBitmap(0, 0, ref as Graphics.BufferedBitmapReference);
+        } else {
+            paintTitle(dc);
+        }
+        Perf.lite("mtitle", t0);
+    }
+
+    function paintTitle(dc as Graphics.Dc) as Void {
         var w = dc.getWidth();
         var h = dc.getHeight();
         dc.setColor(Palette.BG, Palette.BG);
         dc.clear();
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         var f = Graphics.FONT_TINY;
-        dc.drawText(w / 2, h - dc.getFontHeight(f) - 6, f, _title, Graphics.TEXT_JUSTIFY_CENTER);
+        Faces.drawHead(dc, w / 2, h - dc.getFontHeight(f) - 6, f, _title, Graphics.TEXT_JUSTIFY_CENTER);
         dc.setColor(Palette.DIVIDER_RULE, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(w / 6, h - 2, w - w / 6, h - 2);
+    }
+}
+
+//! v7 PERF: after a ThemedMenu's first frame, one Timer paints every row's focused and
+//! dimmed bitmaps in slices of at most BUDGET_MS, so even the first press on a row is a blit.
+module MenuWarm {
+    const TICK_MS = 50;
+    const BUDGET_MS = 8;
+    var _menu = null;
+    var _timer = null;
+    var w as Lang.Number = 0; // row size, from the first row the menu drew
+    var h as Lang.Number = 0;
+
+    function start(menu as ThemedMenu) as Void {
+        if (_menu == menu) {
+            return;
+        }
+        _menu = menu;
+        if (_timer == null) {
+            _timer = new Timer.Timer();
+        } else {
+            (_timer as Timer.Timer).stop();
+        }
+        (_timer as Timer.Timer).start(new Lang.Method(MenuWarm, :onTick), TICK_MS, false);
+    }
+
+    function onTick() as Void {
+        var m = _menu;
+        if (m == null || w <= 0 || WatchUi.getCurrentView()[0] != m) {
+            _menu = null; // closed (or nothing drawn yet): reopening starts again
+            return;
+        }
+        var t0 = System.getTimer();
+        var list = (m as ThemedMenu).items;
+        var more = false;
+        var i;
+        for (i = 0; i < list.size(); i++) {
+            var it = list[i];
+            if (it instanceof ThemedMenuItem && !(it as ThemedMenuItem).warm(w, h)) {
+                more = true;
+                if (System.getTimer() - t0 >= BUDGET_MS) {
+                    break;
+                }
+            }
+        }
+        Perf.idle("menu", t0);
+        if (more) {
+            (_timer as Timer.Timer).start(new Lang.Method(MenuWarm, :onTick), TICK_MS, false);
+        }
+    }
+}
+
+//! v7 PERF: custom menu rows/titles are painted once into a BufferedBitmap and blitted on
+//! every later frame (the v6 Settings screen re-measured, re-wrapped and re-rasterised each
+//! row's text on every press). Null when bitmaps are unavailable: callers paint directly.
+module MenuBmp {
+    function render(w as Lang.Number, h as Lang.Number, paint as Lang.Method) {
+        if (!(Graphics has :createBufferedBitmap) || w <= 0 || h <= 0) {
+            return null;
+        }
+        var ref = Graphics.createBufferedBitmap({:width => w, :height => h});
+        var bmp = (ref as Graphics.BufferedBitmapReference).get();
+        if (bmp == null) {
+            return null;
+        }
+        paint.invoke((bmp as Graphics.BufferedBitmap).getDc());
+        return ref;
     }
 }
 
@@ -38,7 +131,7 @@ class ThemedMenu extends WatchUi.CustomMenu {
 //! enduro3). Centre on the SCREEN instead: screen centre expressed in item-dc coordinates.
 module MenuCenter {
     function cx(dc as Graphics.Dc) as Lang.Number {
-        var sw = System.getDeviceSettings().screenWidth;
+        var sw = MeasureDc.screenW(); // cached: getDeviceSettings() allocates on every call
         var off = sw - dc.getWidth(); // gutter on the left
         if (off < 0) {
             off = 0;
@@ -53,9 +146,16 @@ module MenuCenter {
     }
 }
 
+//! Settings / touch-watch menu row. v7: one font for both states (focus = gold vs dimmed,
+//! never a size change), layout measured once per row size, and each state painted once
+//! into a bitmap (MenuBmp) so a press only blits.
 class ThemedMenuItem extends WatchUi.CustomMenuItem {
     var _label as Lang.String;
     var _sub as Lang.String or Null;
+    var _lay as Lang.Array or Null = null; // [font, rows, subRows, w, h]
+    var _bmp as Lang.Dictionary = {};      // focused 0/1 -> BufferedBitmapReference
+    var _bmpBg as Lang.Number = -1;
+    var _paintFocused as Lang.Boolean = false;
 
     function initialize(label as Lang.String, sub as Lang.String or Null, id as Lang.Object) {
         CustomMenuItem.initialize(id, {});
@@ -63,41 +163,108 @@ class ThemedMenuItem extends WatchUi.CustomMenuItem {
         _sub = sub;
     }
 
-    function draw(dc as Graphics.Dc) as Void {
+    //! Text changed (toggle flipped): measure and paint again on the next frame.
+    function invalidate() as Void {
+        _lay = null;
+        _bmp = {};
+    }
+
+    function layout(dc as Graphics.Dc) as Lang.Array {
         var w = dc.getWidth();
         var h = dc.getHeight();
-        var focused = isFocused();
-        dc.setColor(Palette.BG, Palette.BG);
-        dc.clear();
-        var f = focused ? Graphics.FONT_SMALL : Graphics.FONT_TINY;
-        // POKE: MENU_ROW_ROOM — rows above/below focus sit where the circle is narrower; the
-        // focused row also clears the system focus mark masked by MenuFocusMask.
-        var room = MenuCenter.clampRoom(dc, focused ? (w * 0.74).toNumber() : (w * 0.66).toNumber());
-        var cx = MenuCenter.cx(dc);
+        var lay = _lay;
+        if (lay != null && lay[3] == w && lay[4] == h) {
+            return lay;
+        }
+        // POKE: MENU_ROW_ROOM — the row's room when focused; with 30% rows the rows above and
+        // below focus still sit where the chord is wider than this, so one font fits both.
+        var room = MenuCenter.clampRoom(dc, (w * 0.74).toNumber());
+        var f = Graphics.FONT_SMALL;
         var rows = [_label] as Lang.Array;
         if (dc.getTextWidthInPixels(_label, f) > room) {
-            // Wrap to two rows (one font for both, dropping to TINY on focus) before any "…".
+            // Wrap to two rows (one font for both) before any "…".
             f = Graphics.FONT_TINY;
             if (dc.getTextWidthInPixels(_label, f) > room) {
                 rows = RoundLayout.wrapRows(dc, _label, f, room, 2);
             }
         }
+        var subRows = _sub != null
+            ? RoundLayout.wrapRows(dc, _sub as Lang.String, Graphics.FONT_XTINY, room, rows.size() > 1 ? 1 : 2)
+            : [] as Lang.Array;
+        lay = [f, rows, subRows, w, h];
+        _lay = lay;
+        return lay;
+    }
+
+    function draw(dc as Graphics.Dc) as Void {
+        var t0 = Perf.now();
+        var focused = isFocused();
+        if (_bmpBg != Palette.BG) {
+            _bmp = {};
+            _bmpBg = Palette.BG;
+        }
+        var key = focused ? 1 : 0;
+        var ref = _bmp[key];
+        if (ref == null || (ref as Graphics.BufferedBitmapReference).get() == null) {
+            _paintFocused = focused;
+            ref = MenuBmp.render(dc.getWidth(), dc.getHeight(), method(:paintCached));
+            _bmp[key] = ref;
+        }
+        MenuWarm.w = dc.getWidth();
+        MenuWarm.h = dc.getHeight();
+        if (ref != null) {
+            dc.drawBitmap(0, 0, ref as Graphics.BufferedBitmapReference);
+        } else {
+            paint(dc, focused);
+        }
+        Perf.lite("mitem", t0);
+    }
+
+    //! Idle pre-paint: render one missing state at row size (w, h). True when both exist.
+    function warm(w as Lang.Number, h as Lang.Number) as Lang.Boolean {
+        if (_bmpBg != Palette.BG) {
+            _bmp = {};
+            _bmpBg = Palette.BG;
+        }
+        var k;
+        for (k = 0; k < 2; k++) {
+            var ref = _bmp[k];
+            if (ref == null || (ref as Graphics.BufferedBitmapReference).get() == null) {
+                _paintFocused = k == 1;
+                ref = MenuBmp.render(w, h, method(:paintCached));
+                if (ref == null) {
+                    return true; // no bitmaps here: nothing to warm
+                }
+                _bmp[k] = ref;
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function paintCached(dc as Graphics.Dc) as Void {
+        paint(dc, _paintFocused);
+    }
+
+    function paint(dc as Graphics.Dc, focused as Lang.Boolean) as Void {
+        var lay = layout(dc);
+        var h = dc.getHeight();
+        dc.setColor(Palette.BG, Palette.BG);
+        dc.clear();
+        var f = lay[0] as Graphics.FontDefinition;
+        var rows = lay[1] as Lang.Array;
+        var subRows = lay[2] as Lang.Array;
+        var cx = MenuCenter.cx(dc);
         var fh = dc.getFontHeight(f);
         var lh = fh - 3;
         var sf = Graphics.FONT_XTINY;
         var sh = dc.getFontHeight(sf);
         var slh = sh - 3;
-        var subRows = _sub != null
-            ? RoundLayout.wrapRows(dc, _sub as Lang.String, sf, room, rows.size() > 1 ? 1 : 2)
-            : [] as Lang.Array;
         var th = fh + (rows.size() - 1) * lh;
         var stotal = subRows.size() > 0 ? sh + (subRows.size() - 1) * slh : 0;
         var y = (h - th - stotal) / 2;
-        if (focused) {
-            dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT); // no cards/pills
-        } else {
-            dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
-        }
+        // Focus by colour only (gold vs dimmed): same font, same size, no cards/pills.
+        dc.setColor(focused ? Palette.GOLD : Palette.DIM_VERSE, Graphics.COLOR_TRANSPARENT);
         var i;
         for (i = 0; i < rows.size(); i++) {
             dc.drawText(cx, y + i * lh, f, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
@@ -120,6 +287,7 @@ class MenuFocusMask extends WatchUi.Drawable {
     }
 
     function draw(dc as Graphics.Dc) as Void {
+        var t0 = Perf.now();
         var w = dc.getWidth();
         var h = dc.getHeight();
         dc.setColor(Palette.BG, Palette.BG);
@@ -127,6 +295,7 @@ class MenuFocusMask extends WatchUi.Drawable {
         // mark and fills it black; paint it in the theme background over the full height so
         // Light mode has no dark strip.
         dc.fillRectangle(0, 0, (w * 0.13).toNumber() + 1, h);
+        Perf.lite("mmask", t0);
     }
 }
 
@@ -191,8 +360,8 @@ class ThemedWrapItem extends WatchUi.CustomMenuItem {
         _rows[key] = out;
         return out as Lang.Array;
     }
+
     function draw(dc as Graphics.Dc) as Void {
-        var w = dc.getWidth();
         var h = dc.getHeight();
         var focused = isFocused();
         dc.setColor(Palette.BG, Palette.BG);
@@ -204,24 +373,12 @@ class ThemedWrapItem extends WatchUi.CustomMenuItem {
         var lh = fh - 3;
         var total = fh + (rows.size() - 1) * lh;
         var y = (h - total) / 2;
-        if (focused) {
-            var tw = 0;
-            var i0;
-            for (i0 = 0; i0 < rows.size(); i0++) {
-                var rw = dc.getTextWidthInPixels(rows[i0] as Lang.String, f);
-                tw = rw > tw ? rw : tw;
-            }
-            tw += 20;
-            if (tw > w - 8) {
-                tw = w - 8;
-            }
-            dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT); // gold text, no pill
-        } else {
-            dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
-        }
+        // Focus by colour only (gold vs dimmed), same font in both states.
+        dc.setColor(focused ? Palette.GOLD : Palette.DIM_VERSE, Graphics.COLOR_TRANSPARENT);
+        var cx = MenuCenter.cx(dc);
         var i;
         for (i = 0; i < rows.size(); i++) {
-            dc.drawText(MenuCenter.cx(dc), y + i * lh, f, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, y + i * lh, f, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
         }
     }
 }
@@ -295,6 +452,7 @@ class ThemedToggleItem extends ThemedMenuItem {
     function flip() as Lang.Boolean {
         _on = !_on;
         _sub = _on ? _subOn : _subOff;
+        invalidate();
         WatchUi.requestUpdate();
         return _on;
     }

@@ -422,6 +422,7 @@ module PickList {
             _lastDragY = y;
             _dragPx0 = _px;
             _vel = 0.0;
+            _dragFocus = centerIndex();
             return true;
         }
         if (!_dragging) {
@@ -434,7 +435,7 @@ module PickList {
         _lastDragY = y;
         _px = _dragPx0 + (_dragY0 - y);
         clampPx();
-        _focusOut = centerIndex();
+        setDragFocus(centerIndex());
         if (t == WatchUi.DRAG_TYPE_STOP) {
             _dragging = false;
             if (_vel > 2 || _vel < -2) {
@@ -448,6 +449,19 @@ module PickList {
     }
 
     var _movedAt as Lang.Number = -100000;
+    var _dragFocus as Lang.Number = -1;
+
+    //! Drag / momentum moved the middle row: hand it to the view, with a detent tick (v7)
+    //! each time a new row reaches the middle (Feedback rate-limits fast flings).
+    function setDragFocus(i as Lang.Number) as Void {
+        if (i != _dragFocus) {
+            if (_dragFocus >= 0) {
+                Feedback.step();
+            }
+            _dragFocus = i;
+        }
+        _focusOut = i;
+    }
 
     //! A real drag just happened: the swipe/page behavior the OS derives from the same
     //! gesture must not move focus a second time.
@@ -485,7 +499,7 @@ module PickList {
         _px = _px + _vel;
         var before = _px;
         clampPx();
-        _focusOut = centerIndex();
+        setDragFocus(centerIndex());
         if ((_vel < 0.6 && _vel > -0.6) || before != _px) {
             stopMomentum();
             snapPx();
@@ -601,7 +615,7 @@ module PickList {
         for (t = 0; t < _cTitleRows.size(); t++) {
             var tr = _cTitleRows[t] as Lang.Array;
             Perf.texts++;
-            dc.drawText(w / 2, tr[1] as Lang.Number, tr[2] as Graphics.FontDefinition, tr[0] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            Faces.drawHead(dc, w / 2, tr[1] as Lang.Number, tr[2] as Graphics.FontDefinition, tr[0] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
         }
     }
 
@@ -766,6 +780,7 @@ class PickListDelegate extends WatchUi.BehaviorDelegate {
         var n = _view.labels.size();
         if (n > 0) {
             _view.focus = (_view.focus + 1) % n;
+            Feedback.step();
         }
         WatchUi.requestUpdate();
         return true;
@@ -778,6 +793,7 @@ class PickListDelegate extends WatchUi.BehaviorDelegate {
         var n = _view.labels.size();
         if (n > 0) {
             _view.focus = (_view.focus + n - 1) % n;
+            Feedback.step();
         }
         WatchUi.requestUpdate();
         return true;
@@ -928,7 +944,7 @@ class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
 //! About: what this is, and that it is all on the watch.
 class AboutView extends WatchUi.View {
     // POKE: ABOUT_VERSION
-    const VERSION = "v6";
+    const VERSION = "v7";
 
     function initialize() {
         View.initialize();
@@ -946,7 +962,7 @@ class AboutView extends WatchUi.View {
         var total = th + 6 + rows.size() * bh;
         var y = (h - total) / 2;
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w / 2, y, tf, "Bible BSB", Graphics.TEXT_JUSTIFY_CENTER);
+        Faces.drawHead(dc, w / 2, y, tf, "Bible BSB", Graphics.TEXT_JUSTIFY_CENTER);
         y += th + 6;
         dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
         var i;

@@ -204,11 +204,11 @@ module ContentLoader {
         }
     }
 
-    function wordWidth(dc as Graphics.Dc, font as Graphics.FontDefinition, word as Lang.String) as Lang.Number {
+    function wordWidth(dc as Graphics.Dc, font as Graphics.FontType, word as Lang.String) as Lang.Number {
         return wordWidthKeyed(dc, font, word, 0);
     }
 
-    function wordWidthKeyed(dc as Graphics.Dc, font as Graphics.FontDefinition, word as Lang.String,
+    function wordWidthKeyed(dc as Graphics.Dc, font as Graphics.FontType, word as Lang.String,
                             faceKey as Lang.Number) as Lang.Number {
         var key = faceKey + ":" + word;
         var hit = _wordCache[key];
@@ -298,12 +298,12 @@ module ContentLoader {
     //! Pixel wrap — word-based. Returns { :text, :verse, :isStart, :prefixVerse }.
     //! Text does NOT include the leading "N "; caller draws gold number when isStart.
     //! One getTextWidthInPixels per distinct word (cached), never per character.
-    function wrapVerseToWidth(dc as Graphics.Dc, font as Graphics.FontDefinition, verseNum as Lang.Number,
+    function wrapVerseToWidth(dc as Graphics.Dc, font as Graphics.FontType, verseNum as Lang.Number,
                               text as Lang.String, maxWidth as Lang.Number) as Lang.Array {
         return wrapVerseToWidthKeyed(dc, font, verseNum, text, maxWidth, 0);
     }
 
-    function wrapVerseToWidthKeyed(dc as Graphics.Dc, font as Graphics.FontDefinition, verseNum as Lang.Number,
+    function wrapVerseToWidthKeyed(dc as Graphics.Dc, font as Graphics.FontType, verseNum as Lang.Number,
                                    text as Lang.String, maxWidth as Lang.Number,
                                    faceKey as Lang.Number) as Lang.Array {
         var out = [];
