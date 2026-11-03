@@ -257,7 +257,7 @@ class ReaderView extends WatchUi.View {
         // maybeGrowFontForFocus(dc, AppState.scroll.lines);
         // (scrollOffset is reset BEFORE the wrap + resume jump above; resetting it here wiped
         // the last-read resume — edge pass B17.)
-        var lineH = dc.getFontHeight(_bodyFont) + 2;
+        var lineH = dc.getFontHeight(_bodyFont) + Zoom.READER_LINE_PAD;
         _lineHC = lineH; // line-bitmap height (a prepared reader builds bitmaps before any frame)
         var bandH = _bandBottom - _bandTop;
         AppState.scroll.visibleCount = bandH / lineH;
@@ -509,7 +509,7 @@ class ReaderView extends WatchUi.View {
             return;
         }
         var wrapped = ContentLoader.wrapVerseToWidth(dc, larger, first.verse, t as Lang.String, _colWidth);
-        var lineH = dc.getFontHeight(larger) + 2;
+        var lineH = dc.getFontHeight(larger) + Zoom.READER_LINE_PAD;
         var bandH = _bandBottom - _bandTop;
         if (wrapped.size() * lineH <= bandH) {
             _bodyFont = larger;
@@ -720,6 +720,7 @@ class ReaderView extends WatchUi.View {
         schedulePrerender();
         Perf.end("reader", t0);
         Perf.firstPaint("reader");
+        Perf.navPaint("reader");
     }
 
     function onUpdateImpl(dc as Graphics.Dc) as Void {
@@ -769,7 +770,7 @@ class ReaderView extends WatchUi.View {
 
         Perf.seg("arc");
         // Center band: clip everything to the band.
-        var lineH = dc.getFontHeight(_bodyFont) + 2;
+        var lineH = dc.getFontHeight(_bodyFont) + Zoom.READER_LINE_PAD;
         var bandH = _bandBottom - _bandTop;
         AppState.scroll.visibleCount = bandH / lineH;
         if (AppState.scroll.visibleCount < 1) {

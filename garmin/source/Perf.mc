@@ -135,6 +135,54 @@ module Perf {
     function idle(tag as Lang.String, t0 as Lang.Number) as Void {
     }
 
+    //! Navigation probe (2026-11-03 lag pass): nav() at the input that starts a screen change,
+    //! navPaint() at the next screen's first draw prints "NAV <tag> -> <where> ms=<n> ch=<k>"
+    //! (k = chapter JSON loads in between: the dominant cost on the watch).
+    var navT as Lang.Number = 0;
+    var navTag as Lang.String = "";
+    var chLoads as Lang.Number = 0;
+
+    (:debug)
+    function nav(tag as Lang.String) as Void {
+        navT = System.getTimer();
+        navTag = tag;
+        chLoads = 0;
+    }
+
+    (:debug)
+    function navPaint(where as Lang.String) as Void {
+        if (navT != 0) {
+            System.println("NAV " + navTag + " -> " + where + " ms=" + (System.getTimer() - navT) + " ch=" + chLoads);
+            navT = 0;
+        }
+    }
+
+    //! Menu frame probe: rows drawn this frame and their ms; printed by the menu foreground
+    //! (drawn after the rows) as "ROWS n=<rows> ms=<ms>".
+    var rowMs as Lang.Number = 0;
+    var rowN as Lang.Number = 0;
+
+    (:debug)
+    function rowsDone() as Void {
+        if (rowN > 0) {
+            System.println("ROWS n=" + rowN + " ms=" + rowMs);
+        }
+        rowN = 0;
+        rowMs = 0;
+    }
+
+    (:release)
+    function rowsDone() as Void {
+    }
+
+    (:release)
+    function nav(tag as Lang.String) as Void {
+    }
+
+    (:release)
+    function navPaint(where as Lang.String) as Void {
+    }
+
     //! Fallback log (abbreviations etc.): println in every build so a device log shows it.
     var _noted as Lang.Dictionary = {};
 

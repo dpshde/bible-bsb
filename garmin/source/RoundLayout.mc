@@ -208,7 +208,7 @@ module RoundLayout {
 
     //! Two-line split: prefer line1 <= line2 (pyramid); if no such split fits both
     //! widths, take any fitting split with the smallest overhang of line1. Null if none fits.
-    function pyramidSplit(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontDefinition,
+    function pyramidSplit(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontType,
                           w1 as Lang.Number, w2 as Lang.Number) as Lang.Array or Null {
         var words = ContentLoader.splitWords(text);
         var best = null;
@@ -242,7 +242,7 @@ module RoundLayout {
     //! Last-resort two lines (nothing fits whole): line 1 = a word prefix inside w1, line 2 =
     //! the following words cut at a WORD boundary + "…" inside w2. Picks the split that
     //! shows the most words, pyramid (line 1 <= line 2) on ties. Ellipsis only on line 2.
-    function pyramidSplitEllipsize(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontDefinition,
+    function pyramidSplitEllipsize(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontType,
                                    w1 as Lang.Number, w2 as Lang.Number) as Lang.Array {
         var whole = pyramidSplit(dc, text, font, w1, w2);
         if (whole != null) {
@@ -292,7 +292,7 @@ module RoundLayout {
     }
 
     //! Three rows, row 1 <= row 2 (pyramid), each inside its chord. Null if no fit.
-    function wrapThree(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontDefinition,
+    function wrapThree(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontType,
                        c1 as Lang.Number, c2 as Lang.Number, c3 as Lang.Number) as Lang.Array or Null {
         var words = ContentLoader.splitWords(text);
         var best = null;
@@ -324,7 +324,7 @@ module RoundLayout {
         return best;
     }
 
-    function ellipsize(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontDefinition,
+    function ellipsize(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontType,
                        maxW as Lang.Number) as Lang.String {
         if (dc.getTextWidthInPixels(text, font) <= maxW) {
             return text;
@@ -365,7 +365,7 @@ module RoundLayout {
     //! the screen origin, whose own size is not the circle. Steps the font down until the
     //! text fits its chord; ellipsis only as the last resort (never a mid-glyph clip).
     function drawCenteredInChord(dc as Graphics.Dc, y as Lang.Number, text as Lang.String,
-                                 font as Graphics.FontDefinition) as Void {
+                                 font as Graphics.FontType) as Void {
         var ds = System.getDeviceSettings();
         var w = ds.screenWidth;
         var h = ds.screenHeight;
@@ -389,7 +389,7 @@ module RoundLayout {
         dc.drawText(w / 2, y, useFont, t, Graphics.TEXT_JUSTIFY_CENTER);
     }
 
-    function shrinkFont(font as Graphics.FontDefinition) as Graphics.FontDefinition {
+    function shrinkFont(font as Graphics.FontType) as Graphics.FontDefinition {
         if (font == Graphics.FONT_MEDIUM) {
             return Graphics.FONT_SMALL;
         }
@@ -402,7 +402,7 @@ module RoundLayout {
         return font;
     }
 
-    function growFont(font as Graphics.FontDefinition) as Graphics.FontDefinition {
+    function growFont(font as Graphics.FontType) as Graphics.FontDefinition {
         if (font == Graphics.FONT_XTINY) {
             return Graphics.FONT_TINY;
         }
@@ -523,7 +523,7 @@ module RoundLayout {
 
     //! Greedy word wrap into at most maxRows rows of width <= room; if words remain, the last
     //! row ends at a word with "…" (never inside a word unless one word alone is too wide).
-    function wrapRows(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontDefinition,
+    function wrapRows(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontType,
                       room as Lang.Number, maxRows as Lang.Number) as Lang.Array {
         var words = ContentLoader.splitWords(text);
         var rows = [] as Lang.Array;

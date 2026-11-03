@@ -1,5 +1,6 @@
 using Toybox.Graphics;
 using Toybox.Lang;
+using Toybox.System;
 using Toybox.WatchUi;
 
 //! Dylan 2:56 PM: every menu follows Prime's P1 theme and still looks and acts like a native
@@ -10,17 +11,16 @@ using Toybox.WatchUi;
 //! rows are laid out like a native Menu2 row: title centered over a rule, label left-aligned in
 //! a built-in font with the sublabel under it, and a focus bar at the left. Only colors differ,
 //! all from Palette (BrandColors). POKE: MENU_P1 in UiMenu switches back to native Menu2.
+//! Sizes (Dylan 2026-11-03, "zoomed out"): Zoom.mc.
 class P1Menu extends WatchUi.CustomMenu {
     var _title as Lang.String;
 
     function initialize(title as Lang.String) {
         var h = MeasureDc.screenH();
-        // POKE: P1_ROW_H — Menu2-like rows: title band, then the focused row in the middle of the
-        // screen with one row above / below (Enduro 3 native shows the same).
-        var row = (h * 0.27).toNumber();
+        var row = Zoom.menuRowH();
         // The foreground mask paints the system's left focus gutter in the theme background
         // (fr265 draws a teal focus band and slanted cyan mark there: off-palette).
-        CustomMenu.initialize(row, Palette.BG, {:focusItemHeight => row, :titleItemHeight => (h * 0.24).toNumber(),
+        CustomMenu.initialize(row, Palette.BG, {:focusItemHeight => row, :titleItemHeight => (h * Zoom.MENU_TITLE_FRAC).toNumber(),
             :foreground => new MenuFocusMask(row)});
         _title = title;
     }
@@ -30,17 +30,22 @@ class P1Menu extends WatchUi.CustomMenu {
         var h = dc.getHeight();
         dc.setColor(Palette.BG, Palette.BG);
         dc.clear();
-        var f = Graphics.FONT_TINY;
+        var f = Zoom.MENU_TITLE_FONT;
         dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w / 2, h - dc.getFontHeight(f) - 8, f, _title, Graphics.TEXT_JUSTIFY_CENTER);
+        Faces.drawHead(dc, w / 2, h - dc.getFontHeight(f) - 5, f, _title, Graphics.TEXT_JUSTIFY_CENTER);
         dc.setColor(Palette.DIVIDER, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(w / 5, h - 3, w - w / 5, h - 3);
+        dc.drawLine(w / 5, h - 2, w - w / 5, h - 2);
+        Perf.navPaint("menu " + _title);
     }
 }
 
 class P1MenuItem extends WatchUi.CustomMenuItem {
     var _label as Lang.String;
     var _sub as Lang.String or Null;
+    // PERF (lag pass): the fitted label rows / sublabel are measured once per text, not every frame
+    // (Enduro 3's light face is a vector font: each width measure is costly, and "…" fitting
+    // measured up to ~20 times per row per frame).
+    var _lay as Lang.Array or Null = null; // [labelFont, rows, fittedSub]
 
     function initialize(label as Lang.String, sub as Lang.String or Null, id as Lang.Object) {
         CustomMenuItem.initialize(id, {});
@@ -51,52 +56,74 @@ class P1MenuItem extends WatchUi.CustomMenuItem {
     //! Same names as MenuItem, so callers don't care which kind of menu they have.
     function setSubLabel(s as Lang.String or Lang.ResourceId or Null) as Void {
         _sub = s instanceof Lang.String || s == null ? s as Lang.String or Null : WatchUi.loadResource(s as Lang.ResourceId) as Lang.String;
+        _lay = null;
         WatchUi.requestUpdate();
     }
 
     function setLabel(s as Lang.String or Lang.ResourceId) as Void {
         _label = s instanceof Lang.String ? s as Lang.String : WatchUi.loadResource(s as Lang.ResourceId) as Lang.String;
+        _lay = null;
         WatchUi.requestUpdate();
     }
 
+    function layout(dc as Graphics.Dc, room as Lang.Number) as Lang.Array {
+        var lf = Zoom.MENU_LABEL_FONT;
+        var sf = Faces.light(Zoom.MENU_SUB_FONT);
+        var rows = [_label] as Lang.Array;
+        if (dc.getTextWidthInPixels(_label, lf) > room) {
+            // Long labels (section headings) wrap to two rows when there's no sublabel, like
+            // Menu2 on newer devices; otherwise they end in "…".
+            rows = _sub == null ? RoundLayout.wrapRows(dc, _label, lf, room, 2) : [fit(dc, _label, lf, room)];
+        }
+        return [lf, rows, _sub != null ? fit(dc, _sub as Lang.String, sf, room) : null, sf];
+    }
+
     function draw(dc as Graphics.Dc) as Void {
+        var t0 = Perf.now();
+        drawRow(dc);
+        Perf.rowN++;
+        Perf.rowMs += Perf.now() - t0;
+    }
+
+    function drawRow(dc as Graphics.Dc) as Void {
         var w = dc.getWidth();
         var h = dc.getHeight();
         var focused = isFocused();
         dc.setColor(Palette.BG, Palette.BG);
         dc.clear(); // over any system focus band (fr265: teal gradient)
         // POKE: P1_ROW_INSET — text starts where Menu2 starts it, just right of its focus bar.
-        var x = (MeasureDc.screenW() * 0.06).toNumber();
-        var room = w - x - (MeasureDc.screenW() * 0.04).toNumber();
-        var lf = Graphics.FONT_SMALL;
-        // Dylan 2026-11-03: sublabels in the light face (Faces.light: Enduro 3's built-in
-        // RobotoCondensed-Regular; the regular system font elsewhere). Labels and titles stay bold.
-        var sf = Faces.light(Graphics.FONT_TINY);
-        var rows = [_label] as Lang.Array;
-        if (dc.getTextWidthInPixels(_label, lf) > room) {
-            lf = Graphics.FONT_TINY;
-            if (dc.getTextWidthInPixels(_label, lf) > room) {
-                // Long labels (section headings) wrap to two rows when there's no sublabel, like
-                // Menu2 on newer devices; otherwise they end in "…".
-                rows = _sub == null ? RoundLayout.wrapRows(dc, _label, lf, room, 2) : [fit(dc, _label, lf, room)];
+        var x = (MeasureDc.screenW() * Zoom.MENU_INSET_FRAC).toNumber();
+        if (_lay == null) {
+            var room = w - x - (MeasureDc.screenW() * 0.04).toNumber();
+            if (System.getDeviceSettings().screenShape == System.SCREEN_SHAPE_ROUND) {
+                var r2 = (MeasureDc.screenW() * Zoom.MENU_ROOM_FRAC).toNumber() - x;
+                room = r2 < room ? r2 : room;
             }
+            _lay = layout(dc, room);
         }
+        var lay = _lay as Lang.Array;
+        var lf = lay[0] as Graphics.FontType;
+        var rows = lay[1] as Lang.Array;
+        var sub = lay[2];
+        var sf = lay[3] as Graphics.FontType;
         var lh = dc.getFontHeight(lf);
-        var sh = _sub != null ? dc.getFontHeight(sf) : 0;
+        // Rows sit tight: the label's descender space overlaps the sublabel's ascender space.
+        var gap = Zoom.MENU_LINE_OVERLAP;
+        var sh = sub != null ? dc.getFontHeight(sf) - gap : 0;
         var total = lh * rows.size() + sh;
         var y = (h - total) / 2;
         if (focused) {
             UiMenu.lastFocusId = getId();
             dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
-            dc.fillRectangle(x - 9, y + 2, 4, total - 4);
+            dc.fillRectangle(x - 7, y + 3, 3, total - 5);
         }
         dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
         for (var i = 0; i < rows.size(); i++) {
             dc.drawText(x, y + lh * i, lf, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);
         }
-        if (_sub != null) {
+        if (sub != null) {
             dc.setColor(focused ? Palette.GOLD : Palette.MUTED, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(x, y + lh * rows.size(), sf, fit(dc, _sub as Lang.String, sf, room), Graphics.TEXT_JUSTIFY_LEFT);
+            dc.drawText(x, y + lh * rows.size() - gap, sf, sub as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);
         }
     }
 
@@ -104,11 +131,46 @@ class P1MenuItem extends WatchUi.CustomMenuItem {
         if (dc.getTextWidthInPixels(s, f) <= room) {
             return s;
         }
-        var n = s.length();
-        while (n > 1 && dc.getTextWidthInPixels(s.substring(0, n) + "…", f) > room) {
-            n--;
+        // Binary search on the cut (was one measure per dropped character).
+        var lo = 1;
+        var hi = s.length();
+        while (lo < hi) {
+            var mid = (lo + hi + 1) / 2;
+            if (dc.getTextWidthInPixels(s.substring(0, mid) + "…", f) <= room) {
+                lo = mid;
+            } else {
+                hi = mid - 1;
+            }
         }
-        return s.substring(0, n) + "…";
+        return s.substring(0, lo) + "…";
+    }
+}
+
+//! Bookmarks row: label = reference, sublabel = "Color · verse start" (Snippets), made the first
+//! time the row is drawn so the list opens without loading every bookmarked chapter.
+class BookmarkItem extends P1MenuItem {
+    var _color as Lang.String or Null;
+    var _pending as Lang.Boolean = true;
+
+    function initialize(label as Lang.String, color as Lang.String or Null, id as Lang.Number) {
+        P1MenuItem.initialize(label, color, id);
+        _color = color;
+    }
+
+    static function join(color as Lang.String or Null, sn as Lang.String or Null) as Lang.String or Null {
+        if (color == null) {
+            return sn;
+        }
+        return sn == null ? color : (color as Lang.String) + " · " + sn;
+    }
+
+    function drawRow(dc as Graphics.Dc) as Void {
+        if (_pending) {
+            _pending = false;
+            _sub = join(_color, Snippets.of(getId() as Lang.Number));
+            _lay = null;
+        }
+        P1MenuItem.drawRow(dc);
     }
 }
 

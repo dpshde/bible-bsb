@@ -1,8 +1,8 @@
 using Toybox.Lang;
 using Toybox.WatchUi;
 
-//! Home menu "Go to…" (UX critique #1, pair-mode with Dylan): letter > book > chapter grid >
-//! section headings > reader. Native Menu2 lists (UiMenu) except the existing chapter grid.
+//! Home menu "Go to…" (UX critique #1, pair-mode with Dylan): letter grid > book > chapter grid >
+//! section headings > reader. P1 lists (UiMenu) between the two grids.
 //! Also the home list's swipe-left (critique #9: replaces the filter grid).
 module GoTo {
     const ID_VERSE = -1; // "Pick a verse…" row
@@ -10,7 +10,12 @@ module GoTo {
     const DIGITS = "1–3";
 
     //! Letters that start a book name, A..Z order, then DIGITS when any book starts with one.
+    var _letters as Lang.Array<Lang.String> or Null = null;
+
     function letters() as Lang.Array<Lang.String> {
+        if (_letters != null) {
+            return _letters as Lang.Array<Lang.String>; // PERF: built once (grid asks per layout)
+        }
         var out = [] as Lang.Array<Lang.String>;
         var digits = false;
         for (var i = 0; i < Books.BOOK_COUNT; i++) {
@@ -18,13 +23,14 @@ module GoTo {
             if ("0123456789".find(c) != null) { digits = true; continue; }
             if (out.indexOf(c) < 0) { out.add(c); }
         }
-        for (var i = 1; i < out.size(); i++) { // insertion sort, 18 letters
+        for (var i = 1; i < out.size(); i++) { // insertion sort, 17 letters
             var x = out[i];
             var j = i - 1;
             while (j >= 0 && (out[j] as Lang.String).compareTo(x) > 0) { out[j + 1] = out[j]; j--; }
             out[j + 1] = x;
         }
         if (digits) { out.add(DIGITS); }
+        _letters = out;
         return out;
     }
 
@@ -39,14 +45,32 @@ module GoTo {
         return out;
     }
 
+    const TITLE = "Go to";
+    var letterFocus as Lang.Number = 0; // last focused letter cell (this session)
+
+    //! Dylan 2026-11-03: the first step is a LETTER GRID (the chapter grid's view, look, focus and
+    //! input), not a long vertical list.
     function open() as Void {
-        var m = UiMenu.create("Go to");
+        var v = new ChapterGridView();
+        v.setLetterMode();
+        Nav.push(v, new ChapterGridDelegate(), Nav.IN);
+    }
+
+    //! Grid subtitle for a letter cell: its books by name when 1-2, else the count.
+    function letterSummary(idx as Lang.Number) as Lang.String {
         var ls = letters();
-        for (var i = 0; i < ls.size(); i++) {
-            var bs = booksFor(ls[i]);
-            m.addItem(UiMenu.item(ls[i], bs.size() == 1 ? Books.name(bs[0]) : bs.size() + " books", ls[i]));
+        if (idx < 0 || idx >= ls.size()) {
+            return "";
         }
-        Nav.push(m, new GoToLetterDelegate(), Nav.IN);
+        var bs = booksFor(ls[idx]);
+        if (bs.size() <= 2) {
+            var s = "";
+            for (var k = 0; k < bs.size(); k++) {
+                s += (k > 0 ? ", " : "") + Books.name(bs[k]);
+            }
+            return s;
+        }
+        return bs.size() + " books";
     }
 
     function openLetter(letter as Lang.String) as Void {
@@ -118,15 +142,9 @@ module GoTo {
     }
 }
 
-class GoToLetterDelegate extends WatchUi.Menu2InputDelegate {
-    function initialize() { Menu2InputDelegate.initialize(); }
-    function onSelect(item as WatchUi.MenuItem) as Void { GoTo.openLetter(item.getId() as Lang.String); }
-    function onBack() as Void { Nav.pop(Nav.OUT); }
-}
-
 class GoToBookDelegate extends WatchUi.Menu2InputDelegate {
     function initialize() { Menu2InputDelegate.initialize(); }
-    function onSelect(item as WatchUi.MenuItem) as Void { GoTo.openBook(item.getId() as Lang.Number); }
+    function onSelect(item as WatchUi.MenuItem) as Void { Perf.nav("sel"); GoTo.openBook(item.getId() as Lang.Number); }
     function onBack() as Void { Nav.pop(Nav.OUT); }
 }
 
@@ -135,6 +153,7 @@ class GoToSectionDelegate extends WatchUi.Menu2InputDelegate {
     var _c as Lang.Number;
     function initialize(b as Lang.Number, c as Lang.Number) { Menu2InputDelegate.initialize(); _b = b; _c = c; }
     function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
         var v = item.getId() as Lang.Number;
         if (v == GoTo.ID_VERSE) { GoTo.openVerses(_b, _c); return; }
         Nav.openRef(_b, _c, v, true);
@@ -147,6 +166,7 @@ class GoToGroupDelegate extends WatchUi.Menu2InputDelegate {
     var _c as Lang.Number;
     function initialize(b as Lang.Number, c as Lang.Number) { Menu2InputDelegate.initialize(); _b = b; _c = c; }
     function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
         var s = item.getId() as Lang.Number;
         GoTo.openVerseRange(_b, _c, s, s + GoTo.GROUP - 1);
     }
@@ -157,6 +177,6 @@ class GoToVerseDelegate extends WatchUi.Menu2InputDelegate {
     var _b as Lang.Number;
     var _c as Lang.Number;
     function initialize(b as Lang.Number, c as Lang.Number) { Menu2InputDelegate.initialize(); _b = b; _c = c; }
-    function onSelect(item as WatchUi.MenuItem) as Void { Nav.openRef(_b, _c, item.getId() as Lang.Number, true); }
+    function onSelect(item as WatchUi.MenuItem) as Void { Perf.nav("sel"); Nav.openRef(_b, _c, item.getId() as Lang.Number, true); }
     function onBack() as Void { Nav.pop(Nav.OUT); }
 }

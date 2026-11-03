@@ -170,6 +170,7 @@ class ReaderMenu2Delegate extends WatchUi.Menu2InputDelegate {
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
         var id = item.getId() as Lang.Number;
         if (id == ReaderMenu2.ID_SCROLL_MODE) {
             NativeLists.applySetting(:scroll, UiMenu.toggledState(item));
@@ -232,6 +233,7 @@ class VerseRangeDelegate extends WatchUi.Menu2InputDelegate {
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
         var s = item.getId() as Lang.Number;
         var e = s + ReaderMenu2.GOTO_RANGE - 1;
         if (e > _count) {
@@ -256,6 +258,7 @@ class VersePickerDelegate extends WatchUi.Menu2InputDelegate {
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
         var verse = item.getId() as Lang.Number;
         var i;
         for (i = 0; i < _pops; i++) {
@@ -279,6 +282,7 @@ class SectionGotoDelegate extends WatchUi.Menu2InputDelegate {
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
         var id = item.getId() as Lang.Number;
         if (id == ReaderMenu2.ID_GOTO_ANY_VERSE) {
             var f = _reader.resolveFocus();

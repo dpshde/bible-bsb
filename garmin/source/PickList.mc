@@ -60,7 +60,7 @@ module PickList {
     function drawTitle(dc as Graphics.Dc, title as Lang.String, y as Lang.Number) as Lang.Number {
         var w = dc.getWidth();
         var h = dc.getHeight();
-        var fonts = [Graphics.FONT_TINY, Graphics.FONT_XTINY];
+        var fonts = Zoom.LIST_TITLE_FONTS;
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         var k;
         for (k = 0; k < fonts.size(); k++) {
@@ -175,7 +175,7 @@ module PickList {
         _cTitleRows = [] as Lang.Array;
         var y = titleLayout(dc, title, RoundLayout.edgeMargin(w, h)) + 4;
         _cTitleH = y;
-        var rowH = dc.getFontHeight(Graphics.FONT_SMALL) + 4;
+        var rowH = dc.getFontHeight(Zoom.LIST_FONT) + Zoom.LIST_ROW_PAD;
         // POKE: PICKLIST_BOTTOM — list window ends where the chord is >= 62% of the width.
         var bottom = h - RoundLayout.edgeMargin(w, h);
         while (bottom > y + rowH && RoundLayout.chordWidth(bottom, w, h) < (w * 0.62).toNumber()) {
@@ -210,7 +210,7 @@ module PickList {
     function titleLayout(dc as Graphics.Dc, title as Lang.String, y as Lang.Number) as Lang.Number {
         var w = dc.getWidth();
         var h = dc.getHeight();
-        var fonts = [Graphics.FONT_TINY, Graphics.FONT_XTINY];
+        var fonts = Zoom.LIST_TITLE_FONTS;
         var k;
         for (k = 0; k < fonts.size(); k++) {
             var f = fonts[k] as Graphics.FontDefinition;
@@ -237,7 +237,7 @@ module PickList {
 
     // Dylan 4:39 PM: every row uses ONE font (siblings match; no step-down for long names).
     // POKE: LIST_FONT
-    const LIST_FONT = Graphics.FONT_SMALL;
+    const LIST_FONT = Zoom.LIST_FONT;
     var _fullW as Lang.Dictionary = {};
 
     function fullWidth(dc as Graphics.Dc, idx as Lang.Number, label as Lang.String) as Lang.Number {
@@ -907,7 +907,7 @@ class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
         out.add(["Bookmarks", HwSync.bookmarksLine(Bookmarks.load().size()), :bookmarks]);
         out.add(["By Testament", "Old, New", :testament]);
         out.add(["Settings", "Scroll, theme, buzz", :settings]);
-        out.add(["About", "Bible BSB", :about]);
+        out.add(["About", AppInfo.name(), :about]);
         return out;
     }
 
@@ -924,6 +924,7 @@ class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
         var id = item.getId();
         if (id == :settings) {
             // Settings opens on top of the menu: Back returns here, like Garmin's own menus.
@@ -977,7 +978,7 @@ class AboutView extends WatchUi.View {
         var total = th + 6 + rows.size() * bh;
         var y = (h - total) / 2;
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
-        Faces.drawHead(dc, w / 2, y, tf, "Bible BSB", Graphics.TEXT_JUSTIFY_CENTER);
+        Faces.drawHead(dc, w / 2, y, tf, AppInfo.name(), Graphics.TEXT_JUSTIFY_CENTER);
         y += th + 6;
         dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
         var i;

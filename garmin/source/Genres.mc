@@ -24,6 +24,22 @@ module Genres {
         { :name => "Prophecy / Revelation (1)", :header => "< Prophecy >", :testament => 1, :start => 65, :end => 65 }
     ];
 
+    //! Hidden Word's genre names (dpshde/hidden-word-sync public/groups.js GENRES, same order and the
+    //! same book spans as GENRES above). Used by the Bookmarks genre filter so the watch and the
+    //! web app say the same thing; Browse keeps the Flipper names above.
+    const HW_NAMES = ["Law", "History", "Wisdom & Poetry", "Major Prophets", "Minor Prophets",
+        "Gospels", "Acts", "Pauline Letters", "General Letters", "Revelation"];
+
+    //! Genre index of a book (0-65), like groups.js genreOf.
+    function ofBook(book as Lang.Number) as Lang.Number {
+        for (var i = 0; i < GENRE_COUNT; i++) {
+            if (book <= (GENRES[i][:end] as Lang.Number)) {
+                return i;
+            }
+        }
+        return GENRE_COUNT - 1; // groups.js: outside the canon -> "revelation"
+    }
+
     function genresForTestament(testament as Lang.Number) as Lang.Array {
         var out = [] as Lang.Array;
         var i;

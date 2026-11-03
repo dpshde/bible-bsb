@@ -104,52 +104,13 @@ module NativeLists {
         return n == 1 ? "1 chapter" : n + " chapters";
     }
 
-    // ---- Filter books (Flipper's 22 options) -----------------------------------------
-    //! v7 (Dylan): a cell grid like the chapter grid (ChapterGridView, mode GRID_FILTER).
-    const FILTER_TITLE = "Filter books";
-    var filterFocus as Lang.Number = 0; // last focused filter cell (this session)
-
-    // Critique #9: the filter grid's entry (home swipe-left) now opens Go to… (GoTo.open).
-
-    //! Grid subtitle for a filter cell: its books by name when few, else the count.
-    function filterSummary(idx as Lang.Number) as Lang.String {
-        var books = PickList.booksForFilter(idx);
-        if (books.size() == 0) {
-            return "No books";
-        }
-        if (idx == 0) {
-            return "All " + books.size() + " books";
-        }
-        if (books.size() <= 3) {
-            var sub = "";
-            var k;
-            for (k = 0; k < books.size(); k++) {
-                sub += (k > 0 ? ", " : "") + Books.name(books[k] as Lang.Number);
-            }
-            return sub;
-        }
-        return books.size() + " books";
-    }
-
-    function openFiltered(idx as Lang.Number) as Void {
-        var books = PickList.booksForFilter(idx);
-        var title = idx == 0 ? "All books" : (idx >= 19 ? "Books: 1–3" : "Books: " + PickList.FILTER_LABELS[idx]);
-        // Native Menu2 like Browse (label = book, sublabel = chapter count); was a custom PickList
-        // with a solid gold focus box.
-        var m = UiMenu.create(title);
-        var i;
-        for (i = 0; i < books.size(); i++) {
-            var b = books[i] as Lang.Number;
-            m.addItem(UiMenu.item(Books.name(b), chaptersLabel(b), b));
-        }
-        Nav.push(m, new BrowseBookDelegate(), WatchUi.SLIDE_LEFT);
-    }
-
     // ---- Bookmarks ---------------------------------------------------------------------
-    // POKE: BOOKMARK_SNIPPETS — verse snippets for the newest N (each costs a chapter load).
-    const SNIPPETS = 12;
-    const SNIPPET_CHARS = 16; // native Menu2 sublabel on Enduro 3 fits ~17 chars: "Through Him all…" (word-boundary cut)
+    // Verse snippets (Snippets.mc) are made when a row is first drawn (BookmarkItem), so opening
+    // the list loads only the chapters of the rows on screen (was: 12 chapter loads up front).
     const ID_EMPTY = -1;
+    const ID_GENRE = -3; // genre filter row (first row)
+    // Dylan 2026-11-03: filter by genre like Hidden Word (public/groups.js GENRES). -1 = All.
+    var bmGenre as Lang.Number = -1;
     // POKE: BOOKMARKS_SHOWN — rows in the Bookmarks list (each Menu2 item costs memory; a synced
     // library can hold thousands). The rest are reachable from the reader (verse marks) and Go to.
     const SHOW_MAX = 100;
@@ -213,9 +174,45 @@ module NativeLists {
         return st.length() > 0 ? st : null;
     }
 
+    //! Bookmarks per genre: [count per genre (10)], one pass over the ids.
+    function genreCounts(items as Lang.Array) as Lang.Array {
+        var c = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] as Lang.Array;
+        for (var i = 0; i < items.size(); i++) {
+            var g = Genres.ofBook(Bookmarks.unpackBook(items[i] as Lang.Number));
+            c[g] = (c[g] as Lang.Number) + 1;
+        }
+        return c;
+    }
+
+    function genreLabel(g as Lang.Number) as Lang.String {
+        return g < 0 ? "All genres" : Genres.HW_NAMES[g] as Lang.String;
+    }
+
     function buildBookmarks() {
-        var items = Bookmarks.load();
-        var m = UiMenu.create(items.size() == 0 ? "No bookmarks" : "Bookmarks");
+        var all = Bookmarks.load();
+        var counts = all.size() > 0 ? genreCounts(all) : null;
+        var present = 0;
+        if (counts != null) {
+            for (var g = 0; g < counts.size(); g++) {
+                if ((counts[g] as Lang.Number) > 0) { present++; }
+            }
+            // Like Hidden Word's chips: a filter whose genre has no bookmarks left goes back to All.
+            if (bmGenre >= 0 && (counts[bmGenre] as Lang.Number) == 0) { bmGenre = -1; }
+        } else {
+            bmGenre = -1;
+        }
+        var items = all;
+        if (bmGenre >= 0) {
+            items = [] as Lang.Array;
+            for (var i = 0; i < all.size(); i++) {
+                if (Genres.ofBook(Bookmarks.unpackBook(all[i] as Lang.Number)) == bmGenre) { items.add(all[i]); }
+            }
+        }
+        var m = UiMenu.create(all.size() == 0 ? "No bookmarks" : "Bookmarks");
+        // Filter row only when it can narrow the list (Hidden Word hides its chips for one color).
+        if (present > 1 || bmGenre >= 0) {
+            m.addItem(UiMenu.item(genreLabel(bmGenre), "Genre · " + items.size() + (bmGenre >= 0 ? " of " + all.size() : ""), ID_GENRE));
+        }
         if (items.size() == 0) {
             // POKE: EMPTY_BOOKMARKS_HINT (critique #3): "Hold START or long-press a verse", split
             // over label + sublabel: as one sublabel Enduro 3 cuts it at "Hold START or long-…".
@@ -229,10 +226,7 @@ module NativeLists {
         var colors = HwSync.colorLabels(items.slice(0, shown));
         for (i = 0; i < shown; i++) {
             var id = items[i] as Lang.Number;
-            var sn = i < SNIPPETS ? snippet(id) : null;
-            var col = colors[id];
-            var sub = col == null ? sn : (sn == null ? col as Lang.String : (col as Lang.String) + " · " + sn);
-            m.addItem(UiMenu.item(Bookmarks.formatLabel(id), sub, id));
+            m.addItem(UiMenu.bookmark(Bookmarks.formatLabel(id), colors[id], id));
         }
         if (items.size() > shown) {
             m.addItem(UiMenu.item((items.size() - shown) + " more", "Newest " + SHOW_MAX + " shown", ID_EMPTY));
@@ -243,22 +237,34 @@ module NativeLists {
         return m;
     }
 
-    function snippet(id as Lang.Number) as Lang.String or Null {
-        var v = Bookmarks.unpackVerse(id);
-        if (v <= 0) {
-            return null;
+    //! Genre picker (Bookmarks' first row): All + every genre that has bookmarks, with counts,
+    //! canonical order. It replaces Bookmarks (same stack depth); a pick rebuilds Bookmarks.
+    function openGenrePicker() as Void {
+        var all = Bookmarks.load();
+        var counts = genreCounts(all);
+        var m = UiMenu.create("Genre");
+        m.addItem(UiMenu.item("All genres", all.size() + "", -1));
+        var focus = 0;
+        var rows = 1;
+        for (var g = 0; g < counts.size(); g++) {
+            var n = counts[g] as Lang.Number;
+            if (n > 0) {
+                if (g == bmGenre) { focus = rows; }
+                m.addItem(UiMenu.item(Genres.HW_NAMES[g] as Lang.String, n + "", g));
+                rows++;
+            }
         }
-        var t = ContentLoader.verseText(Bookmarks.unpackBook(id), Bookmarks.unpackChapter(id), v);
-        if (t == null) {
-            return null;
-        }
-        var s = ContentLoader.plainVerseText(t as Lang.String);
-        if (s.length() <= SNIPPET_CHARS) {
-            return s;
-        }
-        s = s.substring(0, SNIPPET_CHARS + 1); // +1: a word ending exactly at the limit stays
-        var k = RoundLayout.lastSpaceAt(s);
-        return (k > 0 ? s.substring(0, k) : s) + "…";
+        (m as WatchUi.Menu2).setFocus(focus);
+        WatchUi.switchToView(m, new GenrePickDelegate(), WatchUi.SLIDE_IMMEDIATE);
+    }
+
+    function showBookmarks(focusId) as Void {
+        var fresh = buildBookmarks();
+        var fi = (fresh as WatchUi.Menu2).findItemById(focusId);
+        (fresh as WatchUi.Menu2).setFocus(fi >= 0 ? fi : 0);
+        bmMenu = fresh;
+        bmVer = Bookmarks.version;
+        WatchUi.switchToView(fresh, new BookmarksMenuDelegate(), WatchUi.SLIDE_IMMEDIATE);
     }
 
     function openBookmark(id as Lang.Number) as Void {
@@ -298,6 +304,7 @@ class BrowseTestamentDelegate extends WatchUi.Menu2InputDelegate {
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
         NativeLists.openGenres(item.getId() as Lang.Number);
     }
 
@@ -312,6 +319,7 @@ class BrowseGenreDelegate extends WatchUi.Menu2InputDelegate {
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
         NativeLists.openGenreBooks(item.getId() as Lang.Number);
     }
 
@@ -326,6 +334,7 @@ class BrowseBookDelegate extends WatchUi.Menu2InputDelegate {
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
         Nav.openBook(item.getId() as Lang.Number); // critique #4: Home > Grid(book), menus closed
     }
 
@@ -340,8 +349,14 @@ class BookmarksMenuDelegate extends WatchUi.Menu2InputDelegate {
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
         var id = item.getId() as Lang.Number;
         if (id == NativeLists.ID_EMPTY) {
+            return;
+        }
+        if (id == NativeLists.ID_GENRE) {
+            NativeLists.bmMenu = null;
+            NativeLists.openGenrePicker();
             return;
         }
         if (id == NativeLists.ID_SYNC) {
@@ -361,12 +376,30 @@ class BookmarksMenuDelegate extends WatchUi.Menu2InputDelegate {
     }
 }
 
+class GenrePickDelegate extends WatchUi.Menu2InputDelegate {
+    function initialize() {
+        Menu2InputDelegate.initialize();
+    }
+
+    function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
+        NativeLists.bmGenre = item.getId() as Lang.Number;
+        NativeLists.showBookmarks(NativeLists.ID_GENRE);
+    }
+
+    function onBack() as Void {
+        Perf.nav("back");
+        NativeLists.showBookmarks(NativeLists.ID_GENRE); // filter unchanged
+    }
+}
+
 class SettingsDelegate extends WatchUi.Menu2InputDelegate {
     function initialize() {
         Menu2InputDelegate.initialize();
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
         NativeLists.applySetting(item.getId(), UiMenu.toggledState(item));
         if (item.getId() == :theme) {
             // Repaint the whole menu in the new Dark/Light palette (menu background included).

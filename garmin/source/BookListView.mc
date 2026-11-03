@@ -43,8 +43,9 @@ class BookListView extends WatchUi.View {
         }
         _rowCount = HOME_ROWS;
         focus = PickList.takeFocus(focus, _labels as Lang.Array);
-        PickList.draw(dc, "Bible BSB", _labels as Lang.Array, focus);
+        PickList.draw(dc, AppInfo.name(), _labels as Lang.Array, focus);
         MenuHint.draw(dc, PickList.lastBottom);
+        Perf.navPaint("home");
     }
 
     function onShow() as Void {
@@ -151,7 +152,7 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
         var coords = evt.getCoordinates();
         var v = view();
         if (coords[1] < PickList.lastTop || coords[1] >= MenuHint.footTop) {
-            // Touch: the "Bible BSB" title, or the "Tap here for menu" footer, opens the menu.
+            // Touch: the app-name title, or the "Tap here for menu" footer, opens the menu.
             MenuHint.markSeen();
             HomeMenu2Delegate.open();
             return true;
@@ -201,6 +202,7 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
     function onMenu() as Lang.Boolean {
         // MENU (hold UP on Enduro/Forerunner; hold the lower button on touch watches).
         // Flipper home: Left = Collection, Right = Testament / Filter -> one app menu.
+        Perf.nav("menu");
         MenuHint.markSeen();
         HomeMenu2Delegate.open();
         return true;
@@ -326,7 +328,7 @@ module MenuHint {
         var y0 = h;
         var x1 = 0;
         var y1 = 0;
-        var pts = [[r, a - ARC_SPAN], [r, a + ARC_SPAN], [r, a], [r - 23, a], [r - 11, a]] as Lang.Array;
+        var pts = [[r, a - ARC_SPAN], [r, a + ARC_SPAN], [r, a], [r - ARC_PEN - 16, a], [r - ARC_PEN, a]] as Lang.Array;
         var i;
         for (i = 0; i < pts.size(); i++) {
             var p = pts[i] as Lang.Array;
@@ -369,11 +371,14 @@ module MenuHint {
             var cy = h / 2;
             var r = (w < h ? w : h) / 2;
             var a = k == KIND_UP ? ANGLE_UP : ANGLE_LOWER_RIGHT;
-            dc.setPenWidth(ARC_PEN);
-            dc.drawArc(cx - ox, cy - oy, r - ARC_PEN / 2 - 1, Graphics.ARC_COUNTER_CLOCKWISE, a - ARC_SPAN, a + ARC_SPAN);
+            // Dylan 2026-11-03: flush against the screen's real edge. The arc is the circle itself
+            // (radius r) drawn ARC_PEN wide, so its outer half falls off-screen and its inner
+            // half touches the edge pixel at that height; on Enduro 3 that is x = 0 at 9 o'clock.
+            dc.setPenWidth(ARC_PEN * 2);
+            dc.drawArc(cx - ox, cy - oy, r, Graphics.ARC_COUNTER_CLOCKWISE, a - ARC_SPAN, a + ARC_SPAN);
             dc.setPenWidth(1);
             var rad = Math.toRadians(a);
-            var gr = r - 17;
+            var gr = r - ARC_PEN - 9; // glyph just inside the bar
             gx = cx + (gr * Math.cos(rad)).toNumber();
             gy = cy - (gr * Math.sin(rad)).toNumber();
         }
@@ -387,7 +392,7 @@ module MenuHint {
     //! Footer text, rendered once into a bitmap (no per-frame text raster on the home list).
     function drawFooter(dc as Graphics.Dc, w as Lang.Number, y as Lang.Number) as Void {
         footTop = y;
-        var f = Graphics.FONT_XTINY;
+        var f = Faces.light(Graphics.FONT_XTINY); // secondary text: light face
         var t = label();
         if (_footBmp == null || _footBg != Palette.BG
             || (_footBmp as Graphics.BufferedBitmapReference).get() == null) {
@@ -407,6 +412,6 @@ module MenuHint {
         dc.setColor(Palette.BG, Palette.BG);
         dc.clear();
         dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(dc.getWidth() / 2, 0, Graphics.FONT_XTINY, label(), Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(dc.getWidth() / 2, 0, Faces.light(Graphics.FONT_XTINY), label(), Graphics.TEXT_JUSTIFY_CENTER);
     }
 }

@@ -4,11 +4,12 @@ using Toybox.System;
 using Toybox.Timer;
 using Toybox.WatchUi;
 
-//! Chapter grid, and (v7, Dylan) the Filter-by-letter grid: same cells, look, snake
-//! navigation, tap flash and haptics; mode FILTER shows Flipper's 22 filters ("All", A–Z,
-//! 1–3) with the focused filter's books as the subtitle, and opens that filtered list.
+//! Chapter grid, and (Dylan 2026-11-03) Go to's first step, the LETTER grid: same cells, look,
+//! focus, snake navigation, tap flash and haptics. Mode LETTERS shows GoTo.letters() (the 17
+//! letters that start a book, then "1–3") with the focused letter's books as the subtitle, and
+//! START opens that letter (GoTo.openLetter).
 const GRID_CHAPTERS = 0;
-const GRID_FILTER = 1;
+const GRID_LETTERS = 1;
 
 class ChapterGridView extends WatchUi.View {
     var mode as Lang.Number = GRID_CHAPTERS;
@@ -35,9 +36,9 @@ class ChapterGridView extends WatchUi.View {
         rebuildGridFromState();
     }
 
-    //! Turn this view into the Filter-by-letter grid (call right after new).
-    function setFilterMode() as Void {
-        mode = GRID_FILTER;
+    //! Turn this view into Go to's letter grid (call right after new).
+    function setLetterMode() as Void {
+        mode = GRID_LETTERS;
         rebuildGridFromState();
     }
 
@@ -49,10 +50,10 @@ class ChapterGridView extends WatchUi.View {
         var h = settings.screenHeight;
         var cols = SnakeGrid.columnsForDisplayWidth(w);
         var rows = SnakeGrid.visibleRowsForHeight(h);
-        var filter = mode == GRID_FILTER;
-        var n = filter ? PickList.FILTER_LABELS.size() : Books.chapterCount(AppState.selectedBook);
+        var filter = mode == GRID_LETTERS;
+        var n = filter ? GoTo.letters().size() : Books.chapterCount(AppState.selectedBook);
         grid = new SnakeGrid.Model(n, cols, rows);
-        var focusIdx = filter ? NativeLists.filterFocus : AppState.selectedChapter - 1;
+        var focusIdx = filter ? GoTo.letterFocus : AppState.selectedChapter - 1;
         if (focusIdx < 0) {
             focusIdx = 0;
         }
@@ -69,7 +70,7 @@ class ChapterGridView extends WatchUi.View {
     }
 
     function onShow() as Void {
-        if (mode == GRID_FILTER) {
+        if (mode == GRID_LETTERS) {
             return;
         }
         // Spec: Back to grid focuses the continued chapter's book.
@@ -84,6 +85,7 @@ class ChapterGridView extends WatchUi.View {
         var t0 = Perf.start();
         onUpdateImpl(dc);
         Perf.end("grid", t0);
+        Perf.navPaint("grid");
         if (toast != null) {
             RoundLayout.drawToastPill(dc, toast as Lang.String);
         }
@@ -145,7 +147,7 @@ class ChapterGridView extends WatchUi.View {
 
     //! Whole-chapter bookmark on the focused cell, with the reader's toast (critique #5).
     function toggleChapterBookmark() as Void {
-        if (mode == GRID_FILTER) {
+        if (mode == GRID_LETTERS) {
             return; // filters have nothing to bookmark
         }
         var book = _gridBook >= 0 ? _gridBook : AppState.selectedBook;
@@ -203,11 +205,11 @@ class ChapterGridView extends WatchUi.View {
             _hdrKey = -1;
             _bodyKey = -1;
         }
-        var titleFont = Graphics.FONT_TINY;
-        var sf = Graphics.FONT_XTINY;
+        var titleFont = Zoom.GRID_TITLE_FONT;
+        var sf = Faces.light(Zoom.GRID_SUB_FONT); // secondary text: light face
         var sh = dc.getFontHeight(sf);
         var focusCh = grid.focusedChapter();
-        var filter = mode == GRID_FILTER;
+        var filter = mode == GRID_LETTERS;
         if (_top < 0 || (!filter && _gridBook != _headsBook)) {
             // Fixed grid top per book: always reserve the 2-row subtitle when the book has
             // headings, so a 1-row vs 2-row heading never shifts (and re-renders) the grid.
@@ -226,7 +228,7 @@ class ChapterGridView extends WatchUi.View {
         var titleY = _titleY;
         // POKE: GRID_MIN_CELL — a cell is never shorter than its label (Venu Sq 2's tall
         // font + 2-row subtitle overlapped rows): drop visible rows; the window scrolls.
-        var minCell = (dc.getFontHeight(Graphics.FONT_SMALL) * 4) / 5;
+        var minCell = (dc.getFontHeight(Zoom.GRID_CELL_FONT) * 4) / 5;
         while (grid.visibleRows > 1 && (_bottom - top) / grid.visibleRows < minCell) {
             grid.visibleRows -= 1;
         }
@@ -244,7 +246,7 @@ class ChapterGridView extends WatchUi.View {
         if (_subKey != subKey) {
             _subKey = subKey;
             _subParts = null;
-            var firstSec = filter ? NativeLists.filterSummary(grid.focusIndex)
+            var firstSec = filter ? GoTo.letterSummary(grid.focusIndex)
                 : firstSectionTitle(AppState.selectedBook, focusCh);
             if (firstSec != null) {
                 var st = firstSec as Lang.String;
@@ -333,7 +335,7 @@ class ChapterGridView extends WatchUi.View {
             drawCells(dc, 0, grid.focusIndex);
         }
         // Focus pill (1 text) + tap flash.
-        var smallH = dc.getFontHeight(Graphics.FONT_SMALL);
+        var smallH = dc.getFontHeight(Zoom.GRID_CELL_FONT);
         drawCell(dc, grid.focusIndex, smallH, 0, true);
         if (flashIdx >= 0) {
             var rc = cellRect(flashIdx);
@@ -349,7 +351,7 @@ class ChapterGridView extends WatchUi.View {
                 dc.setPenWidth(1);
                 dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
                 Perf.texts++;
-                dc.drawText(x + cw / 2, y + cellH / 2 - smallH / 2, Graphics.FONT_SMALL,
+                dc.drawText(x + cw / 2, y + cellH / 2 - smallH / 2, Zoom.GRID_CELL_FONT,
                             _labels[flashIdx] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
             }
         }
@@ -362,7 +364,7 @@ class ChapterGridView extends WatchUi.View {
     var _titleText as Lang.String = "";
 
     function layoutTitle(dc as Graphics.Dc, w as Lang.Number, h as Lang.Number, f as Graphics.FontDefinition) as Void {
-        var name = mode == GRID_FILTER ? NativeLists.FILTER_TITLE : Books.name(_gridBook);
+        var name = mode == GRID_LETTERS ? GoTo.TITLE : Books.name(_gridBook);
         var y = RoundLayout.edgeMargin(w, h);
         var maxY = y + dc.getFontHeight(f);
         var tw = dc.getTextWidthInPixels(name, f);
@@ -378,7 +380,7 @@ class ChapterGridView extends WatchUi.View {
     }
 
     function drawHeader(dc as Graphics.Dc, w as Lang.Number, h as Lang.Number, titleY as Lang.Number,
-                        titleFont as Graphics.FontDefinition, sf as Graphics.FontDefinition,
+                        titleFont as Graphics.FontDefinition, sf as Graphics.FontType,
                         sh as Lang.Number, top as Lang.Number) as Void {
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         Perf.texts++;
@@ -402,7 +404,7 @@ class ChapterGridView extends WatchUi.View {
 
     //! Every visible cell; dy shifts into bitmap space. focusIdx >= 0 draws that one as a pill.
     function drawCells(dc as Graphics.Dc, dy as Lang.Number, focusIdx as Lang.Number) as Void {
-        var smallH = dc.getFontHeight(Graphics.FONT_SMALL);
+        var smallH = dc.getFontHeight(Zoom.GRID_CELL_FONT);
         var idx = _firstIdx;
         var r;
         for (r = 0; r < grid.visibleRows; r++) {
@@ -440,7 +442,7 @@ class ChapterGridView extends WatchUi.View {
             dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
         }
         Perf.texts++;
-        dc.drawText(x + cellW / 2, y + _cellH / 2 - smallH / 2, Graphics.FONT_SMALL,
+        dc.drawText(x + cellW / 2, y + _cellH / 2 - smallH / 2, Zoom.GRID_CELL_FONT,
                     _labels[idx] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
     }
 
@@ -449,11 +451,11 @@ class ChapterGridView extends WatchUi.View {
                            w as Lang.Number, h as Lang.Number) as Void {
         // Per-row capacity from the chord at that row's y (outer rows hold fewer cells).
         // POKE: GRID_CELL_PAD — px of air around a label when sizing row capacity.
-        var cellPad = 14;
+        var cellPad = Zoom.GRID_CELL_PAD;
         // Size cells to the widest label in this book ("150" for Psalms), not "00"; the
-        // filter grid to its widest label ("All").
-        var widest = mode == GRID_FILTER ? "All" : (grid.itemCount >= 100 ? "000" : "00");
-        var minCellW = dc.getTextWidthInPixels(widest, Graphics.FONT_SMALL) + cellPad;
+        // letter grid to its widest label ("1–3").
+        var widest = mode == GRID_LETTERS ? GoTo.DIGITS : (grid.itemCount >= 100 ? "000" : "00");
+        var minCellW = dc.getTextWidthInPixels(widest, Zoom.GRID_CELL_FONT) + cellPad;
         _caps = [] as Lang.Array;
         _rowLeftA = [] as Lang.Array;
         _cellWA = [] as Lang.Array;
@@ -476,8 +478,8 @@ class ChapterGridView extends WatchUi.View {
             _cellWA.add(rowW / cap);
             _capTotal += cap;
         }
-        if (mode == GRID_FILTER) {
-            _labels = PickList.FILTER_LABELS;
+        if (mode == GRID_LETTERS) {
+            _labels = GoTo.letters();
         } else if (_labels.size() != grid.itemCount) {
             _labels = [] as Lang.Array;
             var i;
@@ -521,9 +523,9 @@ class ChapterGridView extends WatchUi.View {
 
     function openChapterIndex(idx as Lang.Number) as Void {
         grid.setFocusIndex(idx);
-        if (mode == GRID_FILTER) {
-            NativeLists.filterFocus = idx;
-            NativeLists.openFiltered(idx);
+        if (mode == GRID_LETTERS) {
+            GoTo.letterFocus = idx;
+            GoTo.openLetter(_labels[idx] as Lang.String);
             return;
         }
         AppState.selectedBook = _gridBook >= 0 ? _gridBook : AppState.selectedBook;
@@ -540,7 +542,7 @@ class ChapterGridView extends WatchUi.View {
     //! chapter heading cannot fit the 2-row pyramid (vivoactive5 Acts 13), so it wraps instead
     //! of ending in "…". Measured once per book; fixed per book so the grid never shifts.
     function subRowsFor(dc as Graphics.Dc, w as Lang.Number, h as Lang.Number,
-                        sf as Graphics.FontDefinition, sh as Lang.Number) as Lang.Number {
+                        sf as Graphics.FontType, sh as Lang.Number) as Lang.Number {
         var hs = _heads;
         if (hs == null) {
             return 2;
@@ -666,7 +668,7 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
     function onHold(evt) as Lang.Boolean {
         var coords = evt.getCoordinates();
         var v = gridView();
-        if (v.flashIdx >= 0 || v.mode == GRID_FILTER) {
+        if (v.flashIdx >= 0 || v.mode == GRID_LETTERS) {
             return true; // filters have nothing to bookmark
         }
         var idx = v.chapterAt(coords[0], coords[1]);
@@ -725,8 +727,8 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
     //! Leaving the grid: remember where focus was (chapter, or the filter cell).
     function leave() as Void {
         var v = gridView();
-        if (v.mode == GRID_FILTER) {
-            NativeLists.filterFocus = v.grid.focusIndex;
+        if (v.mode == GRID_LETTERS) {
+            GoTo.letterFocus = v.grid.focusIndex;
         } else {
             AppState.selectedChapter = v.grid.focusedChapter();
         }

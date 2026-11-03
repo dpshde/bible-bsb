@@ -57,6 +57,7 @@ module ContentLoader {
     }
 
     function loadChapterUncached(book as Lang.Number, chapter as Lang.Number) as Lang.Dictionary or Null {
+        Perf.chLoads++;
         var rez = resourceFor(book, chapter);
         if (rez == null) {
             return null;

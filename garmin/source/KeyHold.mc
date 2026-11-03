@@ -52,6 +52,7 @@ class KeyHold {
         stop();
         _key = -1;
         if (wasKey && key == WatchUi.KEY_ENTER && !_fired && _onShort != null) {
+            Perf.nav("start");
             (_onShort as Lang.Method).invoke();
         }
     }

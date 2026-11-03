@@ -16,10 +16,11 @@ class ThemedMenu extends WatchUi.CustomMenu {
         var h = MeasureDc.screenH();
         // POKE: MENU_ROW_H — 30% rows: only the rows above/below focus are on screen, both
         // where the circle is still wide, so no row runs into the bezel.
-        CustomMenu.initialize((h * 0.30).toNumber(), Palette.BG, {
-            :focusItemHeight => (h * 0.30).toNumber(),
-            :titleItemHeight => (h * 0.22).toNumber(),
-            :foreground => new MenuFocusMask((h * 0.30).toNumber())
+        var row = (h * Zoom.THEMED_ROW_FRAC).toNumber();
+        CustomMenu.initialize(row, Palette.BG, {
+            :focusItemHeight => row,
+            :titleItemHeight => (h * Zoom.THEMED_TITLE_FRAC).toNumber(),
+            :foreground => new MenuFocusMask(row)
         });
         _title = title;
     }
@@ -30,6 +31,7 @@ class ThemedMenu extends WatchUi.CustomMenu {
     }
 
     function drawTitle(dc as Graphics.Dc) as Void {
+        Perf.navPaint("themed menu");
         MenuWarm.start(me);
         var t0 = Perf.now();
         var ref = _titleBmp;
@@ -52,8 +54,8 @@ class ThemedMenu extends WatchUi.CustomMenu {
         dc.setColor(Palette.BG, Palette.BG);
         dc.clear();
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
-        var f = Graphics.FONT_TINY;
-        Faces.drawHead(dc, w / 2, h - dc.getFontHeight(f) - 6, f, _title, Graphics.TEXT_JUSTIFY_CENTER);
+        var f = Zoom.MENU_TITLE_FONT;
+        Faces.drawHead(dc, w / 2, h - dc.getFontHeight(f) - 5, f, _title, Graphics.TEXT_JUSTIFY_CENTER);
         dc.setColor(Palette.DIVIDER_RULE, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(w / 6, h - 2, w - w / 6, h - 2);
     }
@@ -179,11 +181,11 @@ class ThemedMenuItem extends WatchUi.CustomMenuItem {
         // POKE: MENU_ROW_ROOM — the row's room when focused; with 30% rows the rows above and
         // below focus still sit where the chord is wider than this, so one font fits both.
         var room = MenuCenter.clampRoom(dc, (w * 0.74).toNumber());
-        var f = Graphics.FONT_SMALL;
+        var f = Zoom.MENU_LABEL_FONT;
         var rows = [_label] as Lang.Array;
         if (dc.getTextWidthInPixels(_label, f) > room) {
             // Wrap to two rows (one font for both) before any "…".
-            f = Graphics.FONT_TINY;
+            f = Zoom.MENU_LABEL_FONT;
             if (dc.getTextWidthInPixels(_label, f) > room) {
                 rows = RoundLayout.wrapRows(dc, _label, f, room, 2);
             }
@@ -296,6 +298,7 @@ class MenuFocusMask extends WatchUi.Drawable {
         // Light mode has no dark strip.
         dc.fillRectangle(0, 0, (w * 0.13).toNumber() + 1, h);
         Perf.lite("mmask", t0);
+        Perf.rowsDone();
     }
 }
 
@@ -420,6 +423,15 @@ module UiMenu {
             return new WatchUi.MenuItem(label, sub, id, null);
         }
         return new ThemedMenuItem(label, sub, id);
+    }
+
+    //! A Bookmarks row: sublabel "Color · verse start". P1: the snippet is made when the row is
+    //! first drawn (BookmarkItem); other menus make it now.
+    function bookmark(label as Lang.String, color as Lang.String or Null, id as Lang.Number) {
+        if (MENU_P1) {
+            return new BookmarkItem(label, color, id);
+        }
+        return item(label, BookmarkItem.join(color, Snippets.of(id)), id);
     }
 
     //! On/off setting with a plain-language sublabel for each state.

@@ -20,6 +20,9 @@ module Nav {
 
     //! Pop the top view. At Home this exits the app (same as before).
     function pop(t as WatchUi.SlideType) as Void {
+        if (Perf.navT == 0) {
+            Perf.nav("back");
+        }
         if (depth > 0) {
             depth--;
         }

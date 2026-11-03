@@ -20,26 +20,27 @@ function testScrollVibeSettingPersists(logger as Test.Logger) as Lang.Boolean {
     return true;
 }
 
-//! v7: Filter by letter is the chapter grid in filter mode (22 cells, Flipper order).
+//! Go to's first step is the chapter grid in letter mode: 17 letters + "1–3".
 (:test)
-function testFilterGridMode(logger as Test.Logger) as Lang.Boolean {
-    NativeLists.filterFocus = 4; // "E"
+function testGoToLetterGrid(logger as Test.Logger) as Lang.Boolean {
+    GoTo.letterFocus = 4; // "G"
     var v = new ChapterGridView();
-    v.setFilterMode();
-    Test.assertEqual(v.mode, GRID_FILTER);
-    Test.assertEqual(v.grid.itemCount, 22);
+    v.setLetterMode();
+    Test.assertEqual(v.mode, GRID_LETTERS);
+    Test.assertEqual(v.grid.itemCount, 18); // 17 letters + "1–3"
     Test.assertEqual(v.grid.focusIndex, 4);
     Test.assertEqual(v._gridBook, -1);
-    NativeLists.filterFocus = 0;
+    Test.assert((GoTo.letters()[4] as Lang.String).equals("G"));
+    Test.assert((GoTo.letters()[17] as Lang.String).equals(GoTo.DIGITS));
+    GoTo.letterFocus = 0;
     return true;
 }
 
 (:test)
-function testFilterSummaries(logger as Test.Logger) as Lang.Boolean {
-    Test.assert(NativeLists.filterSummary(0).equals("All 66 books"));
-    Test.assert(NativeLists.filterSummary(3).equals("Deuteronomy, Daniel")); // "D"
-    Test.assert(NativeLists.filterSummary(9).equals("No books"));            // "K": all numbered
-    Test.assert(NativeLists.filterSummary(19).equals("17 books"));           // "1" = every numbered book
+function testGoToLetterSummaries(logger as Test.Logger) as Lang.Boolean {
+    Test.assert(GoTo.letterSummary(4).equals("Genesis, Galatians"));  // G
+    Test.assert(GoTo.letterSummary(0).equals("Amos, Acts"));          // A (canonical order)
+    Test.assert(GoTo.letterSummary(17).equals("17 books"));           // 1–3
     return true;
 }
 
@@ -77,5 +78,40 @@ function testFacesRoles(logger as Test.Logger) as Lang.Boolean {
     }
     Test.assert(Faces.body() == body);                   // cached, stable
     Test.assert(Faces.light(Graphics.FONT_XTINY) == light);
+    return true;
+}
+
+//! Dylan 2026-11-03: a bookmark's snippet is the verse itself, without the psalm superscription.
+(:test)
+function testSnippetSkipsPsalmTitle(logger as Test.Logger) as Lang.Boolean {
+    Snippets._cache = {};
+    var s23 = Snippets.make(Bookmarks.pack(18, 23, 1));
+    Test.assert(s23 != null && (s23 as Lang.String).find("The LORD is my") == 0);
+    var s9 = Snippets.make(Bookmarks.pack(18, 9, 1)); // title has curly quotes
+    Test.assert(s9 != null && (s9 as Lang.String).find("I will give thanks") == 0);
+    var s18 = Snippets.make(Bookmarks.pack(18, 18, 1)); // long title ending "He said:"
+    Test.assert(s18 != null && (s18 as Lang.String).find("I love You") == 0);
+    var s1 = Snippets.make(Bookmarks.pack(18, 1, 1)); // no title: unchanged
+    Test.assert(s1 != null && (s1 as Lang.String).find("Blessed is the man") == 0);
+    var j = Snippets.make(Bookmarks.pack(42, 11, 35));
+    Test.assert(j != null && (j as Lang.String).equals("Jesus wept."));
+    return true;
+}
+
+//! Genre spans and names match Hidden Word (public/groups.js GENRES).
+(:test)
+function testBookmarkGenres(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(Genres.ofBook(0), 0);   // Genesis: Law
+    Test.assertEqual(Genres.ofBook(16), 1);  // Esther: History
+    Test.assertEqual(Genres.ofBook(18), 2);  // Psalms: Wisdom & Poetry
+    Test.assertEqual(Genres.ofBook(43), 6);  // Acts
+    Test.assertEqual(Genres.ofBook(56), 7);  // Philemon: Pauline Letters
+    Test.assertEqual(Genres.ofBook(64), 8);  // Jude: General Letters
+    Test.assertEqual(Genres.ofBook(65), 9);  // Revelation
+    Test.assert((Genres.HW_NAMES[2] as Lang.String).equals("Wisdom & Poetry"));
+    var c = NativeLists.genreCounts([Bookmarks.pack(18, 23, 1), Bookmarks.pack(18, 1, 1), Bookmarks.pack(42, 11, 35)]);
+    Test.assertEqual(c[2], 2);
+    Test.assertEqual(c[5], 1);
+    Test.assertEqual(c[0], 0);
     return true;
 }
