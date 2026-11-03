@@ -73,9 +73,12 @@ function testBookmarkToggleNoDuplicateAndFull(logger as Test.Logger) as Lang.Boo
     Test.assertEqual(Bookmarks.load().size(), 2);
     Bookmarks.save([] as Lang.Array);
     var i;
-    for (i = 1; i <= Bookmarks.MAX_DEFAULT; i++) {
-        Bookmarks.toggle(18, 119, i);
+    // Full list (sized for a synced library): filled directly, not by thousands of toggles.
+    var full = [] as Lang.Array;
+    for (i = 0; i < Bookmarks.MAX_DEFAULT; i++) {
+        full.add(Bookmarks.pack(i % 66, 1, 1 + i / 66));
     }
+    Bookmarks.save(full);
     Test.assertEqual(Bookmarks.toggle(18, 119, 100), :full);
     Test.assertEqual(Bookmarks.load().size(), Bookmarks.MAX_DEFAULT);
     Bookmarks.save([] as Lang.Array);

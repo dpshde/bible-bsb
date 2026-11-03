@@ -732,10 +732,10 @@ module PickList {
         AppState.selectedBook = bi;
         AppState.selectedChapter = LastReadApp.chapterFor(bi); // last-read chapter, else 1
         if (Books.chapterCount(bi) == 1) {
-            ReaderView.openFor(bi, 1);
+            ReaderView.openFor(bi, 1, Nav.IN);
             return;
         }
-        WatchUi.pushView(new ChapterGridView(), new ChapterGridDelegate(), WatchUi.SLIDE_LEFT);
+        Nav.push(new ChapterGridView(), new ChapterGridDelegate(), WatchUi.SLIDE_LEFT);
     }
 }
 
@@ -821,7 +821,7 @@ class PickListDelegate extends WatchUi.BehaviorDelegate {
             var books = PickList.booksForFilter(_view.focus);
             var title = _view.focus == 0 ? "All books" : "Books: " + PickList.FILTER_LABELS[_view.focus];
             var v = new PickListView(title, PickList.bookLabels(books));
-            WatchUi.pushView(v, new PickListDelegate(v, 0, books), WatchUi.SLIDE_LEFT);
+            Nav.push(v, new PickListDelegate(v, 0, books), WatchUi.SLIDE_LEFT);
             return true;
         }
         PickList.openBook(_books[_view.focus] as Lang.Number);
@@ -843,7 +843,7 @@ class PickListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onBack() as Lang.Boolean {
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+        Nav.pop(WatchUi.SLIDE_RIGHT);
         return true;
     }
 
@@ -885,10 +885,12 @@ class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
         if (r != null) {
             out.add(["Continue", Books.refLabel(r[0] as Lang.Number, r[1] as Lang.Number, r[2] as Lang.Number), :resume]);
         }
-        var nb = Bookmarks.load().size();
-        out.add(["Bookmarks", nb == 0 ? "None yet" : (nb == 1 ? "1 saved" : nb + " saved"), :bookmarks]);
+        // Critique #1: jump anywhere by letter > book > chapter > section (GoTo.mc). It also
+        // replaces "Filter books" (critique #9: the letter list is the filter).
+        out.add(["Go to…", "Book, chapter, verse", :goto]);
+        // Critique #11: sync state on the watch where people look, e.g. "2 · synced 4m ago".
+        out.add(["Bookmarks", HwSync.bookmarksLine(Bookmarks.load().size()), :bookmarks]);
         out.add(["By Testament", "Old, New", :testament]);
-        out.add(["Filter books", "All, A to Z, 1 to 3", :letter]);
         out.add(["Settings", "Scroll, theme, buzz", :settings]);
         out.add(["About", "Bible BSB", :about]);
         return out;
@@ -902,7 +904,8 @@ class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
             var it = list[i] as Lang.Array;
             menu.addItem(UiMenu.item(it[0] as Lang.String, it[1] as Lang.String or Null, it[2] as Lang.Symbol));
         }
-        WatchUi.pushView(menu, new HomeMenu2Delegate(), WatchUi.SLIDE_UP);
+        NativeLists.homeMenu = menu; // sync-finished updates its Bookmarks sublabel
+        Nav.push(menu, new HomeMenu2Delegate(), WatchUi.SLIDE_LEFT);
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
@@ -913,31 +916,28 @@ class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
             return;
         }
         if (id == :about) {
-            WatchUi.pushView(new AboutView(), new AboutDelegate(), WatchUi.SLIDE_LEFT);
+            Nav.push(new AboutView(), new AboutDelegate(), WatchUi.SLIDE_LEFT);
             return;
         }
-        WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
+        // Critique #10: lists opened from this menu sit on top of it, so BACK returns here.
+        // A jump to a reference resets the stack to Home > Grid > Reader (Nav.openRef).
         if (id == :bookmarks) {
             NativeLists.openBookmarks();
         } else if (id == :testament) {
             NativeLists.openBrowse();
-        } else if (id == :letter) {
-            NativeLists.openFilter();
+        } else if (id == :goto) {
+            GoTo.open();
         } else if (id == :resume) {
             var r = resumeTarget();
             if (r != null) {
-                var b = r[0] as Lang.Number;
-                var c = r[1] as Lang.Number;
-                AppState.selectedBook = b;
-                LastReadApp.resumeVerse = r[2] as Lang.Number;
-                LastReadApp.pending = r;
-                ReaderView.openFor(b, c);
+                Nav.openRef(r[0] as Lang.Number, r[1] as Lang.Number, r[2] as Lang.Number, true);
             }
         }
     }
 
     function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
+        NativeLists.homeMenu = null;
+        Nav.pop(WatchUi.SLIDE_RIGHT);
     }
 }
 
@@ -978,18 +978,18 @@ class AboutDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onBack() as Lang.Boolean {
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+        Nav.pop(WatchUi.SLIDE_RIGHT);
         return true;
     }
 
     function onSelect() as Lang.Boolean {
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+        Nav.pop(WatchUi.SLIDE_RIGHT);
         return true;
     }
 
     function onSwipe(evt) as Lang.Boolean {
         if (evt.getDirection() == WatchUi.SWIPE_RIGHT) {
-            WatchUi.popView(WatchUi.SLIDE_RIGHT);
+            Nav.pop(WatchUi.SLIDE_RIGHT);
             return true;
         }
         return false;

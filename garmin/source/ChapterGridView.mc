@@ -12,6 +12,9 @@ const GRID_FILTER = 1;
 
 class ChapterGridView extends WatchUi.View {
     var mode as Lang.Number = GRID_CHAPTERS;
+    var pickOnly as Lang.Boolean = false; // Go to…: START on a chapter lists its headings (GoTo.mc)
+    var toast as Lang.String or Null = null; // critique #5: chapter bookmark feedback
+    var _toastTimer as Timer.Timer or Null = null;
     var grid as SnakeGrid.Model;
     var holdTimer as Timer.Timer or Null = null;
     var holding as Lang.Boolean = false;
@@ -81,6 +84,9 @@ class ChapterGridView extends WatchUi.View {
         var t0 = Perf.start();
         onUpdateImpl(dc);
         Perf.end("grid", t0);
+        if (toast != null) {
+            RoundLayout.drawToastPill(dc, toast as Lang.String);
+        }
         // v6: lay the focused chapter's reader out while focus rests here (instant open).
         if (flashIdx < 0 && _gridBook >= 0 && mode == GRID_CHAPTERS) {
             ReaderPrep.want(_gridBook, grid.focusedChapter());
@@ -135,6 +141,33 @@ class ChapterGridView extends WatchUi.View {
             _flashTimer = new Timer.Timer();
         }
         (_flashTimer as Timer.Timer).start(method(:onFlashDone), FLASH_MS, false);
+    }
+
+    //! Whole-chapter bookmark on the focused cell, with the reader's toast (critique #5).
+    function toggleChapterBookmark() as Void {
+        if (mode == GRID_FILTER) {
+            return; // filters have nothing to bookmark
+        }
+        var book = _gridBook >= 0 ? _gridBook : AppState.selectedBook;
+        var ch = grid.focusedChapter();
+        var r = Bookmarks.toggle(book, ch, 0);
+        // Same words as the reader's toast (a longer "Genesis 2 bookmarked" overflows the pill).
+        showToast(r == :added ? "Bookmarked" : (r == :removed ? "Bookmark removed" : "Bookmarks full"));
+        Feedback.tick();
+    }
+
+    function showToast(m as Lang.String) as Void {
+        toast = m;
+        if (_toastTimer == null) {
+            _toastTimer = new Timer.Timer();
+        }
+        (_toastTimer as Timer.Timer).start(method(:onToastDone), RoundLayout.TOAST_MS, false);
+        WatchUi.requestUpdate();
+    }
+
+    function onToastDone() as Void {
+        toast = null;
+        WatchUi.requestUpdate();
     }
 
     function onFlashDone() as Void {
@@ -495,7 +528,11 @@ class ChapterGridView extends WatchUi.View {
         }
         AppState.selectedBook = _gridBook >= 0 ? _gridBook : AppState.selectedBook;
         AppState.selectedChapter = grid.focusedChapter();
-        ReaderView.openFor(AppState.selectedBook, AppState.selectedChapter);
+        if (pickOnly) {
+            GoTo.openChapter(AppState.selectedBook, AppState.selectedChapter);
+            return;
+        }
+        ReaderView.openFor(AppState.selectedBook, AppState.selectedChapter, Nav.IN);
     }
 
     //! PERF: per-book heading index (one tiny resource per book), not a chapter JSON per focus move.
@@ -544,10 +581,33 @@ class ChapterGridView extends WatchUi.View {
 }
 
 class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
-    var _holdTimer as Timer.Timer or Null = null;
+    var _keys as KeyHold;
 
     function initialize() {
         BehaviorDelegate.initialize();
+        // START: short = open, hold = chapter bookmark; hold DOWN repeats (critique #5, #1).
+        _keys = new KeyHold(method(:activate), method(:holdStart), method(:repeatDown));
+    }
+
+    function onKeyPressed(evt as WatchUi.KeyEvent) as Lang.Boolean {
+        _keys.pressed(evt.getKey());
+        return false;
+    }
+
+    function onKeyReleased(evt as WatchUi.KeyEvent) as Lang.Boolean {
+        _keys.released(evt.getKey());
+        return false;
+    }
+
+    function holdStart() as Void {
+        var v = gridView();
+        if (v.flashIdx < 0) {
+            v.toggleChapterBookmark();
+        }
+    }
+
+    function repeatDown() as Void {
+        onNextPage();
     }
 
     function gridView() as ChapterGridView {
@@ -589,7 +649,7 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
 
     function onKey(evt as WatchUi.KeyEvent) as Lang.Boolean {
         if (evt.getKey() == WatchUi.KEY_ENTER) {
-            return activate();
+            return true; // acted on at release (KeyHold): short = open, hold = bookmark
         }
         return false;
     }
@@ -613,11 +673,7 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
         if (idx >= 0) {
             v.grid.setFocusIndex(idx);
         }
-        var ch = v.grid.focusedChapter();
-        var book = v._gridBook >= 0 ? v._gridBook : AppState.selectedBook;
-        var result = Bookmarks.toggle(book, ch, 0);
-        System.println("bookmark chapter " + result);
-        WatchUi.requestUpdate();
+        v.toggleChapterBookmark();
         return true;
     }
 
@@ -651,7 +707,7 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
         if (dir == WatchUi.SWIPE_RIGHT) {
             TouchGuard.markBack();
             leave();
-            WatchUi.popView(WatchUi.SLIDE_RIGHT);
+            Nav.pop(WatchUi.SLIDE_RIGHT);
             return true;
         }
         return false;
@@ -662,7 +718,7 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
             return true;
         }
         leave();
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+        Nav.pop(WatchUi.SLIDE_RIGHT);
         return true;
     }
 

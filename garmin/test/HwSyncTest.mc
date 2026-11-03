@@ -36,7 +36,7 @@ function testHwJsonRoundTrip(logger as Test.Logger) as Lang.Boolean {
 }
 
 (:test)
-function testHwMapRefsAndRuns(logger as Test.Logger) as Lang.Boolean {
+function testHwMapRefs(logger as Test.Logger) as Lang.Boolean {
     Test.assertEqual(HwMap.ref(44, 5, 3), "ROM.5.3");
     Test.assertEqual(HwMap.ref(63, 1, 14), "3JN.1.14");
     var p = HwMap.split("JHN.3.16") as Lang.Array;
@@ -47,25 +47,7 @@ function testHwMapRefsAndRuns(logger as Test.Logger) as Lang.Boolean {
     Test.assertEqual(refs.size(), 4); // chapter bookmark (Ps 23) is not synced
     Test.assertEqual(refs[0], "ROM.5.3");
     Test.assertEqual(refs[2], "ROM.5.5");
-    var r = HwMap.runs(["ROM.5.5", "ROM.5.3", "ROM.5.4", "ROM.5.8", "JHN.3.16"]);
-    Test.assertEqual(r.size(), 3);
-    Test.assert(r.indexOf(Bookmarks.packRange(44, 5, 3, 5)) >= 0);
-    Test.assert(r.indexOf(Bookmarks.pack(44, 5, 8)) >= 0);
-    Test.assert(r.indexOf(Bookmarks.pack(42, 3, 16)) >= 0);
-    return true;
-}
-
-(:test)
-function testHwApplyDelta(logger as Test.Logger) as Lang.Boolean {
-    var list = [Bookmarks.packRange(44, 5, 3, 5), Bookmarks.pack(18, 23, 0)];
-    // Another device removed Rom 5:4 and added John 3:16: the range splits, John 3:16 is prepended.
-    var out = HwMap.applyDelta(list, ["ROM.5.4"], ["JHN.3.16", "ROM.5.5"]);
-    Test.assertEqual(out[0], Bookmarks.pack(42, 3, 16));
-    Test.assert(out.indexOf(Bookmarks.pack(44, 5, 3)) >= 0);
-    Test.assert(out.indexOf(Bookmarks.pack(44, 5, 5)) >= 0);
-    Test.assert(out.indexOf(Bookmarks.pack(18, 23, 0)) >= 0);
-    Test.assertEqual(out.size(), 4);
-    Test.assertEqual(HwMap.applyDelta(list, [], []).size(), 2); // nothing changed, nothing touched
+    Test.assertEqual(HwMap.verseRefs([Bookmarks.pack(42, 3, 16), Bookmarks.pack(42, 3, 16)]).size(), 1); // deduped
     return true;
 }
 
@@ -78,19 +60,19 @@ function testHwMergeAndEdit(logger as Test.Logger) as Lang.Boolean {
     Test.assert(HwMap.compare(oa, a, ob, b) > 0);   // larger updated wins
     Test.assert(HwMap.compare(oa, a, oc, c) > 0);   // tie: larger UTF-8 text wins ('}' > ',')
     Test.assert(HwMap.compare(oa, a, oa, a) == 0);
-    // Bookmarking a verse that has a yellow highlight keeps the yellow part.
-    var y = HwJson.parse("{\"kind\":\"highlight\",\"ref\":\"JHN.3.16\",\"updated\":2000000000,\"highlights\":[{\"color\":\"yellow\"}]}") as HwObj;
-    var on = HwMap.edit(y, "JHN.3.16", "c-bm", true, 1900000000l);
+    // A watch bookmark adds a part in the default color and keeps the other colors' parts.
+    var y = HwJson.parse("{\"kind\":\"highlight\",\"ref\":\"JHN.3.16\",\"updated\":2000000000,\"highlights\":[{\"color\":\"c-pray\"}]}") as HwObj;
+    var on = HwMap.edit(y, "JHN.3.16", HwMap.DEFAULT_COLOR, true, 1900000000l);
     Test.assertEqual(HwMap.num(on.get("updated")), 2000000001l); // beats what it was made from
-    Test.assert(HwMap.inColor(on, "c-bm"));
+    Test.assert(HwMap.inColor(on, "yellow") && HwMap.inColor(on, "c-pray"));
     Test.assertEqual((on.get("highlights") as Lang.Array).size(), 2);
-    var off = HwMap.edit(on, "JHN.3.16", "c-bm", false, 1900000000l);
-    Test.assert(!HwMap.inColor(off, "c-bm") && off.get("deleted") == null);
-    // Removing the only part writes a tombstone.
-    var only = HwMap.edit(null, "ROM.5.3", "c-bm", true, 1900000000l);
-    var gone = HwMap.edit(only, "ROM.5.3", "c-bm", false, 1900000000l);
-    Test.assert(gone.get("deleted") == true);
-    Test.assertEqual(HwJson.stringify(gone), "{\"kind\":\"highlight\",\"ref\":\"ROM.5.3\",\"updated\":1900000001,\"deleted\":true}");
+    // Un-bookmarking on the watch deletes the highlight (the list is every color): a tombstone.
+    var off = HwMap.edit(on, "JHN.3.16", HwMap.DEFAULT_COLOR, false, 1900000000l);
+    Test.assert(off.get("deleted") == true);
+    Test.assertEqual(HwJson.stringify(off), "{\"kind\":\"highlight\",\"ref\":\"JHN.3.16\",\"updated\":2000000002,\"deleted\":true}");
+    // A new watch bookmark: one yellow part.
+    var only = HwMap.edit(null, "ROM.5.3", HwMap.DEFAULT_COLOR, true, 1900000000l);
+    Test.assertEqual(HwJson.stringify(only), "{\"kind\":\"highlight\",\"ref\":\"ROM.5.3\",\"updated\":1900000000,\"highlights\":[{\"color\":\"yellow\",\"created\":1900000000}]}");
     return true;
 }
 
@@ -116,33 +98,9 @@ function testHwTieBreak(logger as Test.Logger) as Lang.Boolean {
     var one = "{\"kind\":\"highlight\",\"ref\":\"JHN.3.16\",\"updated\":1}";
     Test.assert(HwMap.compare(HwJson.parse(one) as HwObj, one, HwJson.parse(m) as HwObj, m) > 0);
     // Writes: updated = max(now, prev + 1).
-    var later = HwMap.edit(oa, "JHN.3.16", "c-bm", true, 5l);
+    var later = HwMap.edit(oa, "JHN.3.16", HwMap.DEFAULT_COLOR, true, 5l);
     Test.assertEqual(HwMap.num(later.get("updated")), 11l);
-    Test.assertEqual(HwMap.num(HwMap.edit(oa, "JHN.3.16", "c-bm", true, 50l).get("updated")), 50l);
-    return true;
-}
-
-//! Forge prod review 2+3: new color record shape, and picking among duplicate "Bookmarks" colors.
-(:test)
-function testHwDuplicateBookmarksColors(logger as Test.Logger) as Lang.Boolean {
-    var c = HwMap.newColor("c-0a1b2c3d", 1793000000l);
-    Test.assertEqual(HwJson.stringify(c),
-        "{\"kind\":\"color\",\"ref\":\"c-0a1b2c3d\",\"updated\":1793000000,\"name\":\"Bookmarks\",\"hex\":\"#C89D54\",\"created\":1793000000}");
-    Test.assert(HwMap.isBookmarksColor(c));
-    Test.assert(!HwMap.isBookmarksColor(HwJson.parse("{\"kind\":\"color\",\"ref\":\"c-x\",\"name\":\"Bookmarks\",\"deleted\":true}") as HwObj));
-    Test.assert(!HwMap.isBookmarksColor(HwJson.parse("{\"kind\":\"color\",\"ref\":\"c-y\",\"name\":\"Prayer\",\"hex\":\"#3a7bd5\"}") as HwObj));
-    // Lowest created wins, whatever order the records arrived in.
-    Test.assertEqual(HwMap.pickColor({"c-watch" => 1793000500l, "c-phone" => 1793000000l, "c-web" => 1793000900l}), "c-phone");
-    // Tie on created -> lowest ref (byte order).
-    Test.assertEqual(HwMap.pickColor({"c-b2" => 100, "c-a9" => 100, "c-b1" => 100}), "c-a9");
-    // Missing created counts as 0 (oldest).
-    Test.assertEqual(HwMap.pickColor({"c-new" => 1793000000l, "c-old" => null}), "c-old");
-    Test.assert(HwMap.pickColor({}) == null);
-    // Duplicates are never merged: bookmarking in the chosen color keeps the other color's part.
-    var y = HwJson.parse("{\"kind\":\"highlight\",\"ref\":\"ROM.8.1\",\"updated\":5,\"highlights\":[{\"color\":\"c-watch\",\"created\":4}]}") as HwObj;
-    var on = HwMap.edit(y, "ROM.8.1", "c-phone", true, 6l);
-    Test.assert(HwMap.inColor(on, "c-phone") && HwMap.inColor(on, "c-watch"));
-    Test.assert(HwMap.inColor(HwMap.edit(on, "ROM.8.1", "c-phone", false, 7l), "c-watch"));
+    Test.assertEqual(HwMap.num(HwMap.edit(oa, "JHN.3.16", HwMap.DEFAULT_COLOR, true, 50l).get("updated")), 50l);
     return true;
 }
 
@@ -214,6 +172,8 @@ function testHwRecordShardsFitStorage(logger as Test.Logger) as Lang.Boolean {
 
 (:test)
 module HwT {
+var hits as Lang.Number = 0;
+function hit() as Void { hits++; }
 //! n distinct realistic highlight records, split the way HwSync shards them.
 function hwShards(n as Lang.Number) as Lang.Array {
     var rec = "{\"kind\":\"highlight\",\"ref\":\"PSA.119.\",\"updated\":1793000000,\"highlights\":[{\"color\":\"yellow\",\"created\":1792000000}]}";
@@ -234,9 +194,8 @@ function testHwStatusWords(logger as Test.Logger) as Lang.Boolean {
     Test.assertEqual(HwSync.why(-104), "phone not connected");
     Test.assertEqual(HwSync.why(401), "sync key not accepted");
     Test.assertEqual(HwSync.why(-300), "timed out: phone offline?");
-    Test.assertEqual(HwSync.nearMiss({"c-1" => "Prayer", "yellow" => "Bookmarks"}), "");
-    Test.assertEqual(HwSync.nearMiss({"c-1" => " bookmark "}), ": ' bookmark ' must be exactly 'Bookmarks'");
-    Test.assertEqual(HwSync.nearMiss({"c-1" => "BOOKMARKS"}), ": 'BOOKMARKS' must be exactly 'Bookmarks'");
+    Test.assertEqual(HwSync.statusLine("2:51 PM", 412, 7, 412, 0), "ok 2:51 PM: 412 highlights in 7 colors; read 412, sent 0");
+    Test.assertEqual(HwSync.statusLine("9:05", 1, 1, 3, 1), "ok 9:05: 1 highlight in 1 color; read 3, sent 1");
     var c = HwSync.clock();
     Test.assert(c.find(":") != null);
     return true;
@@ -260,5 +219,116 @@ function testHwLegacyRecsMigrate(logger as Test.Logger) as Lang.Boolean {
     Test.assert(!HwSync.sameLib());
     HwSync.wipe();
     Test.assert(HwSync.sameLib()); // nothing stored
+    return true;
+}
+
+//! Dylan 2:48 PM: every color comes in; the list shows each verse's top color by name.
+(:test)
+function testHwTopColorAndLabel(logger as Test.Logger) as Lang.Boolean {
+    var r = HwJson.parse("{\"kind\":\"highlight\",\"ref\":\"PHP.4.13\",\"updated\":9,\"highlights\":[{\"color\":\"c-pray\",\"created\":5},{\"color\":\"blue\",\"created\":3,\"edited\":8},{\"color\":\"green\",\"created\":7}]}") as HwObj;
+    Test.assertEqual(HwMap.topColor(r), "blue"); // edited 8 beats created 7 and 5
+    Test.assert(HwMap.topColor(HwJson.parse("{\"kind\":\"highlight\",\"ref\":\"PHP.4.13\",\"deleted\":true}") as HwObj) == null);
+    var names = {"c-pray" => "Prayer", "yellow" => "Promises"};
+    Test.assertEqual(HwMap.colorLabel("c-pray", names), "Prayer");
+    Test.assertEqual(HwMap.colorLabel("yellow", names), "Promises"); // a named built-in
+    Test.assertEqual(HwMap.colorLabel("pink", names), "Pink");
+    Test.assertEqual(HwMap.colorLabel("c-gone", names), "Color");
+    Test.assertEqual(HwMap.DEFAULT_COLOR, "yellow");
+    return true;
+}
+
+//! Large libraries are the normal case now: 3,000 highlights across 10 colors. The index is
+//! sharded (one 0.9.1 value crashed past ~800), every shard is written and read back, and the
+//! watch's list takes all 3,000 verses within one Storage value.
+(:test)
+function testHwIndex3000Highlights(logger as Test.Logger) as Lang.Boolean {
+    HwSync.wipe();
+    var colors = ["yellow", "green", "blue", "pink", "purple", "orange", "c-pray", "c-hope", "c-work", "c-kids"];
+    var cnt = {};
+    var n = 0;
+    for (var b = 0; b < 66 && n < 3000; b++) {
+        for (var c = 1; c <= Books.chapterCount(b) && n < 3000; c++) {
+            for (var v = 1; v <= 3 && n < 3000; v++) {
+                HwSync.ixSet(HwMap.ref(b, c, v), colors[n % 10] as Lang.String, 1793000000 + n, cnt);
+                n++;
+            }
+        }
+    }
+    HwSync.ixFlush();
+    Test.assertEqual(n, 3000);
+    Test.assertEqual(cnt.size(), 10);
+    var total = 0;
+    for (var i = 0; i < HwSync.IX_SHARDS; i++) {
+        var d = Application.Storage.getValue(HwSync.S_IX + i) as Lang.Dictionary;
+        Test.assert(d.size() < 300); // spread: ~190 per shard, each value well under 32 KB
+        total += d.size();
+    }
+    Test.assertEqual(total, 3000);
+    Test.assertEqual((HwSync.ixGet("GEN.1.1") as Lang.Array)[0], "yellow");
+    // Re-coloring and deleting keep the per-color counts right.
+    HwSync.ixSet("GEN.1.1", "c-pray", 1793009999, cnt);
+    HwSync.ixSet("GEN.1.2", null, 1793009999, cnt);
+    Test.assert(cnt.get("yellow") == 299);
+    Test.assert(cnt.get("c-pray") == 301);
+    Test.assert(cnt.get("green") == 299);
+    // The list: 3,000 synced verses in one value.
+    Bookmarks.save([] as Lang.Array);
+    for (var k = 0; k < 3000; k++) { Bookmarks.syncAdd(k % 66, 1, 1 + k / 66); }
+    Test.assert(Bookmarks.syncFlush());
+    Test.assertEqual(Bookmarks.load().size(), 3000);
+    Bookmarks._cache = null; // read back from Storage
+    Test.assertEqual(Bookmarks.load().size(), 3000);
+    Bookmarks.save([] as Lang.Array);
+    HwSync.wipe();
+    return true;
+}
+
+//! Remote add/remove on the watch's list: covered verses aren't duplicated, ranges split.
+(:test)
+function testHwSyncListChanges(logger as Test.Logger) as Lang.Boolean {
+    Bookmarks.save([Bookmarks.packRange(44, 5, 3, 5), Bookmarks.pack(18, 23, 0)]);
+    Bookmarks.syncAdd(44, 5, 4);   // inside the range: no new row
+    Bookmarks.syncAdd(42, 3, 16);
+    Bookmarks.syncRemove(44, 5, 4); // splits Rom 5:3-5
+    Test.assert(Bookmarks.syncFlush());
+    var l = Bookmarks.load();
+    Test.assertEqual(l[0], Bookmarks.pack(42, 3, 16)); // newest first
+    Test.assert(l.indexOf(Bookmarks.pack(44, 5, 3)) >= 0 && l.indexOf(Bookmarks.pack(44, 5, 5)) >= 0);
+    Test.assert(l.indexOf(Bookmarks.pack(18, 23, 0)) >= 0); // chapter bookmark untouched
+    Test.assertEqual(l.size(), 4);
+    Test.assert(!Bookmarks.syncFlush()); // nothing pending
+    Bookmarks.save([] as Lang.Array);
+    return true;
+}
+
+//! Local changes are journaled per verse (a range = each verse), chapter bookmarks are not.
+(:test)
+function testHwLocalJournal(logger as Test.Logger) as Lang.Boolean {
+    Application.Storage.deleteValue(HwSync.S_OPS);
+    HwSync.local(Bookmarks.packRange(44, 5, 3, 4), true);
+    HwSync.local(Bookmarks.pack(18, 23, 0), true);
+    HwSync.local(Bookmarks.pack(42, 3, 16), false);
+    var ops = Application.Storage.getValue(HwSync.S_OPS) as Lang.Array;
+    Test.assertEqual(ops.size(), 3);
+    Test.assertEqual((ops[1] as Lang.Array)[0], "ROM.5.4");
+    Test.assertEqual((ops[2] as Lang.Array)[1], false);
+    Test.assertEqual(HwSync.pendingOps()["JHN.3.16"], false);
+    Application.Storage.deleteValue(HwSync.S_OPS);
+    return true;
+}
+
+//! Dylan 3:03 PM: a finished sync (ok or error) reaches the one listener, and the open Bookmarks
+//! list rebuilds only when the bookmarks changed (else just its Sync row updates).
+(:test)
+function testHwSyncFinishedListener(logger as Test.Logger) as Lang.Boolean {
+    HwT.hits = 0;
+    var was = HwSync.onFinished;
+    HwSync.onFinished = new Lang.Method(HwT, :hit);
+    HwSync.finished();
+    HwSync.fail(-104); // an error ends the sync too
+    Test.assertEqual(HwT.hits, 2);
+    HwSync.onFinished = was;
+    Test.assert(HwSync.shortStatus.find("error") == 0);
+    Test.assert(NativeLists.listChanged(3, 4) && !NativeLists.listChanged(4, 4));
     return true;
 }

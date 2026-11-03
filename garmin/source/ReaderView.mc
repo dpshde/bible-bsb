@@ -1524,7 +1524,7 @@ class ReaderView extends WatchUi.View {
 
     static var pendingRange as Lang.Array or Null = null; // [book, chapter, start, end]
 
-    static function openFor(book as Lang.Number, chapter as Lang.Number) as Void {
+    static function openFor(book as Lang.Number, chapter as Lang.Number, t as WatchUi.SlideType) as Void {
         AppState.selectedBook = book;
         AppState.selectedChapter = chapter;
         Perf.markOpen();
@@ -1540,16 +1540,45 @@ class ReaderView extends WatchUi.View {
             (view as ReaderView).showRange(pr[0] as Lang.Number, pr[1] as Lang.Number,
                                            pr[2] as Lang.Number, pr[3] as Lang.Number);
         }
-        WatchUi.pushView(view, new ReaderDelegate(view), WatchUi.SLIDE_LEFT);
+        Nav.push(view, new ReaderDelegate(view), t);
     }
 }
 
 class ReaderDelegate extends WatchUi.BehaviorDelegate {
     var _view as ReaderView;
+    var _keys as KeyHold;
 
     function initialize(view as ReaderView) {
         BehaviorDelegate.initialize();
         _view = view;
+        // Critique #3: hold START bookmarks the verse (toast); a short START opens the menu on
+        // release. Critique #12: hold DOWN keeps stepping. See KeyHold for the device TODO.
+        _keys = new KeyHold(method(:shortStart), method(:holdStart), method(:repeatDown));
+    }
+
+    function onKeyPressed(evt as WatchUi.KeyEvent) as Lang.Boolean {
+        if (!_view.selPick) {
+            _keys.pressed(evt.getKey());
+        }
+        return false;
+    }
+
+    function onKeyReleased(evt as WatchUi.KeyEvent) as Lang.Boolean {
+        _keys.released(evt.getKey());
+        return false;
+    }
+
+    //! Critique #8: no settle gate for buttons (only taps can be aimed at the previous screen).
+    function shortStart() as Void {
+        _view.openMenu();
+    }
+
+    function holdStart() as Void {
+        _view.bookmarkFocusedVerse();
+    }
+
+    function repeatDown() as Void {
+        step(1, false);
     }
 
     // POKE: SCROLL_STEP — buttons (onKey UP/DOWN) = one step (line, or verse start);
@@ -1612,10 +1641,7 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
         }
         _view.clearRange(); // an opened range's highlight ends on the first press
         if (k == WatchUi.KEY_ENTER) {
-            if (InputGate.accept(_view.shownAt, System.getTimer())) {
-                _view.openMenu();
-            }
-            return true;
+            return true; // acted on at release (KeyHold): short = menu, hold = bookmark
         }
         if (k == WatchUi.KEY_DOWN) {
             return step(1, false);
@@ -1671,7 +1697,7 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
             // POKE: swipe-right = back
             TouchGuard.markBack();
             syncCurrentFromFocus();
-            WatchUi.popView(WatchUi.SLIDE_RIGHT);
+            Nav.pop(WatchUi.SLIDE_RIGHT);
             return true;
         }
         return false;
@@ -1695,7 +1721,7 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
         }
         // SPEC: return to grid for *current* (possibly continued) chapter.
         syncCurrentFromFocus();
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+        Nav.pop(WatchUi.SLIDE_RIGHT);
         return true;
     }
 }

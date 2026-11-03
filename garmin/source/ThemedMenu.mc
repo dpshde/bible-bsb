@@ -393,12 +393,19 @@ module UiMenu {
     //! Menu2 themes fall back to the gold CustomMenu below. Rows stay inside the round screen by
     //! keeping labels and sublabels short (NativeLists), since Menu2 cannot inset rows.
     const MENU_NATIVE = true;
+    // POKE: MENU_P1 — true (Dylan 2:56 PM): every list is a P1Menu (native Menu2 layout, P1
+    // colors, follows Dark/Light) on every target. false: Menu2 + MENU_THEME_ORANGE as before.
+    const MENU_P1 = true;
+    var lastFocusId = null; // id of the P1 row drawn focused last (Menu2 has no getFocus)
 
     function isNative() as Lang.Boolean {
         return MENU_NATIVE && MenuStyle.DARK_NATIVE && (WatchUi has :MENU_THEME_ORANGE);
     }
 
     function create(title as Lang.String) {
+        if (MENU_P1) {
+            return new P1Menu(title);
+        }
         if (isNative()) {
             return new WatchUi.Menu2({:title => title, :theme => WatchUi.MENU_THEME_ORANGE});
         }
@@ -406,6 +413,9 @@ module UiMenu {
     }
 
     function item(label as Lang.String, sub as Lang.String or Null, id as Lang.Object) {
+        if (MENU_P1) {
+            return new P1MenuItem(label, sub, id);
+        }
         if (isNative()) {
             return new WatchUi.MenuItem(label, sub, id, null);
         }
@@ -416,6 +426,9 @@ module UiMenu {
     //! Native: ToggleMenuItem (system switch). Fallback: ThemedToggleItem (sublabel flips).
     function toggle(label as Lang.String, subOn as Lang.String, subOff as Lang.String,
                     on as Lang.Boolean, id as Lang.Object) {
+        if (MENU_P1) {
+            return new P1ToggleItem(label, subOn, subOff, on, id);
+        }
         if (isNative()) {
             // Plain native item whose sublabel names the current state: no system switch
             // (the system draws it green on every target, and green is off-palette).
@@ -426,6 +439,9 @@ module UiMenu {
 
     //! State after the user selected a toggle item (native flips it itself).
     function toggledState(item) as Lang.Boolean {
+        if (item instanceof P1ToggleItem) {
+            return (item as P1ToggleItem).flip();
+        }
         if (item instanceof ThemedToggleItem) {
             return (item as ThemedToggleItem).flip();
         }

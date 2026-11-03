@@ -49,6 +49,7 @@ class BookListView extends WatchUi.View {
 
     function onShow() as Void {
         Feedback.refresh(); // pick up a changed watch vibration setting / our Settings
+        Nav.takeLaunch(); // first show after launch: jump to the last-read verse (once)
     }
 
     function onHide() as Void {
@@ -69,8 +70,25 @@ class BookListView extends WatchUi.View {
 }
 
 class BookListDelegate extends WatchUi.BehaviorDelegate {
+    var _keys as KeyHold;
+
     function initialize() {
         BehaviorDelegate.initialize();
+        _keys = new KeyHold(null, null, method(:repeatDown)); // critique #1: hold DOWN repeats
+    }
+
+    function onKeyPressed(evt as WatchUi.KeyEvent) as Lang.Boolean {
+        _keys.pressed(evt.getKey());
+        return false;
+    }
+
+    function onKeyReleased(evt as WatchUi.KeyEvent) as Lang.Boolean {
+        _keys.released(evt.getKey());
+        return false;
+    }
+
+    function repeatDown() as Void {
+        onNextPage();
     }
 
     function view() as BookListView {
@@ -151,8 +169,8 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
             return true; // the drag already moved the list
         }
         if (dir == WatchUi.SWIPE_LEFT) {
-            // Flipper home Right = Filter: swipe left opens all 22 filters.
-            NativeLists.openFilter();
+            // Flipper home Right = Filter. Critique #9: the filter is now Go to…'s letter list.
+            GoTo.open();
             return true;
         }
         if (dir == WatchUi.SWIPE_UP) {
@@ -173,7 +191,7 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
         }
         if (dir == WatchUi.SWIPE_RIGHT) {
             TouchGuard.markBack();
-            WatchUi.popView(WatchUi.SLIDE_RIGHT);
+            Nav.pop(WatchUi.SLIDE_RIGHT);
             return true;
         }
         return false;
@@ -191,7 +209,7 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
         if (TouchGuard.consumeBack()) {
             return true;
         }
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+        Nav.pop(WatchUi.SLIDE_RIGHT);
         return true;
     }
 }

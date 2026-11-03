@@ -54,9 +54,10 @@ class BsbGlanceView extends WatchUi.GlanceView {
         var y = (h - total) / 2 - (dc.getFontHeight(tf) - Graphics.getFontAscent(tf)) / 2;
         var ds = System.getDeviceSettings();
         var amoled = (ds has :requiresBurnInProtection) && ds.requiresBurnInProtection;
-        dc.setColor(amoled ? 0xC89D54 : 0xFFAA55, Graphics.COLOR_TRANSPARENT); // gold; MIP nearest
+        // Colors: BrandColors (Palette.mc). Title gold; body P1 cream (MIP: palette gray).
+        dc.setColor(amoled ? BrandColors.GOLD : BrandColors.MIP_GOLD, Graphics.COLOR_TRANSPARENT);
         dc.drawText(0, y, tf, head, Graphics.TEXT_JUSTIFY_LEFT);
-        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(amoled ? BrandColors.CREAM : BrandColors.MIP_GRAY, Graphics.COLOR_TRANSPARENT);
         var r;
         for (r = 0; r < rows.size(); r++) {
             dc.drawText(0, y + th + bh * r, bf, rows[r] as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);

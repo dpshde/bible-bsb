@@ -9,11 +9,18 @@ using Toybox.Time.Gregorian;
 using Toybox.Timer;
 using Toybox.WatchUi;
 
-//! Watch bookmarks <-> Hidden Word highlights (SPEC §1.2: "a highlight in a color named
-//! Bookmarks does the same job"). Pure mapping lives here so it can be unit tested.
+//! Watch bookmarks <-> Hidden Word highlights. Dylan 2:48 PM (2026-11-03): the watch shows every
+//! highlight of every color as a bookmark (with its color's name), and a bookmark made on the
+//! watch is a highlight in Hidden Word's default color. Pure mapping lives here (unit tested).
 module HwMap {
-    const COLOR_NAME = "Bookmarks";
-    const COLOR_HEX = "#C89D54";
+    // POKE: WATCH_BOOKMARK_COLOR — a watch bookmark pushes as a part in Hidden Word's default
+    // highlight color, never a custom "Bookmarks" color. dpshde/hidden-word-sync@48b7c40:
+    // public/app.js:205 a new highlight's color is `... ?? "yellow"`, public/sync.js:9 COLORS
+    // starts with "yellow", and SPEC.md:65/:102/:285 an unknown or missing color means yellow.
+    // A part's `color` field is required by SPEC §1.2 (no server-side default), so it is sent.
+    const DEFAULT_COLOR = "yellow";
+    // SPEC §1.4 built-in color ids (named by a `color` record, or shown by id).
+    const BUILT_IN = ["yellow", "green", "blue", "pink", "purple", "orange"];
 
     //! "ROM.5.3" (USFM book code, KJV numbering — see versification note in HwSync).
     function ref(book as Lang.Number, chapter as Lang.Number, verse as Lang.Number) as Lang.String {
@@ -37,40 +44,17 @@ module HwMap {
     }
 
     //! Every verse ref covered by the watch's bookmarks (chapter-level bookmarks are not synced).
+    //! Dictionary dedupe: lists now hold thousands of synced highlights.
     function verseRefs(list as Lang.Array) as Lang.Array<Lang.String> {
         var out = [] as Lang.Array<Lang.String>;
+        var seen = {};
         for (var i = 0; i < list.size(); i++) {
             var id = list[i] as Lang.Number;
             var s = Bookmarks.unpackVerse(id);
             if (s <= 0) { continue; }
             for (var v = s; v <= Bookmarks.unpackEnd(id); v++) {
                 var r = ref(Bookmarks.unpackBook(id), Bookmarks.unpackChapter(id), v);
-                if (out.indexOf(r) < 0) { out.add(r); }
-            }
-        }
-        return out;
-    }
-
-    //! Runs of consecutive verses (same book + chapter) -> packed range bookmark ids.
-    function runs(refs as Lang.Array<Lang.String>) as Lang.Array<Lang.Number> {
-        var keys = [] as Lang.Array<Lang.Number>; // book*1000+chapter -> verses
-        var vss = [] as Lang.Array;
-        for (var i = 0; i < refs.size(); i++) {
-            var p = split(refs[i]);
-            if (p == null) { continue; }
-            var k = p[0] * 1000 + p[1];
-            var j = keys.indexOf(k);
-            if (j < 0) { keys.add(k); vss.add([p[2]]); } else if ((vss[j] as Lang.Array).indexOf(p[2]) < 0) { (vss[j] as Lang.Array).add(p[2]); }
-        }
-        var out = [] as Lang.Array<Lang.Number>;
-        for (var j = 0; j < keys.size(); j++) {
-            var vs = sortNums(vss[j] as Lang.Array<Lang.Number>);
-            var st = vs[0];
-            for (var i = 1; i <= vs.size(); i++) {
-                if (i == vs.size() || vs[i] != vs[i - 1] + 1) {
-                    out.add(Bookmarks.packRange(keys[j] / 1000, keys[j] % 1000, st, vs[i - 1]));
-                    if (i < vs.size()) { st = vs[i]; }
-                }
+                if (!seen.hasKey(r)) { seen[r] = true; out.add(r); }
             }
         }
         return out;
@@ -85,50 +69,6 @@ module HwMap {
             a[j + 1] = x;
         }
         return a;
-    }
-
-    function sortNums(a as Lang.Array<Lang.Number>) as Lang.Array<Lang.Number> {
-        for (var i = 1; i < a.size(); i++) {
-            var x = a[i];
-            var j = i - 1;
-            while (j >= 0 && a[j] > x) { a[j + 1] = a[j]; j--; }
-            a[j + 1] = x;
-        }
-        return a;
-    }
-
-    //! Apply what another device changed: verses `removed` leave their bookmarks (a range splits
-    //! around them), verses `added` that no bookmark covers become new (newest-first) range bookmarks.
-    //! The watch's own ranges, order and chapter bookmarks are otherwise kept.
-    function applyDelta(list as Lang.Array, removed as Lang.Array<Lang.String>, added as Lang.Array<Lang.String>) as Lang.Array<Lang.Number> {
-        var kept = [] as Lang.Array<Lang.Number>;
-        for (var i = 0; i < list.size(); i++) {
-            var id = list[i] as Lang.Number;
-            var s = Bookmarks.unpackVerse(id);
-            if (s <= 0 || removed.size() == 0) { kept.add(id); continue; }
-            var b = Bookmarks.unpackBook(id);
-            var c = Bookmarks.unpackChapter(id);
-            var st = -1;
-            for (var v = s; v <= Bookmarks.unpackEnd(id) + 1; v++) {
-                var gone = v > Bookmarks.unpackEnd(id) || removed.indexOf(ref(b, c, v)) >= 0;
-                if (!gone && st < 0) { st = v; }
-                if (gone && st > 0) {
-                    var nid = Bookmarks.packRange(b, c, st, v - 1);
-                    if (kept.indexOf(nid) < 0) { kept.add(nid); }
-                    st = -1;
-                }
-            }
-        }
-        var have = verseRefs(kept);
-        var fresh = [] as Lang.Array<Lang.String>;
-        for (var i = 0; i < added.size(); i++) {
-            if (have.indexOf(added[i]) < 0) { fresh.add(added[i]); }
-        }
-        var out = runs(fresh);
-        for (var i = 0; i < kept.size(); i++) {
-            if (out.indexOf(kept[i]) < 0) { out.add(kept[i]); }
-        }
-        return out;
     }
 
     //! SPEC §3: > 0 when version a beats b. Larger `updated` wins (missing / non-integer = 0).
@@ -170,27 +110,33 @@ module HwMap {
         return out;
     }
 
-    //! A color record that can be "the" Bookmarks color: live and named Bookmarks.
-    function isBookmarksColor(r as HwObj) as Lang.Boolean {
-        return "color".equals(r.get("kind")) && r.get("deleted") != true && COLOR_NAME.equals(r.get("name"));
-    }
-
-    //! Which of several "Bookmarks" colors the watch uses (Forge, prod review (b)): the lowest
-    //! `created` (missing = 0, like `updated`), then the lowest ref. `cands` is color ref -> created.
-    //! Every device picks the same one; duplicates are never deleted or merged.
-    function pickColor(cands as Lang.Dictionary) as Lang.String or Null {
-        var ks = cands.keys();
+    //! The color a highlight shows as: its most recently colored part's (edited, else created,
+    //! later parts win ties), same as the reference client's topColor (public/sync.js:229).
+    //! null for a tombstone or a record with no parts.
+    function topColor(r as HwObj) as Lang.String or Null {
+        if (r.get("deleted") == true || !"highlight".equals(r.get("kind"))) { return null; }
+        var hs = r.get("highlights");
+        if (!(hs instanceof Lang.Array)) { return null; }
         var best = null;
         var bestAt = 0l;
-        for (var i = 0; i < ks.size(); i++) {
-            var r = ks[i] as Lang.String;
-            var at = num(cands[r]);
-            if (best == null || at < bestAt || (at == bestAt && cmpBytes(HwB.utf8(r), HwB.utf8(best as Lang.String)) < 0)) {
-                best = r;
-                bestAt = at;
-            }
+        for (var i = 0; i < hs.size(); i++) {
+            if (!(hs[i] instanceof HwObj)) { continue; }
+            var h = hs[i] as HwObj;
+            var c = h.get("color");
+            if (!(c instanceof Lang.String)) { continue; }
+            var at = h.get("edited") != null ? num(h.get("edited")) : num(h.get("created"));
+            if (best == null || at >= bestAt) { best = c; bestAt = at; }
         }
         return best;
+    }
+
+    //! What the Bookmarks list shows for a color id: the library's name for it, else the
+    //! built-in id capitalized ("Yellow"); a nameless custom color shows "Color".
+    function colorLabel(id as Lang.String, names as Lang.Dictionary) as Lang.String {
+        var n = names[id];
+        if (n instanceof Lang.String && (n as Lang.String).length() > 0) { return n as Lang.String; }
+        if (BUILT_IN.indexOf(id) >= 0) { return id.substring(0, 1).toUpper() + id.substring(1, null); }
+        return "Color";
     }
 
     //! SPEC §5.3 plaintext: UTF-8 JSON padded with spaces to a multiple of 256 bytes, at least 256.
@@ -202,17 +148,11 @@ module HwMap {
         return pt;
     }
 
-    //! A new Bookmarks color record (SPEC §1.4): random `c-` id, gold hex, created.
-    function newColor(r as Lang.String, now as Lang.Long) as HwObj {
-        return new HwObj().put("kind", "color").put("ref", r).put("updated", now)
-            .put("name", COLOR_NAME).put("hex", COLOR_HEX).put("created", now);
-    }
-
     function num(v) as Lang.Long {
         return (v instanceof Lang.Number || v instanceof Lang.Long) ? v.toLong() : 0l;
     }
 
-    //! Does this record put its verse in the Bookmarks color?
+    //! Does this record have a part in `color`?
     function inColor(r as HwObj or Null, color as Lang.String or Null) as Lang.Boolean {
         if (r == null || color == null || r.get("deleted") == true || !"highlight".equals(r.get("kind"))) { return false; }
         var hs = r.get("highlights");
@@ -224,11 +164,17 @@ module HwMap {
         return false;
     }
 
-    //! The record the watch writes when a verse gains (on=true) or loses its Bookmarks part.
-    //! Other colors' parts and unknown fields are kept; losing the last part writes a tombstone.
+    //! The record the watch writes when a verse is bookmarked (on=true: a part in `color` is added,
+    //! other colors' parts and unknown fields kept) or un-bookmarked (on=false: a tombstone, since
+    //! the watch's list is every highlight of every color, removing one deletes the highlight).
+    //! POKE: WATCH_REMOVE_DELETES — un-bookmarking on the watch deletes the verse's highlight in
+    //! every color (the list shows all colors as one bookmark).
     function edit(old as HwObj or Null, r as Lang.String, color as Lang.String, on as Lang.Boolean, now as Lang.Long) as HwObj {
         var upd = now;
         if (old != null && num(old.get("updated")) + 1 > upd) { upd = num(old.get("updated")) + 1; }
+        if (!on) {
+            return new HwObj().put("kind", "highlight").put("ref", r).put("updated", upd).put("deleted", true);
+        }
         var live = old != null && old.get("deleted") != true;
         var parts = [] as Lang.Array;
         if (live && (old as HwObj).get("highlights") instanceof Lang.Array) {
@@ -237,12 +183,7 @@ module HwMap {
                 if (!(hs[i] instanceof HwObj && color.equals((hs[i] as HwObj).get("color")))) { parts.add(hs[i]); }
             }
         }
-        if (on) {
-            parts.add(new HwObj().put("color", color).put("created", now));
-        }
-        if (parts.size() == 0) {
-            return new HwObj().put("kind", "highlight").put("ref", r).put("updated", upd).put("deleted", true);
-        }
+        parts.add(new HwObj().put("color", color).put("created", now));
         var o = live ? old as HwObj : new HwObj().put("kind", "highlight").put("ref", r);
         o.put("updated", upd);
         o.put("highlights", parts);
@@ -261,12 +202,15 @@ module HwMap {
 //!   `more`. POSTs carry at most POST_MAX items (server cap 100), halved on -102.
 //! - Pacing: crypto by 256-byte block budget, record edits EDITS_PER_TICK per tick; items over
 //!   MAX_BLOCKS (long notes) are passed over undecrypted.
-//! - Bookmarks color: chosen only after a complete pull, lowest `created` then lowest ref among live
-//!   colors named Bookmarks (HwMap.pickColor); created by the watch only when none exists.
+//! - Colors (Dylan 2:48 PM): every highlight of every color is pulled. Others' highlights are kept
+//!   as a compact index (ref -> [top color, updated], IX_SHARDS values), not as record texts; the
+//!   watch keeps full texts only of records it wrote (for the §3 tie-break and refill). A watch
+//!   bookmark is a part in HwMap.DEFAULT_COLOR ("yellow"); no color record is ever created.
+//! - Local changes are journaled (S_OPS, from Bookmarks.toggle/addRange/remove), not diffed
+//!   against the whole list: a diff of thousands of verses trips the watchdog.
 //! - Refill (§5.6 step 3, watch exception agreed with Forge): after an epoch change or seq going
-//!   back the watch re-pushes only its own records, i.e. the highlight records of verses in its
-//!   Bookmarks color, that color record and unsent local edits. It keeps no notes, x- kinds or big
-//!   items at all, and doesn't re-send other devices' records, so phones and the web refill those.
+//!   back the watch re-pushes only its own records (the ones it wrote) and unsent edits; phones
+//!   and the web refill the rest.
 //! Off unless Garmin Connect settings give a server, a sync key and
 //! "Sync bookmarks" = on: then no network call is ever made. Work is paced 1–2 records per
 //! timer tick (the watchdog trips around the third 256-byte GCM op in one event).
@@ -280,16 +224,26 @@ module HwSync {
     const SHARDS = 16;         // one dict of 250 records (~30 KB) crashes Storage.setValue (Out Of Memory,
                                // uncatchable; devices cap values at 32 KB): 16 shards hold ~3,000
     const S_LIB = "hwLib";     // library id the stored state belongs to (a key change starts over)
-    const S_NAMES = "hwNames"; // live color ref -> name (for the status line)
-    const S_MINE = "hwMine";   // the Bookmarks color the watch created itself, if any
+    const S_NAMES = "hwNames"; // color ref -> name (Bookmarks list labels)
+    const S_HEX = "hwHex";     // color ref -> "#RRGGBB" when the color record gives one
+    const S_OKAT = "hwOkAt";   // Unix time of the last sync that ended ok (home menu "synced 4m ago")
     const S_DIRTY = "hwDirty"; // item ids the server doesn't have yet
-    const S_BM = "hwBm";       // verse refs currently in the Bookmarks color
-    const S_COLOR = "hwColor";
     const S_CUR = "hwCur";
     const S_SEQ = "hwSeq";
     const S_EPOCH = "hwEpoch";
-    const S_IDX = "hwIdx";     // highlight ref -> its colors (so a rescan never re-parses records)
-    const S_CANDS = "hwCands"; // live "Bookmarks" color refs -> created
+    // Highlight index, sharded like the records: hwX0..hwX15, verse ref -> [top color, updated].
+    // 0.9.1 kept it in one value (hwIdx), which crashes Storage.setValue past ~800 highlights.
+    const S_IX = "hwX";
+    const IX_SHARDS = 16;      // 3,000 highlights = ~190 per shard, ~7 KB each
+    const IX_CACHED = 4;       // shards held in memory at once (LRU), the rest stay in Storage
+    const S_CNT = "hwCnt";     // color ref -> highlights in it (status line)
+    const S_OPS = "hwOps";     // journal of local bookmark changes: [verse ref, on]
+    const MAX_OPS = 300;       // past this the journal restarts from the whole list (S_SEEDED)
+    const S_SEEDED = "hwSeed"; // the watch's own list has been journaled for this library
+    const S_VER = "hwVer";     // state layout; 2 = all colors (0.9.2). Older state is rebuilt.
+    const VER = 2;
+    // 0.9.1 keys (Bookmarks color era), removed by wipe().
+    const LEGACY = ["hwBm", "hwColor", "hwIdx", "hwCands", "hwMine"];
     const PAGE = 30;      // items per GET page: ~13 KB of typical items. The Enduro 3 simulator answers -402
                           // above ~16 KB (limit=37 ok at 15,976 B, limit=40 fails at 17,266 B).
     const MAX_STEPS = 25; // cursor steps past single too-large items per sync (see onPull)
@@ -307,8 +261,6 @@ module HwSync {
     var _applying as Lang.Boolean = false;
     var _queue as Lang.Array = [];
     var _out as Lang.Array = [];
-    var _added as Lang.Array<Lang.String> = [];
-    var _removed as Lang.Array<Lang.String> = [];
     var _more as Lang.Boolean = false;
     var _page as Lang.Number = PAGE; // halves on a too-large response, for the rest of this sync
     var _steps as Lang.Number = 0;
@@ -323,6 +275,9 @@ module HwSync {
     var _pending as Lang.Boolean = false;   // settings changed mid-sync: restart with them at the end
     var _rc as Lang.Array or Null = null;   // loaded record shards (null = not loaded)
     var _rcDirty as Lang.Array or Null = null;
+    var _ix as Lang.Dictionary = {};        // loaded index shards: shard -> dict
+    var _ixDirty as Lang.Dictionary = {};   // shard -> true
+    var _ixOrder as Lang.Array = [];        // load order (LRU eviction)
 
     function prop(k as Lang.String) {
         try { return Application.Properties.getValue(k); } catch (e) { return null; }
@@ -355,9 +310,14 @@ module HwSync {
         var was = Application.Storage.getValue(S_LIB);
         if (!lib.equals(was) && !(was == null && sameLib())) {
             System.println("HWSYNC new library: starting over");
+            purgeSynced(); // the old library's highlights leave the watch's list; its own bookmarks stay
+            wipe();
+        } else if (get(S_VER, 1) != VER) {
+            System.println("HWSYNC state from 0.9.1: re-reading the library (all colors)");
             wipe();
         }
         Application.Storage.setValue(S_LIB, lib);
+        Application.Storage.setValue(S_VER, VER);
         return _keys;
     }
 
@@ -378,11 +338,133 @@ module HwSync {
     }
 
     function wipe() as Void {
-        var ks = [S_RECS, S_DIRTY, S_BM, S_COLOR, S_CUR, S_SEQ, S_EPOCH, S_CANDS, S_IDX, S_NAMES, S_MINE];
+        var ks = [S_RECS, S_DIRTY, S_CUR, S_SEQ, S_EPOCH, S_NAMES, S_HEX, S_OKAT, S_CNT, S_OPS, S_SEEDED];
+        ks.addAll(LEGACY);
         for (var i = 0; i < ks.size(); i++) { Application.Storage.deleteValue(ks[i]); }
         for (var i = 0; i < SHARDS; i++) { Application.Storage.deleteValue(S_REC + i); }
+        for (var i = 0; i < IX_SHARDS; i++) { Application.Storage.deleteValue(S_IX + i); }
         _rc = null;
         _rcDirty = null;
+        _ix = {};
+        _ixDirty = {};
+        _ixOrder = [];
+    }
+
+    //! Key changed to another library: drop the old library's highlights from the watch's list
+    //! (verses in the index), keeping bookmarks that were only ever on the watch.
+    function purgeSynced() as Void {
+        for (var i = 0; i < IX_SHARDS; i++) {
+            var d = get(S_IX + i, {}) as Lang.Dictionary;
+            var ks = d.keys();
+            for (var j = 0; j < ks.size(); j++) {
+                var p = HwMap.split(ks[j] as Lang.String);
+                if (p != null) { Bookmarks.syncRemove(p[0], p[1], p[2]); }
+            }
+        }
+        Bookmarks.syncFlush();
+    }
+
+    // ---- Highlight index: IX_SHARDS dicts, at most IX_CACHED in memory -------------------
+    function ixShard(rf as Lang.String) as Lang.Number {
+        var cs = rf.toCharArray();
+        var h = 0;
+        for (var i = 0; i < cs.size(); i++) { h = h * 31 + cs[i].toNumber(); h = h & 0xFFFFFF; }
+        return h % IX_SHARDS;
+    }
+
+    function ixMap(i as Lang.Number) as Lang.Dictionary {
+        var d = _ix[i];
+        if (d != null) { return d as Lang.Dictionary; }
+        if (_ixOrder.size() >= IX_CACHED) {
+            var old = _ixOrder[0] as Lang.Number;
+            _ixOrder = _ixOrder.slice(1, null);
+            if (_ixDirty[old] == true) { Application.Storage.setValue(S_IX + old, _ix[old]); _ixDirty.remove(old); }
+            _ix.remove(old);
+        }
+        d = get(S_IX + i, {});
+        _ix[i] = d;
+        _ixOrder.add(i);
+        return d as Lang.Dictionary;
+    }
+
+    //! [top color, updated] or null.
+    function ixGet(rf as Lang.String) as Lang.Array or Null {
+        return ixMap(ixShard(rf))[rf] as Lang.Array or Null;
+    }
+
+    //! color null = the verse has no live highlight (entry removed). Keeps S_CNT in step.
+    function ixSet(rf as Lang.String, color as Lang.String or Null, upd as Lang.Number, cnt as Lang.Dictionary) as Void {
+        var i = ixShard(rf);
+        var d = ixMap(i);
+        var was = d[rf] as Lang.Array or Null;
+        if (was != null) {
+            var n = cnt[was[0]];
+            if (n instanceof Lang.Number) { if (n <= 1) { cnt.remove(was[0]); } else { cnt[was[0]] = n - 1; } }
+        }
+        if (color == null) { d.remove(rf); } else {
+            d[rf] = [color, upd];
+            var n = cnt[color];
+            cnt[color] = n instanceof Lang.Number ? n + 1 : 1;
+        }
+        _ixDirty[i] = true;
+    }
+
+    function ixFlush() as Void {
+        var ks = _ixDirty.keys();
+        for (var j = 0; j < ks.size(); j++) { Application.Storage.setValue(S_IX + ks[j], _ix[ks[j]]); }
+        _ixDirty = {};
+    }
+
+    //! Bookmarks list labels: packed bookmark id -> color label, for single-verse ids the index
+    //! knows. Resolved shard by shard (one shard in memory at a time).
+    function colorLabels(ids as Lang.Array) as Lang.Dictionary {
+        var out = {};
+        if ((get(S_CNT, {}) as Lang.Dictionary).size() == 0) { return out; }
+        var names = get(S_NAMES, {}) as Lang.Dictionary;
+        var by = {}; // shard -> [[id, ref], ...]
+        for (var i = 0; i < ids.size(); i++) {
+            var id = ids[i] as Lang.Number;
+            var v = Bookmarks.unpackVerse(id);
+            if (v <= 0) { continue; }
+            var rf = HwMap.ref(Bookmarks.unpackBook(id), Bookmarks.unpackChapter(id), v);
+            var sh = ixShard(rf);
+            if (by[sh] == null) { by[sh] = []; }
+            (by[sh] as Lang.Array).add([id, rf]);
+        }
+        var ks = by.keys();
+        for (var j = 0; j < ks.size(); j++) {
+            var d = _ix[ks[j]] != null ? _ix[ks[j]] as Lang.Dictionary : get(S_IX + ks[j], {}) as Lang.Dictionary;
+            var rows = by[ks[j]] as Lang.Array;
+            for (var k = 0; k < rows.size(); k++) {
+                var e = d[(rows[k] as Lang.Array)[1]];
+                if (e != null) { out[(rows[k] as Lang.Array)[0]] = HwMap.colorLabel((e as Lang.Array)[0] as Lang.String, names); }
+            }
+        }
+        return out;
+    }
+
+    //! Bookmarks.toggle / addRange / remove: journal the change for the next sync (even with sync
+    //! off, so bookmarks made before sync was set up still go up).
+    function local(id as Lang.Number, on as Lang.Boolean) as Void {
+        var s = Bookmarks.unpackVerse(id);
+        if (s <= 0) { return; } // chapter bookmarks aren't synced
+        var ops = get(S_OPS, []) as Lang.Array;
+        for (var v = s; v <= Bookmarks.unpackEnd(id); v++) {
+            ops.add([HwMap.ref(Bookmarks.unpackBook(id), Bookmarks.unpackChapter(id), v), on]);
+        }
+        if (ops.size() > MAX_OPS) { ops = []; Application.Storage.setValue(S_SEEDED, false); }
+        Application.Storage.setValue(S_OPS, ops);
+    }
+
+    //! First sync for a library: every verse on the watch's list goes up (verses the library
+    //! already highlights are skipped in editSome).
+    function seed() as Void {
+        if (get(S_SEEDED, false) == true) { return; }
+        var refs = HwMap.verseRefs(Bookmarks.load());
+        var ops = [] as Lang.Array;
+        for (var i = 0; i < refs.size() && i < MAX_OPS; i++) { ops.add([refs[i], true]); }
+        Application.Storage.setValue(S_OPS, ops);
+        Application.Storage.setValue(S_SEEDED, true);
     }
 
     // ---- Record store: SHARDS dicts (each well under Storage's 32 KB per value) ----------
@@ -473,40 +555,40 @@ module HwSync {
         return code < 0 ? "phone/Connect IQ error" : "HTTP error";
     }
 
-    //! The line written when a sync completes: distinguishes an empty library, no Bookmarks color,
-    //! a Bookmarks color with no verses, and the normal case.
+    //! The line written when a sync completes: "ok 2:51 PM: 412 highlights in 7 colors; read 412, sent 0".
     function summary() as Void {
         var t = clock();
-        var hl = (get(S_IDX, {}) as Lang.Dictionary).size();
-        var names = get(S_NAMES, {}) as Lang.Dictionary;
-        var color = get(S_COLOR, null);
-        var bm = (get(S_BM, []) as Lang.Array).size();
-        var tail = " (" + hl + " highlights, " + names.size() + " named colors; read " + _stats[0] + ", sent " + _stats[1] + ")";
-        var near = nearMiss(names);
-        if (hl == 0 && names.size() == 0 && (get(S_SEQ, 0) as Lang.Number) == 0) {
+        var cnt = get(S_CNT, {}) as Lang.Dictionary;
+        var hl = 0;
+        var vs = cnt.values();
+        for (var i = 0; i < vs.size(); i++) { hl += vs[i] as Lang.Number; }
+        if (hl == 0 && (get(S_SEQ, 0) as Lang.Number) == 0) {
             setStatus("ok " + t + ": server has no items for this key (empty library?)", "empty library");
-        } else if (color == null) {
-            setStatus("ok " + t + ": no color named 'Bookmarks'" + near + tail, "no Bookmarks color");
-        } else if (color.equals(get(S_MINE, null)) && (get(S_CANDS, {}) as Lang.Dictionary).size() <= 1) {
-            setStatus("ok " + t + ": no 'Bookmarks' color on server, watch made one" + near + tail, "ok " + t);
-        } else if (bm == 0) {
-            setStatus("ok " + t + ": 'Bookmarks' color has 0 verses" + tail, "0 in Bookmarks");
-        } else {
-            setStatus("ok " + t + ": " + bm + " verses in 'Bookmarks', " + Bookmarks.load().size() + " watch bookmarks" + tail, "ok " + t);
+            return;
         }
+        setStatus(statusLine(t, hl, cnt.size(), _stats[0], _stats[1]), "ok " + t);
     }
 
-    //! A color named almost "Bookmarks" (case, spaces, singular): the match is exact (SPEC §1.2).
-    function nearMiss(names as Lang.Dictionary) as Lang.String {
-        var vs = names.values();
-        for (var i = 0; i < vs.size(); i++) {
-            var n = vs[i];
-            if (!(n instanceof Lang.String) || HwMap.COLOR_NAME.equals(n)) { continue; }
-            var l = trimEnd(n as Lang.String).toLower();
-            while (l.length() > 0 && l.substring(0, 1).equals(" ")) { l = l.substring(1, null) as Lang.String; }
-            if (l.equals("bookmarks") || l.equals("bookmark")) { return ": '" + n + "' must be exactly 'Bookmarks'"; }
-        }
-        return "";
+    function statusLine(t as Lang.String, hl as Lang.Number, colors as Lang.Number, read as Lang.Number, sent as Lang.Number) as Lang.String {
+        return "ok " + t + ": " + hl + (hl == 1 ? " highlight in " : " highlights in ") + colors
+            + (colors == 1 ? " color" : " colors") + "; read " + read + ", sent " + sent;
+    }
+
+    //! Home menu "Bookmarks" sublabel (critique #11), short enough for a Menu2 sublabel:
+    //! "2 saved" (sync off), "2 · synced 4m ago", "2 · sync error", "2 · syncing…".
+    function bookmarksLine(n as Lang.Number) as Lang.String {
+        var count = n == 0 ? "None yet" : (n == 1 ? "1 saved" : n + " saved");
+        if (prop(PROP_ON) != true) { return count; }
+        var lead = n + " · ";
+        if (_phase != :idle) { return lead + "syncing…"; }
+        if (lastResult.find("error") == 0 || lastResult.find("key") == 0 || lastResult.find("no key") == 0) { return lead + "sync error"; }
+        var at = Application.Storage.getValue(S_OKAT);
+        if (!(at instanceof Lang.Number)) { return count; }
+        var m = (Time.now().value() - (at as Lang.Number)) / 60;
+        if (m < 1) { return lead + "synced now"; }
+        if (m < 60) { return lead + "synced " + m + "m ago"; }
+        if (m < 48 * 60) { return lead + "synced " + (m / 60) + "h ago"; }
+        return lead + "synced " + (m / 1440) + "d ago";
     }
 
     //! SPEC §5.2: HKDF-SHA256, empty salt, from the 16 key bytes.
@@ -580,12 +662,11 @@ module HwSync {
     function start() as Void {
         if (_phase != :idle) { _again = true; return; }
         _sig = sig();
-        if (keys() == null) { return; }
+        if (keys() == null) { finished(); return; }
         setStatus("syncing " + clock() + ": keep the app open", "syncing...");
+        seed();
         _t0 = System.getTimer();
         _stats = [0, 0, 0, 0, 0];
-        _added = [];
-        _removed = [];
         _page = PAGE;
         _steps = 0;
         _post = POST_MAX;
@@ -623,9 +704,19 @@ module HwSync {
         stop();
     }
 
+    //! The one sync-finished hook (ok, error, or nothing to do): screens showing sync state
+    //! refresh from it (NativeLists.onSyncFinished, set in getInitialView). Not a timer.
+    var onFinished as Lang.Method or Null = null;
+
+    function finished() as Void {
+        var f = onFinished;
+        if (f != null) { (f as Lang.Method).invoke(); }
+    }
+
     function stop() as Void {
         _phase = :idle;
         _again = false; // tried again on the next change, app start or settings change
+        finished();
         if (_pending) { _pending = false; _keys = null; _keyText = null; start(); }
     }
 
@@ -637,24 +728,16 @@ module HwSync {
             || (seq instanceof Lang.Number && seq < (get(S_SEQ, 0) as Lang.Number));
     }
 
-    //! Watch refill (see module doc): only its own records go back, not every record it holds.
+    //! Watch refill (see module doc): only its own records go back, not every highlight it knows.
     function refill(ans as Lang.Dictionary) as Void {
         Application.Storage.setValue(S_CUR, 0);
         Application.Storage.setValue(S_SEQ, 0);
         Application.Storage.setValue(S_EPOCH, ans["epoch"]);
-        var own = [] as Lang.Array;
-        var color = get(S_COLOR, null);
-        if (color != null) {
-            var cid = itemId("color", color as Lang.String);
-            if (recGet(cid) != null) { own.add(cid); }
+        var own = get(S_DIRTY, []) as Lang.Array; // unsent local edits (e.g. tombstones) stay queued
+        for (var i = 0; i < SHARDS; i++) {
+            var ks = recMap(i).keys();
+            for (var j = 0; j < ks.size(); j++) { if (own.indexOf(ks[j]) < 0) { own.add(ks[j]); } }
         }
-        var bm = get(S_BM, []) as Lang.Array;
-        for (var i = 0; i < bm.size(); i++) {
-            var id = itemId("highlight", bm[i] as Lang.String);
-            if (recGet(id) != null && own.indexOf(id) < 0) { own.add(id); }
-        }
-        var dirty = get(S_DIRTY, []) as Lang.Array; // unsent local edits (e.g. tombstones) stay queued
-        for (var i = 0; i < dirty.size(); i++) { if (own.indexOf(dirty[i]) < 0) { own.add(dirty[i]); } }
         Application.Storage.setValue(S_DIRTY, own);
     }
 
@@ -710,14 +793,22 @@ module HwSync {
         } catch (e instanceof Lang.Exception) { crash(e); }
     }
 
+    //! Local changes not yet written as records: verse ref -> on (the last change wins).
+    function pendingOps() as Lang.Dictionary {
+        var ops = get(S_OPS, []) as Lang.Array;
+        var d = {};
+        for (var i = 0; i < ops.size(); i++) { d[(ops[i] as Lang.Array)[0]] = (ops[i] as Lang.Array)[1]; }
+        return d;
+    }
+
     //! Decrypt + merge pulled items, PER_TICK 256-byte blocks per tick.
     function mergeSome() as Void {
         var dirty = get(S_DIRTY, []) as Lang.Array;
-        var bm = get(S_BM, []) as Lang.Array;
         var cur = get(S_CUR, 0);
-        var cands = get(S_CANDS, {}) as Lang.Dictionary;
-        var idx = get(S_IDX, {}) as Lang.Dictionary;
+        var cnt = get(S_CNT, {}) as Lang.Dictionary;
         var names = get(S_NAMES, {}) as Lang.Dictionary;
+        var hexes = get(S_HEX, {}) as Lang.Dictionary;
+        var ops = pendingOps();
         var budget = PER_TICK;
         while (budget > 0 && _queue.size() > 0) {
             var it = _queue[0] as Lang.Dictionary;
@@ -739,82 +830,46 @@ module HwSync {
             var r = got[1] as HwObj;
             var kind = r.get("kind") as Lang.String;
             var rf = r.get("ref") as Lang.String;
-            if (!"highlight".equals(kind) && !"color".equals(kind)) { continue; } // notes etc. aren't needed on the watch
-            var mine = recGet(id as Lang.String);
-            var mineObj = mine == null ? null : HwJson.parse(mine as Lang.String) as HwObj;
-            var c = mineObj == null ? 1 : HwMap.compare(r as HwObj, text, mineObj as HwObj, mine as Lang.String);
-            if (c < 0) { if (dirty.indexOf(id) < 0) { dirty.add(id); } continue; } // ours is newer: resend
-            if ("color".equals(kind)) { // for the status line; also on c == 0 (state from 0.9.0 had no names)
-                var nm = (r as HwObj).get("name");
-                if ((r as HwObj).get("deleted") != true && nm instanceof Lang.String && (nm as Lang.String).length() > 0) { names[rf] = nm; } else { names.remove(rf); }
-            }
-            if (c == 0) { continue; }
-            recPut(id as Lang.String, text);
-            if ("highlight".equals(kind)) { index(idx, rf, r); }
             if ("color".equals(kind)) {
-                // Picked once the pull is complete (chooseColor), not first-seen.
-                if (HwMap.isBookmarksColor(r as HwObj)) { cands[rf] = HwMap.num((r as HwObj).get("created")); } else { cands.remove(rf); }
+                // Items arrive in server (merged) order, so the latest one is the library's.
+                var nm = r.get("name");
+                var hx = r.get("hex");
+                var live = r.get("deleted") != true;
+                if (live && nm instanceof Lang.String && (nm as Lang.String).length() > 0) { names[rf] = nm; } else { names.remove(rf); }
+                if (live && hx instanceof Lang.String) { hexes[rf] = hx; } else { hexes.remove(rf); }
                 continue;
             }
-            var color = get(S_COLOR, null);
-            var was = bm.indexOf(rf) >= 0;
-            var now = HwMap.inColor(r as HwObj, color);
-            if (now && !was) { bm.add(rf); noteDelta(rf as Lang.String, true); }
-            if (!now && was) { bm.remove(rf); noteDelta(rf as Lang.String, false); }
+            if (!"highlight".equals(kind)) { continue; } // notes etc. aren't needed on the watch
+            // Records the watch wrote: full §3 merge against its copy. Everyone else's: the
+            // server's order is the merge order, so the newest item read is current.
+            var mine = recGet(id as Lang.String);
+            if (mine != null) {
+                var c = HwMap.compare(r, text, HwJson.parse(mine as Lang.String) as HwObj, mine as Lang.String);
+                if (c < 0) { if (dirty.indexOf(id) < 0) { dirty.add(id); } continue; } // ours is newer: resend
+                if (c == 0) { continue; }
+                recPut(id as Lang.String, text);
+            }
+            var e = ixGet(rf);
+            var top = HwMap.topColor(r);
+            ixSet(rf, top, HwMap.num(r.get("updated")).toNumber(), cnt);
+            if (ops.hasKey(rf)) { continue; } // a local change to this verse is still to be written
+            var p = HwMap.split(rf);
+            if (p == null) { continue; }
+            if (top != null && e == null) { Bookmarks.syncAdd(p[0], p[1], p[2]); }
+            if (top == null && e != null) { Bookmarks.syncRemove(p[0], p[1], p[2]); }
         }
         recFlush();
+        ixFlush();
         Application.Storage.setValue(S_DIRTY, dirty);
-        Application.Storage.setValue(S_BM, bm);
         Application.Storage.setValue(S_CUR, cur);
-        Application.Storage.setValue(S_CANDS, cands);
-        Application.Storage.setValue(S_IDX, idx);
+        Application.Storage.setValue(S_CNT, cnt);
         Application.Storage.setValue(S_NAMES, names);
+        Application.Storage.setValue(S_HEX, hexes);
         if (_queue.size() > 0) { tickSoon(); return; }
+        apply(); // one list write per page
         if (_more) { pull(); return; }
-        // The pull is complete: only now pick (or switch) the Bookmarks color.
-        var switched = chooseColor();
-        // Highlights that arrived before their color record: one scan once the color is known.
-        if (get(S_COLOR, null) != null && (_stats[0] > 0 || switched)) { rescan(); }
-        apply();
-        diff();
-    }
-
-    //! After a complete pull: the Bookmarks color every device agrees on. On a switch (e.g. the
-    //! watch made its own color offline and an older one turns up) the watch's bookmarks are kept:
-    //! verses in the new color are added, and diff() gives the watch's other bookmarks a part in the
-    //! new color. Parts in the old color stay as they are (never deleted or merged).
-    function chooseColor() as Lang.Boolean {
-        var pick = HwMap.pickColor(get(S_CANDS, {}) as Lang.Dictionary);
-        var cur = get(S_COLOR, null);
-        if (pick == null || pick.equals(cur)) { return false; }
-        Application.Storage.setValue(S_COLOR, pick);
-        Application.Storage.setValue(S_BM, []);
-        if (cur != null) { System.println("HWSYNC Bookmarks color -> the oldest of the duplicates"); }
-        return true;
-    }
-
-    function noteDelta(r as Lang.String, on as Lang.Boolean) as Void {
-        if (on) { _added.add(r); _removed.remove(r); } else { _removed.add(r); _added.remove(r); }
-    }
-
-    //! Keep the ref -> colors index in step with a stored highlight record.
-    function index(idx as Lang.Dictionary, rf as Lang.String, r as HwObj) as Void {
-        var cs = HwMap.colorsOf(r);
-        if (cs.size() == 0) { idx.remove(rf); } else { idx[rf] = cs; }
-    }
-
-    //! Verses in the Bookmarks color the watch hasn't marked yet, from the index (no JSON parsing:
-    //! a full re-parse of a few dozen records trips the watchdog).
-    function rescan() as Void {
-        var bm = get(S_BM, []) as Lang.Array;
-        var color = get(S_COLOR, null);
-        var idx = get(S_IDX, {}) as Lang.Dictionary;
-        var ks = idx.keys();
-        for (var i = 0; i < ks.size(); i++) {
-            var rf = ks[i] as Lang.String;
-            if ((idx[rf] as Lang.Array).indexOf(color) >= 0 && bm.indexOf(rf) < 0) { bm.add(rf); noteDelta(rf, true); }
-        }
-        Application.Storage.setValue(S_BM, bm);
+        _phase = :edit;
+        tickSoon();
     }
 
     function trimEnd(s as Lang.String) as Lang.String {
@@ -824,71 +879,47 @@ module HwSync {
         return s.substring(0, n) as Lang.String;
     }
 
-    //! Remote changes -> the watch's bookmark list.
+    //! Remote changes -> the watch's bookmark list (Bookmarks.syncAdd/syncRemove, written here).
     function apply() as Void {
-        if (_added.size() == 0 && _removed.size() == 0) { return; }
         _applying = true;
-        Bookmarks.save(HwMap.applyDelta(Bookmarks.load(), _removed, _added));
+        if (Bookmarks.syncFlush()) { WatchUi.requestUpdate(); }
         _applying = false;
-        WatchUi.requestUpdate();
-        System.println("HWSYNC applied +" + _added.size() + " -" + _removed.size() + " verses from the server");
     }
 
-    //! Local bookmark changes -> highlight records (and the Bookmarks color, made once if missing).
-    function diff() as Void {
-        var want = HwMap.verseRefs(Bookmarks.load());
-        var bm = get(S_BM, []) as Lang.Array;
-        var dirty = get(S_DIRTY, []) as Lang.Array;
-        var now = Time.now().value().toLong();
-        var color = get(S_COLOR, null);
-        if (color == null && want.size() > 0) {
-            // Only reached after a complete pull found no live Bookmarks color.
-            color = "c-" + HwB.hex(Cryptography.randomBytes(4));
-            var cid = itemId("color", color as Lang.String);
-            recPut(cid, HwJson.stringify(HwMap.newColor(color as Lang.String, now)));
-            dirty.add(cid);
-            Application.Storage.setValue(S_MINE, color);
-            var cands = get(S_CANDS, {}) as Lang.Dictionary;
-            cands[color] = now;
-            Application.Storage.setValue(S_CANDS, cands);
-            Application.Storage.setValue(S_COLOR, color);
-        }
-        recFlush();
-        Application.Storage.setValue(S_DIRTY, dirty);
-        var edits = [] as Lang.Array;
-        for (var i = 0; i < want.size(); i++) { if (bm.indexOf(want[i]) < 0) { edits.add([want[i], true]); } }
-        for (var i = 0; i < bm.size(); i++) { if (want.indexOf(bm[i]) < 0) { edits.add([bm[i], false]); } }
-        // Each edit parses + re-serializes a record: a handful in one event trips the watchdog,
-        // so they're paced like the crypto.
-        _queue = edits;
-        _phase = :edit;
-        tickSoon();
-    }
-
+    //! Journaled local changes -> highlight records, EDITS_PER_TICK per tick (each parses and
+    //! re-serializes a record; a handful in one event trips the watchdog).
     function editSome() as Void {
         var dirty = get(S_DIRTY, []) as Lang.Array;
-        var bm = get(S_BM, []) as Lang.Array;
-        var idx = get(S_IDX, {}) as Lang.Dictionary;
-        var color = get(S_COLOR, null) as Lang.String;
+        var cnt = get(S_CNT, {}) as Lang.Dictionary;
+        var ops = get(S_OPS, []) as Lang.Array;
         var now = Time.now().value().toLong();
-        for (var n = 0; n < EDITS_PER_TICK && _queue.size() > 0; n++) {
-            var e = _queue[0] as Lang.Array;
-            _queue = _queue.slice(1, null);
-            var rf = e[0] as Lang.String;
+        var n = 0;
+        while (n < EDITS_PER_TICK && ops.size() > 0) {
+            var op = ops[0] as Lang.Array;
+            ops = ops.slice(1, null);
+            var rf = op[0] as Lang.String;
+            var on = op[1] as Lang.Boolean;
+            var e = ixGet(rf);
+            if (on && e != null) { continue; } // already highlighted (any color): nothing to add
+            if (!on && e == null) { continue; } // nothing live to delete
             var id = itemId("highlight", rf);
             var ot = recGet(id);
             var old = ot == null ? null : HwJson.parse(ot as Lang.String) as HwObj;
-            var nr = HwMap.edit(old, rf, color, e[1] as Lang.Boolean, now);
+            if (old == null && e != null) { // someone else's record: only its `updated` is known
+                old = new HwObj().put("kind", "highlight").put("ref", rf).put("updated", (e as Lang.Array)[1]).put("deleted", true);
+            }
+            var nr = HwMap.edit(old, rf, HwMap.DEFAULT_COLOR, on, now);
+            n++;
             recPut(id, HwJson.stringify(nr));
-            index(idx, rf, nr);
+            ixSet(rf, on ? HwMap.DEFAULT_COLOR : null, HwMap.num(nr.get("updated")).toNumber(), cnt);
             if (dirty.indexOf(id) < 0) { dirty.add(id); }
-            if (e[1]) { if (bm.indexOf(rf) < 0) { bm.add(rf); } } else { bm.remove(rf); }
         }
         recFlush();
+        ixFlush();
+        Application.Storage.setValue(S_OPS, ops);
         Application.Storage.setValue(S_DIRTY, dirty);
-        Application.Storage.setValue(S_BM, bm);
-        Application.Storage.setValue(S_IDX, idx);
-        if (_queue.size() > 0) { tickSoon(); return; }
+        Application.Storage.setValue(S_CNT, cnt);
+        if (ops.size() > 0) { tickSoon(); return; }
         _queue = dirty.slice(0, _post);
         _out = [];
         if (_queue.size() == 0) { done(); return; }
@@ -951,11 +982,13 @@ module HwSync {
 
     function done() as Void {
         lastMs = System.getTimer() - _t0;
+        Application.Storage.setValue(S_OKAT, Time.now().value());
         summary();
         System.println("HWSYNC done ms=" + lastMs + " pulled=" + _stats[0] + " pushed=" + _stats[1] + " skipped=" + _stats[2] + " pages=" + _stats[3] + " big=" + _stats[4]
             + " bookmarks=" + Bookmarks.load().size());
-        HwTestSeed.report(get(S_COLOR, null), get(S_BM, []) as Lang.Array);
+        HwTestSeed.report(get(S_CNT, {}) as Lang.Dictionary, get(S_NAMES, {}) as Lang.Dictionary);
         _phase = :idle;
+        finished();
         if (_pending) { _pending = false; _again = false; _keys = null; _keyText = null; start(); return; }
         if (_again) { _again = false; start(); }
     }

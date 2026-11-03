@@ -36,11 +36,18 @@ class BsbBibleApp extends Application.AppBase {
         Palette.loadTheme(); // persisted Dark/Light (Application.Storage "theme")
         LastReadApp.restore(); // resume book/chapter/verse (Storage "last")
         _appStarted = true;
+        HwSync.onFinished = new Lang.Method(NativeLists, :onSyncFinished);
         HwSync.start(); // no-op (no network) unless sync is set up in Garmin Connect
         HwTestSeed.apply();
         if (GlancePreview.PREVIEW) {
             return [new GlancePreviewView()];
         }
+        // UX critique #2 (Dylan): launch (and glance tap) lands in the reader at the last-read
+        // verse, with Home > Grid under it; BACK = grid, then Home. First run = Home.
+        // POKE: LAUNCH_IN_READER — set false to launch on Home again.
+        Nav.launchRef = LAUNCH_IN_READER ? LastReadApp.stored() : null;
         return [new BookListView(), new BookListDelegate()];
     }
+
+    const LAUNCH_IN_READER = true;
 }

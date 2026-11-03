@@ -20,12 +20,14 @@ module HwTestSeed {
         }
     }
 
-    //! Round-trip check: the watch's view (chosen color + verses in it), compared with sync.js.
-    function report(color, verses as Lang.Array) as Void {
-        var vs = HwMap.sortStrs(verses.slice(0, null));
+    //! Round-trip check: highlights per color as the watch sees them (compare with sync.js).
+    function report(cnt as Lang.Dictionary, names as Lang.Dictionary) as Void {
+        var ks = HwMap.sortStrs(cnt.keys());
         var t = "";
-        for (var i = 0; i < vs.size(); i++) { t += (i > 0 ? " " : "") + vs[i]; }
-        System.println("HWSYNC view color=" + color + " verses=" + t);
+        for (var i = 0; i < ks.size(); i++) {
+            t += (i > 0 ? " " : "") + ks[i] + "(" + HwMap.colorLabel(ks[i] as Lang.String, names) + ")=" + cnt[ks[i]];
+        }
+        System.println("HWSYNC view colors " + t);
     }
 }
 
@@ -33,6 +35,6 @@ module HwTestSeed {
 module HwTestSeed {
     function apply() as Void {
     }
-    function report(color, verses as Lang.Array) as Void {
+    function report(cnt as Lang.Dictionary, names as Lang.Dictionary) as Void {
     }
 }

@@ -1,7 +1,14 @@
 # Hidden Word sync (watch)
 
-Watch bookmarks sync as Hidden Word highlights in a color named **Bookmarks** (SPEC §1.2),
-over the v1 server protocol (SPEC §5). Off unless Garmin Connect settings give a sync key and
+**0.9.2 (Dylan, 2026-11-03 2:48 PM ET): every highlight of every color.** The watch's Bookmarks
+list shows all of the library's highlights, each with its color's name ("Prayer · And we know…").
+A bookmark made on the watch is pushed as a highlight in Hidden Word's default color, `yellow`
+(hidden-word-sync@48b7c40 `public/app.js:205` `?? "yellow"`, `public/sync.js:9`, SPEC.md
+`:65`/`:102`/`:285`; a part's `color` is required, so it is always sent). No color record is
+created. Un-bookmarking on the watch deletes that verse's highlight (a tombstone), whatever its
+color. Older text below describes 0.9.1's single "Bookmarks" color and is kept for history.
+
+Over the v1 server protocol (SPEC §5). Off unless Garmin Connect settings give a sync key and
 "Sync bookmarks" is on. Code: `source/HwSync.mc` (sync + mapping), `HwCrypto.mc`, `HwJson.mc`;
 tests: `test/HwSyncTest.mc`.
 
@@ -81,6 +88,30 @@ to the throwaway library. Scripts are outside the repo: `/workspace/labs/hw-veri
 - A byte budget per page (for example `maxBytes=`, or stop the page before it exceeds N bytes) would let small clients skip the halving and cursor steps.
 - `limit` quietly falls back to 500 for non-numeric values but clamps -1 and 0 to 1, while `after=-1` is a 400. That's harmless, but inconsistent.
 - 401 says "wrong token for this library" for a claimed library and "missing or malformed" otherwise, and an unclaimed library answers 200 with an empty list. Together these reveal whether a library id exists. Ids are 128-bit, so the risk is low.
+
+## 0.9.2 storage and flow
+
+| Key | Holds |
+| --- | --- |
+| `hwX0`..`hwX15` | Highlight index: verse ref → `[top color, updated]` (top = the most recently colored part, as `topColor` in sync.js). 3,000 highlights ≈ 190 per shard, ~7 KB each; at most 4 shards in memory. Replaces 0.9.1's single `hwIdx` (crashed past ~800). |
+| `hwR0`..`hwR15` | Full texts of records the watch wrote (for the §3 tie-break and refill). Others' records aren't kept. |
+| `hwCnt`, `hwNames`, `hwHex` | Highlights per color; color names; color hex values when the record has one. |
+| `hwOps` | Journal of local bookmark changes (`[ref, on]`), written as records after each pull. Cap 300, then the whole list is re-journaled. |
+| `bookmarks` | The watch list: up to 3,500 packed ids (~18 KB). The Bookmarks menu shows the newest 100. |
+
+0.9.1 state (`hwBm`, `hwColor`, `hwIdx`, `hwCands`, `hwMine`) is dropped and the library re-read
+from the start once (`hwVer` = 2). A key change to another library removes that library's
+highlights from the watch list before starting over.
+
+Status line (0.9.2): `ok 2:51 PM: 412 highlights in 7 colors; read 412, sent 0`; empty library,
+key and error strings as below. The Bookmarks menu's **Sync now** row and the home menu's Bookmarks
+sublabel update when a sync ends (one `HwSync.onFinished` listener; the open list is rebuilt at the
+same focus when bookmarks changed).
+
+Simulator, throwaway library (55 highlights in 6 colors, from the reference client): watch
+`ok 8:06 PM: 55 highlights in 6 colors; read 62, sent 0` and per-color counts equal to sync.js;
+a verse bookmarked on the watch reached the library as `yellow` (sent 1); un-bookmarking deleted it
+(times UTC).
 
 ## Sync status (0.9.1)
 
