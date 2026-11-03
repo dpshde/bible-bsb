@@ -31,7 +31,9 @@
             <iq:product id="vivoactive6"/>
         </iq:products>
         <iq:permissions>
-            <!-- None required for offline bundled text + Storage -->
+            <!-- Hidden Word bookmark sync (off by default; no calls unless a sync key is set
+                 and "Sync bookmarks" is on in Garmin Connect settings). -->
+            <iq:uses-permission id="Communications"/>
         </iq:permissions>
         <iq:languages>
             <iq:language>eng</iq:language>

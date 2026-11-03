@@ -1,0 +1,7 @@
+<strings>
+    <string id="SetServer">Hidden Word server</string>
+    <string id="SetServerPrompt">Sync server URL</string>
+    <string id="SetKey">Sync key</string>
+    <string id="SetKeyPrompt">Paste the sync key from Hidden Word (XXXX-XXXX-…)</string>
+    <string id="SetSync">Sync bookmarks</string>
+</strings>

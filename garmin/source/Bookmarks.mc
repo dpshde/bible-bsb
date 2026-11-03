@@ -97,6 +97,7 @@ module Bookmarks {
             if (list[i] == id) {
                 list.remove(list[i]);
                 save(list);
+                HwSync.changed();
                 return :removed;
             }
         }
@@ -108,6 +109,7 @@ module Bookmarks {
             next.add(list[i]);
         }
         save(next);
+        HwSync.changed();
         return :added;
     }
 
@@ -133,6 +135,7 @@ module Bookmarks {
             next.add(list[i]);
         }
         save(next);
+        HwSync.changed();
         return :added;
     }
 
@@ -142,6 +145,7 @@ module Bookmarks {
         if (i >= 0) {
             list.remove(list[i]);
             save(list);
+            HwSync.changed();
         }
     }
 

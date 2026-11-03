@@ -12,10 +12,10 @@ base.resourcePath = resources
 
 # Palette: MIP (64-color) devices get palette-exact gold; everyone else true gold.
 # POKE: SYS_BOLD_DEVICES — system fonts are RobotoCondensed-Bold (Faces.mc): enduro3 only.
-base.excludeAnnotations = mip;lightmenu;sysbold
-enduro3.excludeAnnotations = amoled;lightmenu;sysregular
+base.excludeAnnotations = mip;lightmenu;sysbold;hwtest
+enduro3.excludeAnnotations = amoled;lightmenu;sysregular;hwtest
 # POKE: LIGHT_MENU_DEVICES — Menu2 draws a white list panel on these (system default; no
 # :theme changes it), so they get the dark gold CustomMenu instead.
-vivoactive5.excludeAnnotations = mip;darkmenu;sysbold
-venu3.excludeAnnotations = mip;darkmenu;sysbold
-venusq2.excludeAnnotations = mip;darkmenu;sysbold
+vivoactive5.excludeAnnotations = mip;darkmenu;sysbold;hwtest
+venu3.excludeAnnotations = mip;darkmenu;sysbold;hwtest
+venusq2.excludeAnnotations = mip;darkmenu;sysbold;hwtest

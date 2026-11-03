@@ -21,6 +21,12 @@ class BsbBibleApp extends Application.AppBase {
         }
     }
 
+    function onSettingsChanged() as Void {
+        if (_appStarted) {
+            HwSync.settingsChanged();
+        }
+    }
+
     (:glance)
     function getGlanceView() as [WatchUi.GlanceView] or [WatchUi.GlanceView, WatchUi.GlanceViewDelegate] or Null {
         return [new BsbGlanceView()];
@@ -30,6 +36,8 @@ class BsbBibleApp extends Application.AppBase {
         Palette.loadTheme(); // persisted Dark/Light (Application.Storage "theme")
         LastReadApp.restore(); // resume book/chapter/verse (Storage "last")
         _appStarted = true;
+        HwSync.start(); // no-op (no network) unless sync is set up in Garmin Connect
+        HwTestSeed.apply();
         if (GlancePreview.PREVIEW) {
             return [new GlancePreviewView()];
         }
