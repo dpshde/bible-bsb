@@ -3,4 +3,6 @@
     <property id="hwServer" type="string">https://hidden-word.dpshade.workers.dev</property>
     <property id="hwKey" type="string"></property>
     <property id="hwSync" type="boolean">false</property>
+    <!-- Written by the watch at the end of every sync (never holds the key); read-only in Connect. -->
+    <property id="hwStatus" type="string">Not synced yet: open the app on the watch</property>
 </properties>

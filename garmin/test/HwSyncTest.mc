@@ -1,3 +1,4 @@
+using Toybox.Application;
 using Toybox.Lang;
 using Toybox.Test;
 
@@ -194,5 +195,70 @@ function testHwBlocksAndIndex(logger as Test.Logger) as Lang.Boolean {
     Test.assertEqual(HwMap.colorsOf(HwJson.parse("{\"kind\":\"highlight\",\"ref\":\"PHP.4.13\",\"deleted\":true}") as HwObj).size(), 0);
     var s = HwMap.sortStrs(["ROM.5.4", "JHN.3.16", "ROM.5.3"]);
     Test.assertEqual(s[0], "JHN.3.16"); Test.assertEqual(s[2], "ROM.5.4");
+    return true;
+}
+
+//! 0.9.0 kept every record in one Storage value (hwRecs). On the Enduro 3 simulator saving one
+//! dict of 250 records (200 is fine) fails with an uncatchable Out Of Memory error (and devices cap
+//! values at 32 KB), crashing the sync. The same 800 records in SHARDS dicts store fine.
+(:test)
+function testHwRecordShardsFitStorage(logger as Test.Logger) as Lang.Boolean {
+    var shards = HwT.hwShards(800);
+    for (var i = 0; i < HwSync.SHARDS; i++) {
+        Application.Storage.setValue("hwTestS" + i, shards[i]);
+        Test.assertEqual((Application.Storage.getValue("hwTestS" + i) as Lang.Dictionary).size(), (shards[i] as Lang.Dictionary).size());
+        Application.Storage.deleteValue("hwTestS" + i);
+    }
+    return true;
+}
+
+(:test)
+module HwT {
+//! n distinct realistic highlight records, split the way HwSync shards them.
+function hwShards(n as Lang.Number) as Lang.Array {
+    var rec = "{\"kind\":\"highlight\",\"ref\":\"PSA.119.\",\"updated\":1793000000,\"highlights\":[{\"color\":\"yellow\",\"created\":1792000000}]}";
+    var shards = new [HwSync.SHARDS];
+    for (var i = 0; i < HwSync.SHARDS; i++) { shards[i] = {}; }
+    for (var k = 0; k < n; k++) {
+        var id = HwB.b64url(HwKdf.hmac(HwB.utf8("k"), HwB.utf8("" + k))).substring(0, 22) as Lang.String;
+        var s = HwSync.recShard(id);
+        var d = shards[s] as Lang.Dictionary;
+        d[id] = rec + k;
+    }
+    return shards;
+}
+}
+
+(:test)
+function testHwStatusWords(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(HwSync.why(-104), "phone not connected");
+    Test.assertEqual(HwSync.why(401), "sync key not accepted");
+    Test.assertEqual(HwSync.why(-300), "timed out: phone offline?");
+    Test.assertEqual(HwSync.nearMiss({"c-1" => "Prayer", "yellow" => "Bookmarks"}), "");
+    Test.assertEqual(HwSync.nearMiss({"c-1" => " bookmark "}), ": ' bookmark ' must be exactly 'Bookmarks'");
+    Test.assertEqual(HwSync.nearMiss({"c-1" => "BOOKMARKS"}), ": 'BOOKMARKS' must be exactly 'Bookmarks'");
+    var c = HwSync.clock();
+    Test.assert(c.find(":") != null);
+    return true;
+}
+
+//! 0.9.0 -> 0.9.1: the single hwRecs dict moves into the shards, and records written under this
+//! key mean the same library (no start-over); records from another key mean a different one.
+(:test)
+function testHwLegacyRecsMigrate(logger as Test.Logger) as Lang.Boolean {
+    HwSync.wipe();
+    HwSync.derive(HwB.parseKey("000G-40R4-0M30-E209-185G-R38E-1YZ0") as Lang.ByteArray);
+    var text = "{\"kind\":\"highlight\",\"ref\":\"JHN.3.16\",\"updated\":1,\"highlights\":[{\"color\":\"yellow\"}]}";
+    var id = HwSync.itemId("highlight", "JHN.3.16");
+    Application.Storage.setValue(HwSync.S_RECS, {id => text});
+    Test.assertEqual(HwSync.recGet(id), text);
+    Test.assert(Application.Storage.getValue(HwSync.S_RECS) == null);
+    Test.assertEqual((Application.Storage.getValue(HwSync.S_REC + HwSync.recShard(id)) as Lang.Dictionary)[id], text);
+    Test.assert(HwSync.sameLib());
+    HwSync.wipe();
+    Application.Storage.setValue(HwSync.S_RECS, {"AAAAAAAAAAAAAAAAAAAAAA" => text}); // id from another key
+    Test.assert(!HwSync.sameLib());
+    HwSync.wipe();
+    Test.assert(HwSync.sameLib()); // nothing stored
     return true;
 }

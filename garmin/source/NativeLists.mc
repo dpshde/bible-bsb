@@ -153,6 +153,7 @@ module NativeLists {
     const SNIPPETS = 12;
     const SNIPPET_CHARS = 16; // native Menu2 sublabel on Enduro 3 fits ~17 chars: "Through Him all…" (word-boundary cut)
     const ID_EMPTY = -1;
+    const ID_SYNC = -2; // "Sync now" row (only when Hidden Word sync is on): sublabel = last result
 
     function openBookmarks() as Void {
         WatchUi.pushView(buildBookmarks(), new BookmarksMenuDelegate(), WatchUi.SLIDE_UP);
@@ -163,12 +164,15 @@ module NativeLists {
         var items = Bookmarks.load();
         if (items.size() == 0) {
             m.addItem(UiMenu.item("No bookmarks yet", "Long-press a verse", ID_EMPTY));
-            return m;
         }
         var i;
         for (i = 0; i < items.size(); i++) {
             var id = items[i] as Lang.Number;
             m.addItem(UiMenu.item(Bookmarks.formatLabel(id), i < SNIPPETS ? snippet(id) : null, id));
+        }
+        if (HwSync.prop(HwSync.PROP_ON) == true) {
+            var st = HwSync.shortStatus;
+            m.addItem(UiMenu.item("Sync now", st.length() > 0 ? st : null, ID_SYNC));
         }
         return m;
     }
@@ -283,6 +287,14 @@ class BookmarksMenuDelegate extends WatchUi.Menu2InputDelegate {
     function onSelect(item as WatchUi.MenuItem) as Void {
         var id = item.getId() as Lang.Number;
         if (id == NativeLists.ID_EMPTY) {
+            return;
+        }
+        if (id == NativeLists.ID_SYNC) {
+            HwSync.start();
+            if (item has :setSubLabel) {
+                item.setSubLabel(HwSync.shortStatus);
+            }
+            WatchUi.requestUpdate();
             return;
         }
         NativeLists.openBookmarkActions(id, WatchUi.getCurrentView()[0]);

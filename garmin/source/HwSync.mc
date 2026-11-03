@@ -5,7 +5,9 @@ using Toybox.Lang;
 using Toybox.PersistedContent;
 using Toybox.System;
 using Toybox.Time;
+using Toybox.Time.Gregorian;
 using Toybox.Timer;
+using Toybox.WatchUi;
 
 //! Watch bookmarks <-> Hidden Word highlights (SPEC §1.2: "a highlight in a color named
 //! Bookmarks does the same job"). Pure mapping lives here so it can be unit tested.
@@ -272,7 +274,14 @@ module HwSync {
     const PROP_SERVER = "hwServer";
     const PROP_KEY = "hwKey";
     const PROP_ON = "hwSync";
-    const S_RECS = "hwRecs";   // item id -> record JSON text (highlight + color records)
+    const PROP_STATUS = "hwStatus"; // read-only "Sync status" line shown in Garmin Connect settings
+    const S_RECS = "hwRecs";   // legacy (0.9.0): one dict of every record; now sharded, see recMap
+    const S_REC = "hwR";       // hwR0..hwR15: item id -> record JSON text, sharded by the id's first char
+    const SHARDS = 16;         // one dict of 250 records (~30 KB) crashes Storage.setValue (Out Of Memory,
+                               // uncatchable; devices cap values at 32 KB): 16 shards hold ~3,000
+    const S_LIB = "hwLib";     // library id the stored state belongs to (a key change starts over)
+    const S_NAMES = "hwNames"; // live color ref -> name (for the status line)
+    const S_MINE = "hwMine";   // the Bookmarks color the watch created itself, if any
     const S_DIRTY = "hwDirty"; // item ids the server doesn't have yet
     const S_BM = "hwBm";       // verse refs currently in the Bookmarks color
     const S_COLOR = "hwColor";
@@ -307,7 +316,13 @@ module HwSync {
     var _t0 as Lang.Number = 0;
     var _stats as Lang.Array<Lang.Number> = [0, 0, 0, 0, 0]; // pulled, pushed, skipped, pages, too big
     var lastMs as Lang.Number = -1;
-    var lastResult as Lang.String = "";
+    var lastResult as Lang.String = "";  // the status line (also in Garmin Connect as hwStatus)
+    var shortStatus as Lang.String = ""; // fits a Menu2 sublabel (~17 chars)
+    var _statusAt as Lang.Number = -100000;
+    var _sig as Lang.String or Null = null; // server|on|key the current state was started with
+    var _pending as Lang.Boolean = false;   // settings changed mid-sync: restart with them at the end
+    var _rc as Lang.Array or Null = null;   // loaded record shards (null = not loaded)
+    var _rcDirty as Lang.Array or Null = null;
 
     function prop(k as Lang.String) {
         try { return Application.Properties.getValue(k); } catch (e) { return null; }
@@ -322,15 +337,176 @@ module HwSync {
 
     //! Keys when sync is on and the key parses; null = sync off (zero network calls).
     function keys() as Lang.Array or Null {
-        if (prop(PROP_ON) != true || !(Toybox has :Communications)) { return null; }
+        if (!(Toybox has :Communications)) { setStatus("this watch can't sync", "can't sync"); return null; }
+        if (prop(PROP_ON) != true) { setStatus("sync off", "sync off"); return null; }
         var kt = prop(PROP_KEY);
-        if (!(kt instanceof Lang.String) || (kt as Lang.String).length() == 0) { return null; }
+        if (!(kt instanceof Lang.String) || (kt as Lang.String).length() == 0) {
+            setStatus("no key: paste the sync key from Hidden Word", "no sync key");
+            return null;
+        }
         if (_keys != null && kt.equals(_keyText)) { return _keys; }
         var k = HwB.parseKey(kt as Lang.String);
-        if (k == null) { lastResult = "key typo"; return null; }
+        if (k == null) { setStatus("key typo: check the sync key (XXXX-XXXX-...)", "key typo"); return null; }
         _keyText = kt as Lang.String;
         derive(k as Lang.ByteArray);
+        // State stored for another library (key changed, possibly while the app was closed, when
+        // onSettingsChanged never runs) would hide this library's items behind the old cursor.
+        var lib = (_keys as Lang.Array)[0] as Lang.String;
+        var was = Application.Storage.getValue(S_LIB);
+        if (!lib.equals(was) && !(was == null && sameLib())) {
+            System.println("HWSYNC new library: starting over");
+            wipe();
+        }
+        Application.Storage.setValue(S_LIB, lib);
         return _keys;
+    }
+
+    //! 0.9.0 stored no library id: its records belong to this key when their ids HMAC back.
+    function sameLib() as Lang.Boolean {
+        for (var i = 0; i < SHARDS; i++) {
+            var d = recMap(i);
+            var ks = d.keys();
+            if (ks.size() == 0) { continue; }
+            var r = HwJson.parse(d[ks[0]] as Lang.String);
+            if (!(r instanceof HwObj)) { return false; }
+            var kind = (r as HwObj).get("kind");
+            var rf = (r as HwObj).get("ref");
+            return kind instanceof Lang.String && rf instanceof Lang.String
+                && itemId(kind as Lang.String, rf as Lang.String).equals(ks[0]);
+        }
+        return true; // nothing stored: nothing to lose
+    }
+
+    function wipe() as Void {
+        var ks = [S_RECS, S_DIRTY, S_BM, S_COLOR, S_CUR, S_SEQ, S_EPOCH, S_CANDS, S_IDX, S_NAMES, S_MINE];
+        for (var i = 0; i < ks.size(); i++) { Application.Storage.deleteValue(ks[i]); }
+        for (var i = 0; i < SHARDS; i++) { Application.Storage.deleteValue(S_REC + i); }
+        _rc = null;
+        _rcDirty = null;
+    }
+
+    // ---- Record store: SHARDS dicts (each well under Storage's 32 KB per value) ----------
+    function recShard(id as Lang.String) as Lang.Number {
+        var cs = id.toCharArray();
+        return cs.size() == 0 ? 0 : cs[0].toNumber() % SHARDS;
+    }
+
+    function recMap(i as Lang.Number) as Lang.Dictionary {
+        if (_rc == null) {
+            _rc = new [SHARDS];
+            _rcDirty = new [SHARDS];
+            for (var j = 0; j < SHARDS; j++) { (_rcDirty as Lang.Array)[j] = false; }
+            var old = Application.Storage.getValue(S_RECS); // 0.9.0: move into the shards once
+            if (old instanceof Lang.Dictionary) {
+                var ks = (old as Lang.Dictionary).keys();
+                for (var j = 0; j < ks.size(); j++) { recPut(ks[j] as Lang.String, (old as Lang.Dictionary)[ks[j]] as Lang.String); }
+                recFlush();
+                Application.Storage.deleteValue(S_RECS);
+            }
+        }
+        var d = (_rc as Lang.Array)[i];
+        if (d == null) {
+            d = get(S_REC + i, {});
+            (_rc as Lang.Array)[i] = d;
+        }
+        return d as Lang.Dictionary;
+    }
+
+    function recGet(id as Lang.String) as Lang.String or Null {
+        return recMap(recShard(id))[id] as Lang.String or Null;
+    }
+
+    function recPut(id as Lang.String, text as Lang.String) as Void {
+        var i = recShard(id);
+        recMap(i)[id] = text;
+        (_rcDirty as Lang.Array)[i] = true;
+    }
+
+    function recFlush() as Void {
+        if (_rc == null) { return; }
+        for (var i = 0; i < SHARDS; i++) {
+            if ((_rcDirty as Lang.Array)[i] == true) {
+                Application.Storage.setValue(S_REC + i, (_rc as Lang.Array)[i]);
+                (_rcDirty as Lang.Array)[i] = false;
+            }
+        }
+    }
+
+    // ---- Status line (Garmin Connect "Sync status" + the watch's Bookmarks list) ---------
+    //! Never includes the key. Written only when it changes; see settingsChanged for the echo guard.
+    function setStatus(text as Lang.String, short as Lang.String) as Void {
+        shortStatus = short;
+        if (text.length() > 120) { text = text.substring(0, 120) as Lang.String; }
+        if (text.equals(lastResult)) { return; }
+        lastResult = text;
+        System.println("HWSYNC status: " + text);
+        _statusAt = System.getTimer();
+        try { Application.Properties.setValue(PROP_STATUS, text); } catch (e) { }
+    }
+
+    function clock() as Lang.String {
+        var i = Gregorian.info(Time.now(), Time.FORMAT_SHORT);
+        var h = i.hour as Lang.Number;
+        var m = i.min as Lang.Number;
+        var mm = (m < 10 ? "0" : "") + m;
+        if (System.getDeviceSettings().is24Hour) { return h + ":" + mm; }
+        return (h % 12 == 0 ? 12 : h % 12) + ":" + mm + (h < 12 ? " AM" : " PM");
+    }
+
+    //! What a response code means, briefly (negative = the watch / phone / Connect IQ side).
+    function why(code as Lang.Number) as Lang.String {
+        if (code == 401) { return "sync key not accepted"; }
+        if (code == 404) { return "not found: check server URL"; }
+        if (code == 413 || code == 400) { return "server refused request"; }
+        if (code >= 500) { return "server error"; }
+        if (code == 200) { return "unexpected response"; }
+        if (code == -104) { return "phone not connected"; }
+        if (code == -101) { return "phone link busy"; }
+        if (code == -2 || code == -3) { return "phone link timed out"; }
+        if (code == -1 || code == -4 || code == -5 || code == -103) { return "Bluetooth error"; }
+        if (code == -300) { return "timed out: phone offline?"; }
+        if (code == -400 || code == -1002) { return "response not JSON: check server URL"; }
+        if (code == -402 || code == -403) { return "response too big"; }
+        if (code == -102) { return "request too big"; }
+        if (code == -1001) { return "server must use https"; }
+        if (code == -1000) { return "watch storage full"; }
+        return code < 0 ? "phone/Connect IQ error" : "HTTP error";
+    }
+
+    //! The line written when a sync completes: distinguishes an empty library, no Bookmarks color,
+    //! a Bookmarks color with no verses, and the normal case.
+    function summary() as Void {
+        var t = clock();
+        var hl = (get(S_IDX, {}) as Lang.Dictionary).size();
+        var names = get(S_NAMES, {}) as Lang.Dictionary;
+        var color = get(S_COLOR, null);
+        var bm = (get(S_BM, []) as Lang.Array).size();
+        var tail = " (" + hl + " highlights, " + names.size() + " named colors; read " + _stats[0] + ", sent " + _stats[1] + ")";
+        var near = nearMiss(names);
+        if (hl == 0 && names.size() == 0 && (get(S_SEQ, 0) as Lang.Number) == 0) {
+            setStatus("ok " + t + ": server has no items for this key (empty library?)", "empty library");
+        } else if (color == null) {
+            setStatus("ok " + t + ": no color named 'Bookmarks'" + near + tail, "no Bookmarks color");
+        } else if (color.equals(get(S_MINE, null)) && (get(S_CANDS, {}) as Lang.Dictionary).size() <= 1) {
+            setStatus("ok " + t + ": no 'Bookmarks' color on server, watch made one" + near + tail, "ok " + t);
+        } else if (bm == 0) {
+            setStatus("ok " + t + ": 'Bookmarks' color has 0 verses" + tail, "0 in Bookmarks");
+        } else {
+            setStatus("ok " + t + ": " + bm + " verses in 'Bookmarks', " + Bookmarks.load().size() + " watch bookmarks" + tail, "ok " + t);
+        }
+    }
+
+    //! A color named almost "Bookmarks" (case, spaces, singular): the match is exact (SPEC §1.2).
+    function nearMiss(names as Lang.Dictionary) as Lang.String {
+        var vs = names.values();
+        for (var i = 0; i < vs.size(); i++) {
+            var n = vs[i];
+            if (!(n instanceof Lang.String) || HwMap.COLOR_NAME.equals(n)) { continue; }
+            var l = trimEnd(n as Lang.String).toLower();
+            while (l.length() > 0 && l.substring(0, 1).equals(" ")) { l = l.substring(1, null) as Lang.String; }
+            if (l.equals("bookmarks") || l.equals("bookmark")) { return ": '" + n + "' must be exactly 'Bookmarks'"; }
+        }
+        return "";
     }
 
     //! SPEC §5.2: HKDF-SHA256, empty salt, from the 16 key bytes.
@@ -377,13 +553,20 @@ module HwSync {
         return v == null ? dflt : v;
     }
 
-    //! Settings changed: drop cached keys; a different library starts from scratch.
+    function sig() as Lang.String {
+        return "" + prop(PROP_SERVER) + "|" + prop(PROP_ON) + "|" + prop(PROP_KEY);
+    }
+
+    //! Settings changed: drop cached keys and sync (keys() starts over for a different library).
+    //! Mid-sync, the running sync finishes first. Our own hwStatus write (or the phone echoing it
+    //! back) changes nothing else, so it never starts another sync: no write -> sync loop.
     function settingsChanged() as Void {
-        var kt = prop(PROP_KEY);
-        if (_keyText != null && !(_keyText as Lang.String).equals(kt)) {
-            var ks = [S_RECS, S_DIRTY, S_BM, S_COLOR, S_CUR, S_SEQ, S_EPOCH, S_CANDS, S_IDX];
-            for (var i = 0; i < ks.size(); i++) { Application.Storage.deleteValue(ks[i]); }
+        var same = sig().equals(_sig);
+        if (_phase != :idle) {
+            if (!same) { _pending = true; }
+            return;
         }
+        if (same && System.getTimer() - _statusAt < 10000) { return; }
         _keys = null;
         _keyText = null;
         start();
@@ -395,8 +578,10 @@ module HwSync {
     }
 
     function start() as Void {
-        if (keys() == null) { return; }
         if (_phase != :idle) { _again = true; return; }
+        _sig = sig();
+        if (keys() == null) { return; }
+        setStatus("syncing " + clock() + ": keep the app open", "syncing...");
         _t0 = System.getTimer();
         _stats = [0, 0, 0, 0, 0];
         _added = [];
@@ -424,10 +609,24 @@ module HwSync {
     }
 
     function fail(code as Lang.Number) as Void {
-        lastResult = "error " + code;
         System.println("HWSYNC error " + code + " in " + _phase);
+        setStatus("error " + code + " (" + why(code) + ") " + clock(), "error " + code);
+        stop();
+    }
+
+    //! An exception inside a sync step (e.g. storage full): report it instead of crashing the app.
+    function crash(e as Lang.Exception) as Void {
+        var m = e.getErrorMessage();
+        System.println("HWSYNC exception in " + _phase + ": " + m);
+        setStatus("error " + clock() + ": " + (m == null ? "exception" : m), "error");
+        _queue = [];
+        stop();
+    }
+
+    function stop() as Void {
         _phase = :idle;
         _again = false; // tried again on the next change, app start or settings change
+        if (_pending) { _pending = false; _keys = null; _keyText = null; start(); }
     }
 
     //! A server that lost data (new epoch, or seq went back): refill it (SPEC §5.6 step 3).
@@ -443,17 +642,16 @@ module HwSync {
         Application.Storage.setValue(S_CUR, 0);
         Application.Storage.setValue(S_SEQ, 0);
         Application.Storage.setValue(S_EPOCH, ans["epoch"]);
-        var recs = get(S_RECS, {}) as Lang.Dictionary;
         var own = [] as Lang.Array;
         var color = get(S_COLOR, null);
         if (color != null) {
             var cid = itemId("color", color as Lang.String);
-            if (recs[cid] != null) { own.add(cid); }
+            if (recGet(cid) != null) { own.add(cid); }
         }
         var bm = get(S_BM, []) as Lang.Array;
         for (var i = 0; i < bm.size(); i++) {
             var id = itemId("highlight", bm[i] as Lang.String);
-            if (recs[id] != null && own.indexOf(id) < 0) { own.add(id); }
+            if (recGet(id) != null && own.indexOf(id) < 0) { own.add(id); }
         }
         var dirty = get(S_DIRTY, []) as Lang.Array; // unsent local edits (e.g. tombstones) stay queued
         for (var i = 0; i < dirty.size(); i++) { if (own.indexOf(dirty[i]) < 0) { own.add(dirty[i]); } }
@@ -461,6 +659,10 @@ module HwSync {
     }
 
     function onPull(code as Lang.Number, data as Null or Lang.Dictionary or Lang.String or Lang.ByteArray or PersistedContent.Iterator) as Void {
+        try { pulled(code, data); } catch (e instanceof Lang.Exception) { crash(e); }
+    }
+
+    function pulled(code as Lang.Number, data) as Void {
         // -402 response too large / -403 out of memory parsing it: big items (long notes, up to
         // ~22 KB each) can push a page past the watch's response limit. Ask for fewer and retry.
         if ((code == -402 || code == -403) && _page > 1) {
@@ -488,6 +690,7 @@ module HwSync {
         var items = ans["items"] as Lang.Array;
         _queue = items == null ? [] : items;
         _more = ans["more"] == true;
+        if (_more) { setStatus("syncing " + clock() + ": " + (_stats[0] + _queue.size()) + " items read, keep the app open", "syncing..."); }
         var seq = ans["seq"];
         if (seq instanceof Lang.Number && seq > (get(S_SEQ, 0) as Lang.Number)) { Application.Storage.setValue(S_SEQ, seq); }
         _phase = :merge;
@@ -500,19 +703,21 @@ module HwSync {
     }
 
     function tick() as Void {
-        if (_phase == :merge) { mergeSome(); }
-        else if (_phase == :edit) { editSome(); }
-        else if (_phase == :seal) { sealSome(); }
+        try {
+            if (_phase == :merge) { mergeSome(); }
+            else if (_phase == :edit) { editSome(); }
+            else if (_phase == :seal) { sealSome(); }
+        } catch (e instanceof Lang.Exception) { crash(e); }
     }
 
     //! Decrypt + merge pulled items, PER_TICK 256-byte blocks per tick.
     function mergeSome() as Void {
-        var recs = get(S_RECS, {}) as Lang.Dictionary;
         var dirty = get(S_DIRTY, []) as Lang.Array;
         var bm = get(S_BM, []) as Lang.Array;
         var cur = get(S_CUR, 0);
         var cands = get(S_CANDS, {}) as Lang.Dictionary;
         var idx = get(S_IDX, {}) as Lang.Dictionary;
+        var names = get(S_NAMES, {}) as Lang.Dictionary;
         var budget = PER_TICK;
         while (budget > 0 && _queue.size() > 0) {
             var it = _queue[0] as Lang.Dictionary;
@@ -535,12 +740,16 @@ module HwSync {
             var kind = r.get("kind") as Lang.String;
             var rf = r.get("ref") as Lang.String;
             if (!"highlight".equals(kind) && !"color".equals(kind)) { continue; } // notes etc. aren't needed on the watch
-            var mine = recs[id] as Lang.String or Null;
+            var mine = recGet(id as Lang.String);
             var mineObj = mine == null ? null : HwJson.parse(mine as Lang.String) as HwObj;
             var c = mineObj == null ? 1 : HwMap.compare(r as HwObj, text, mineObj as HwObj, mine as Lang.String);
             if (c < 0) { if (dirty.indexOf(id) < 0) { dirty.add(id); } continue; } // ours is newer: resend
+            if ("color".equals(kind)) { // for the status line; also on c == 0 (state from 0.9.0 had no names)
+                var nm = (r as HwObj).get("name");
+                if ((r as HwObj).get("deleted") != true && nm instanceof Lang.String && (nm as Lang.String).length() > 0) { names[rf] = nm; } else { names.remove(rf); }
+            }
             if (c == 0) { continue; }
-            recs[id] = text;
+            recPut(id as Lang.String, text);
             if ("highlight".equals(kind)) { index(idx, rf, r); }
             if ("color".equals(kind)) {
                 // Picked once the pull is complete (chooseColor), not first-seen.
@@ -553,12 +762,13 @@ module HwSync {
             if (now && !was) { bm.add(rf); noteDelta(rf as Lang.String, true); }
             if (!now && was) { bm.remove(rf); noteDelta(rf as Lang.String, false); }
         }
-        Application.Storage.setValue(S_RECS, recs);
+        recFlush();
         Application.Storage.setValue(S_DIRTY, dirty);
         Application.Storage.setValue(S_BM, bm);
         Application.Storage.setValue(S_CUR, cur);
         Application.Storage.setValue(S_CANDS, cands);
         Application.Storage.setValue(S_IDX, idx);
+        Application.Storage.setValue(S_NAMES, names);
         if (_queue.size() > 0) { tickSoon(); return; }
         if (_more) { pull(); return; }
         // The pull is complete: only now pick (or switch) the Bookmarks color.
@@ -620,6 +830,7 @@ module HwSync {
         _applying = true;
         Bookmarks.save(HwMap.applyDelta(Bookmarks.load(), _removed, _added));
         _applying = false;
+        WatchUi.requestUpdate();
         System.println("HWSYNC applied +" + _added.size() + " -" + _removed.size() + " verses from the server");
     }
 
@@ -627,7 +838,6 @@ module HwSync {
     function diff() as Void {
         var want = HwMap.verseRefs(Bookmarks.load());
         var bm = get(S_BM, []) as Lang.Array;
-        var recs = get(S_RECS, {}) as Lang.Dictionary;
         var dirty = get(S_DIRTY, []) as Lang.Array;
         var now = Time.now().value().toLong();
         var color = get(S_COLOR, null);
@@ -635,14 +845,15 @@ module HwSync {
             // Only reached after a complete pull found no live Bookmarks color.
             color = "c-" + HwB.hex(Cryptography.randomBytes(4));
             var cid = itemId("color", color as Lang.String);
-            recs[cid] = HwJson.stringify(HwMap.newColor(color as Lang.String, now));
+            recPut(cid, HwJson.stringify(HwMap.newColor(color as Lang.String, now)));
             dirty.add(cid);
+            Application.Storage.setValue(S_MINE, color);
             var cands = get(S_CANDS, {}) as Lang.Dictionary;
             cands[color] = now;
             Application.Storage.setValue(S_CANDS, cands);
             Application.Storage.setValue(S_COLOR, color);
         }
-        Application.Storage.setValue(S_RECS, recs);
+        recFlush();
         Application.Storage.setValue(S_DIRTY, dirty);
         var edits = [] as Lang.Array;
         for (var i = 0; i < want.size(); i++) { if (bm.indexOf(want[i]) < 0) { edits.add([want[i], true]); } }
@@ -655,7 +866,6 @@ module HwSync {
     }
 
     function editSome() as Void {
-        var recs = get(S_RECS, {}) as Lang.Dictionary;
         var dirty = get(S_DIRTY, []) as Lang.Array;
         var bm = get(S_BM, []) as Lang.Array;
         var idx = get(S_IDX, {}) as Lang.Dictionary;
@@ -666,14 +876,15 @@ module HwSync {
             _queue = _queue.slice(1, null);
             var rf = e[0] as Lang.String;
             var id = itemId("highlight", rf);
-            var old = recs[id] == null ? null : HwJson.parse(recs[id] as Lang.String) as HwObj;
+            var ot = recGet(id);
+            var old = ot == null ? null : HwJson.parse(ot as Lang.String) as HwObj;
             var nr = HwMap.edit(old, rf, color, e[1] as Lang.Boolean, now);
-            recs[id] = HwJson.stringify(nr);
+            recPut(id, HwJson.stringify(nr));
             index(idx, rf, nr);
             if (dirty.indexOf(id) < 0) { dirty.add(id); }
             if (e[1]) { if (bm.indexOf(rf) < 0) { bm.add(rf); } } else { bm.remove(rf); }
         }
-        Application.Storage.setValue(S_RECS, recs);
+        recFlush();
         Application.Storage.setValue(S_DIRTY, dirty);
         Application.Storage.setValue(S_BM, bm);
         Application.Storage.setValue(S_IDX, idx);
@@ -686,11 +897,10 @@ module HwSync {
     }
 
     function sealSome() as Void {
-        var recs = get(S_RECS, {}) as Lang.Dictionary;
         var budget = PER_TICK;
         while (budget > 0 && _queue.size() > 0) {
             var id = _queue[0] as Lang.String;
-            var text = recs[id] as Lang.String or Null;
+            var text = recGet(id);
             var nb = text == null ? 0 : ((text as Lang.String).length() + 255) / 256; // ~bytes for these records
             if (nb > budget && budget < PER_TICK) { break; }
             _queue = _queue.slice(1, null);
@@ -711,6 +921,10 @@ module HwSync {
     }
 
     function onPost(code as Lang.Number, data as Null or Lang.Dictionary or Lang.String or Lang.ByteArray or PersistedContent.Iterator) as Void {
+        try { posted(code, data); } catch (e instanceof Lang.Exception) { crash(e); }
+    }
+
+    function posted(code as Lang.Number, data) as Void {
         if (code == -102 && _out.size() > 1) { // BLE_REQUEST_TOO_LARGE: send half; the rest stays dirty
             _post = _out.size() / 2;
             _out = _out.slice(0, _post);
@@ -737,11 +951,12 @@ module HwSync {
 
     function done() as Void {
         lastMs = System.getTimer() - _t0;
-        lastResult = "ok";
+        summary();
         System.println("HWSYNC done ms=" + lastMs + " pulled=" + _stats[0] + " pushed=" + _stats[1] + " skipped=" + _stats[2] + " pages=" + _stats[3] + " big=" + _stats[4]
             + " bookmarks=" + Bookmarks.load().size());
         HwTestSeed.report(get(S_COLOR, null), get(S_BM, []) as Lang.Array);
         _phase = :idle;
+        if (_pending) { _pending = false; _again = false; _keys = null; _keyText = null; start(); return; }
         if (_again) { _again = false; start(); }
     }
 }

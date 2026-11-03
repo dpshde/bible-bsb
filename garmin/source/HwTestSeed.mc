@@ -13,6 +13,9 @@ module HwTestSeed {
         if (k == null || (k as Lang.String).length() == 0) {
             Application.Properties.setValue(HwSync.PROP_KEY, WatchUi.loadResource(Rez.Strings.HwTestKey) as Lang.String);
             Application.Properties.setValue(HwSync.PROP_ON, true);
+            if (Rez.Strings has :HwTestServer) { // error-path builds: a server URL that doesn't answer
+                Application.Properties.setValue(HwSync.PROP_SERVER, WatchUi.loadResource(Rez.Strings.HwTestServer) as Lang.String);
+            }
             HwSync.settingsChanged();
         }
     }

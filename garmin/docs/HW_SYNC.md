@@ -81,3 +81,49 @@ to the throwaway library. Scripts are outside the repo: `/workspace/labs/hw-veri
 - A byte budget per page (for example `maxBytes=`, or stop the page before it exceeds N bytes) would let small clients skip the halving and cursor steps.
 - `limit` quietly falls back to 500 for non-numeric values but clamps -1 and 0 to 1, while `after=-1` is a 400. That's harmless, but inconsistent.
 - 401 says "wrong token for this library" for a claimed library and "missing or malformed" otherwise, and an unclaimed library answers 200 with an empty list. Together these reveal whether a library id exists. Ids are 128-bit, so the risk is low.
+
+## Sync status (0.9.1)
+
+The watch writes a one-line result to the read-only **Sync status** setting (`hwStatus`) at the
+end of every sync, on every failure and on a key problem, so it shows in Garmin Connect the next
+time the phone reads the app's settings. The Bookmarks list on the watch ends with a **Sync now**
+row whose sublabel is the short form (`ok 1:58 PM`, `error -104`, `no Bookmarks color`); selecting
+it syncs. The line never contains the key. Writing it never starts a sync: `onSettingsChanged`
+ignores a change that leaves server, key and switch as they were within 10 s of the last status
+write, and settings changed mid-sync apply once that sync ends.
+
+| Situation | Status line |
+| --- | --- |
+| Before the first sync | `Not synced yet: open the app on the watch` (default) |
+| Switch off / no key / bad key | `sync off` / `no key: paste the sync key from Hidden Word` / `key typo: check the sync key (XXXX-XXXX-...)` |
+| In progress (sync runs only while the app is open) | `syncing 1:58 PM: 30 items read, keep the app open` |
+| Phone / Bluetooth / Connect IQ | `error -104 (phone not connected) 1:58 PM`; also -101 busy, -2/-3 link timed out, -300 phone offline, -400/-1002 not JSON (server URL), -402/-403 too big |
+| Server | `error 401 (sync key not accepted) ...`, `error 404 (not found: check server URL) ...`, 5xx `server error` |
+| Server reached, library empty | `ok 1:58 PM: server has no items for this key (empty library?)` |
+| Items, no color named exactly `Bookmarks` | `ok 1:58 PM: no color named 'Bookmarks': 'bookmarks' must be exactly 'Bookmarks' (214 highlights, 6 named colors; read 30, sent 0)` |
+| Color exists, no verses in it | `ok 1:58 PM: 'Bookmarks' color has 0 verses (...)` |
+| Normal | `ok 1:58 PM: 4 verses in 'Bookmarks', 2 watch bookmarks (52 highlights, 3 named colors; read 59, sent 0)` |
+| Exception in a sync step | `error 1:58 PM: <message>` (caught instead of crashing the app) |
+
+**Bugs found and fixed (why a real watch could show no bookmarks)**
+- All records lived in one Storage value (`hwRecs`). Storage caps a value at 32 KB, and on the
+  Enduro 3 simulator saving one dict of 250 realistic highlight records fails with an
+  uncatchable Out Of Memory error (200 is fine). A library with more than ~220 highlights
+  crashed every sync partway through the first pull, and the Bookmarks color is only chosen
+  after a complete pull, so the watch never showed a bookmark. Records are now in 16 shards
+  (`hwR0`..`hwR15`, ~3,000 records); 0.9.0's `hwRecs` moves over on first use.
+- A key changed while the app was closed (`onSettingsChanged` doesn't run then) kept the old
+  library's cursor and records. The watch now stores the library id (`hwLib`) and starts over
+  when it differs (0.9.0 state is kept when its records HMAC back under the current key).
+- Settings changed mid-sync swapped keys under the running sync. They now apply when it ends.
+- Not bugs, checked: settings set while the app was closed are picked up when it opens
+  (`getInitialView` starts a sync); verses in the Bookmarks color are written into the watch's
+  own bookmark list (the list shows them, e.g. Romans 5:3-5 from the server); the color name
+  match is exact and case-sensitive (SPEC 1.2), which the status line now points out.
+- Still open: the ref -> colors index (`hwIdx`) is one Storage value (~800+ highlights); sync
+  runs only while the app is open (no background sync).
+
+Simulator checks (Enduro 3, throwaway library; unit tests 80/80):
+`ok 7:08 PM: 4 verses in 'Bookmarks', 2 watch bookmarks (52 highlights, 3 named colors; read 59, sent 0)`;
+bad server URL: `error -400 (response not JSON: check server URL) 7:08 PM`;
+fresh random key: `ok 7:17 PM: server has no items for this key (empty library?)` (times UTC).

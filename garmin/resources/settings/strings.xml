@@ -4,4 +4,5 @@
     <string id="SetKey">Sync key</string>
     <string id="SetKeyPrompt">Paste the sync key from Hidden Word (XXXX-XXXX-…)</string>
     <string id="SetSync">Sync bookmarks</string>
+    <string id="SetStatus">Sync status</string>
 </strings>
