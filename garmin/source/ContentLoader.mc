@@ -194,6 +194,16 @@ module ContentLoader {
         _wordCache = {};
     }
 
+    // POKE: WORD_CACHE_MAX — word widths kept across chapter opens (one face); dropped
+    // wholesale past this size so memory stays bounded.
+    const WORD_CACHE_MAX = 900;
+
+    function trimWordCache() as Void {
+        if (_wordCache.size() > WORD_CACHE_MAX) {
+            _wordCache = {};
+        }
+    }
+
     function wordWidth(dc as Graphics.Dc, font as Graphics.FontDefinition, word as Lang.String) as Lang.Number {
         return wordWidthKeyed(dc, font, word, 0);
     }

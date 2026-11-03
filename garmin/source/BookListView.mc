@@ -2,8 +2,13 @@ using Toybox.Graphics;
 using Toybox.Lang;
 using Toybox.WatchUi;
 
+//! Home rows: 66 books, then one "Menu & Settings" row (v6: the app menu is reachable
+//! without knowing the hold-UP / MENU gesture). Up from Genesis wraps straight onto it.
+const HOME_ROWS = 67;
+const HOME_MENU_ROW = 66;
+
 class BookListView extends WatchUi.View {
-    var focus as Lang.Number = 0; // book index 0..65 (Genesis..Revelation)
+    var focus as Lang.Number = 0; // 0..65 = book (Genesis..Revelation), 66 = menu row
     // Hit-test cache from last onUpdate
     var _rowTop as Lang.Number = 0;
     var _rowH as Lang.Number = 0;
@@ -30,18 +35,27 @@ class BookListView extends WatchUi.View {
             for (i = 0; i < Books.BOOK_COUNT; i++) {
                 labels.add(Books.name(i));
             }
+            labels.add(PickList.MENU_ROW_LABEL);
             _labels = labels;
         }
-        _rowCount = Books.BOOK_COUNT;
+        _rowCount = HOME_ROWS;
         focus = PickList.takeFocus(focus, _labels as Lang.Array);
         PickList.draw(dc, "Bible BSB", _labels as Lang.Array, focus);
     }
 
+    function onHide() as Void {
+        PickList.stopWarm();
+    }
+
     function rowAtY(y as Lang.Number) as Lang.Number {
-        return PickList.indexAtY(y, Books.BOOK_COUNT);
+        return PickList.indexAtY(y, HOME_ROWS);
     }
 
     function openFocusedBook() as Void {
+        if (focus >= Books.BOOK_COUNT) {
+            HomeMenu2Delegate.open();
+            return;
+        }
         PickList.openBook(focus);
     }
 }
@@ -63,7 +77,7 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
             return true;
         }
         var v = view();
-        v.focus = (v.focus + 1) % Books.BOOK_COUNT;
+        v.focus = (v.focus + 1) % HOME_ROWS;
         WatchUi.requestUpdate();
         return true;
     }
@@ -76,7 +90,7 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
             return true;
         }
         var v = view();
-        v.focus = (v.focus + Books.BOOK_COUNT - 1) % Books.BOOK_COUNT;
+        v.focus = (v.focus + HOME_ROWS - 1) % HOME_ROWS;
         WatchUi.requestUpdate();
         return true;
     }
@@ -107,6 +121,11 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
     function onTap(evt) as Lang.Boolean {
         var coords = evt.getCoordinates();
         var v = view();
+        if (coords[1] < PickList.lastTop) {
+            // Touch: the "Bible BSB" title opens the app menu too.
+            HomeMenu2Delegate.open();
+            return true;
+        }
         var idx = v.rowAtY(coords[1]);
         if (idx >= 0) {
             v.focus = idx;
@@ -128,14 +147,14 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
         if (dir == WatchUi.SWIPE_UP) {
             TouchGuard.markPage();
             var v = view();
-            v.focus = (v.focus + 1) % Books.BOOK_COUNT;
+            v.focus = (v.focus + 1) % HOME_ROWS;
             WatchUi.requestUpdate();
             return true;
         }
         if (dir == WatchUi.SWIPE_DOWN) {
             TouchGuard.markPage();
             var v2 = view();
-            v2.focus = (v2.focus + Books.BOOK_COUNT - 1) % Books.BOOK_COUNT;
+            v2.focus = (v2.focus + HOME_ROWS - 1) % HOME_ROWS;
             WatchUi.requestUpdate();
             return true;
         }
@@ -148,7 +167,8 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onMenu() as Lang.Boolean {
-        // Flipper home: Left = Collection, Right = Testament / Filter -> one Browse Menu2.
+        // MENU (hold UP on Enduro/Forerunner; hold the lower button on touch watches).
+        // Flipper home: Left = Collection, Right = Testament / Filter -> one app menu.
         HomeMenu2Delegate.open();
         return true;
     }

@@ -70,6 +70,41 @@ module Perf {
     function end(tag as Lang.String, t0 as Lang.Number) as Void {
     }
 
+    //! Chapter-open probe: openFor() marks, the reader's first finished onUpdate prints
+    //! "OPEN reader ms=<push..first paint>". Debug builds only.
+    var openT as Lang.Number = 0;
+
+    (:debug)
+    function markOpen() as Void {
+        openT = System.getTimer();
+    }
+
+    (:debug)
+    function firstPaint(tag as Lang.String) as Void {
+        if (openT != 0) {
+            System.println("OPEN " + tag + " ms=" + (System.getTimer() - openT));
+            openT = 0;
+        }
+    }
+
+    //! Idle (Timer) work probe: "IDLE <tag> ms=<n>" per tick that did work.
+    (:debug)
+    function idle(tag as Lang.String, t0 as Lang.Number) as Void {
+        System.println("IDLE " + tag + " ms=" + (System.getTimer() - t0));
+    }
+
+    (:release)
+    function markOpen() as Void {
+    }
+
+    (:release)
+    function firstPaint(tag as Lang.String) as Void {
+    }
+
+    (:release)
+    function idle(tag as Lang.String, t0 as Lang.Number) as Void {
+    }
+
     //! Fallback log (abbreviations etc.): println in every build so a device log shows it.
     var _noted as Lang.Dictionary = {};
 

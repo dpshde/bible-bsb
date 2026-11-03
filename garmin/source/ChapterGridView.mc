@@ -64,6 +64,14 @@ class ChapterGridView extends WatchUi.View {
         var t0 = Perf.start();
         onUpdateImpl(dc);
         Perf.end("grid", t0);
+        // v6: lay the focused chapter's reader out while focus rests here (instant open).
+        if (flashIdx < 0 && _gridBook >= 0) {
+            ReaderPrep.want(_gridBook, grid.focusedChapter());
+        }
+    }
+
+    function onHide() as Void {
+        ReaderPrep.pause();
     }
 
     // PERF caches: per-book headings (1 resource), per-chapter subtitle split, per-top layout,

@@ -146,7 +146,11 @@ module PickList {
     var _cMaxW as Lang.Number = 0;    // widest row (window middle) - ROW_PAD: bitmap width
     var _rowBmp as Lang.Dictionary = {}; // idx*2 + focused -> BufferedBitmapReference
     var _fit as Lang.Dictionary = {};    // idx -> [font, text, fontH]
-    const ROW_CACHE_MAX = 16;
+    // v6: room for the window + the rows one press up AND one press down will need.
+    const ROW_CACHE_MAX = 24;
+    var _sw as Lang.Number = 0;          // screen size, cached at layout (no per-row
+    var _sh as Lang.Number = 0;          // System.getDeviceSettings() allocation)
+    var _room as Lang.Dictionary = {};   // row top y -> text room (chord math once per y)
 
     // Scroll state (pixels). _px = top of the list window in content space.
     var _px as Lang.Float = 0.0;
@@ -164,6 +168,10 @@ module PickList {
     function layoutList(dc as Graphics.Dc, title as Lang.String, labels as Lang.Array) as Void {
         var w = dc.getWidth();
         var h = dc.getHeight();
+        _sw = w;
+        _sh = h;
+        _room = {};
+        _warmQ = [] as Lang.Array;
         _cTitleRows = [] as Lang.Array;
         var y = titleLayout(dc, title, RoundLayout.edgeMargin(w, h)) + 4;
         _cTitleH = y;
@@ -242,12 +250,24 @@ module PickList {
     }
 
     //! Text room for a row whose top is at y: the narrower of its top/bottom chords.
+    //! v6 PERF: was System.getDeviceSettings() + 2 chord sqrt per visible row per frame
+    //! (the v4 book-list regression); now screen size is cached and each y computed once.
     function roomAt(y as Lang.Number) as Lang.Number {
-        var ds = System.getDeviceSettings();
-        var a = RoundLayout.chordWidth(y, ds.screenWidth, ds.screenHeight);
-        var b = RoundLayout.chordWidth(y + _cRowH, ds.screenWidth, ds.screenHeight);
-        return (a < b ? a : b) - 2 * ROW_PAD;
+        var v = _room[y];
+        if (v != null) {
+            return v as Lang.Number;
+        }
+        var a = RoundLayout.chordWidth(y, _sw, _sh);
+        var b = RoundLayout.chordWidth(y + _cRowH, _sw, _sh);
+        var r = (a < b ? a : b) - 2 * ROW_PAD;
+        _room[y] = r;
+        return r;
     }
+
+    //! Home list's last row: opens the app menu (Bookmarks, Settings, About...).
+    // POKE: MENU_ROW_LABEL — full label mid-list; "Menu" where the circle is narrow.
+    const MENU_ROW_LABEL = "Menu & Settings";
+    const MENU_ROW_SHORT = "Menu";
 
     //! short = this row sits where the circle is too narrow for the full name: use the
     //! book abbreviation (last resort, logged), never a smaller font.
@@ -258,7 +278,9 @@ module PickList {
             return f as Lang.Array;
         }
         var text = label;
-        if (isShort) {
+        if (isShort && label.equals(MENU_ROW_LABEL)) {
+            text = MENU_ROW_SHORT;
+        } else if (isShort) {
             text = Books.abbrevLabel(label);
             if (!text.equals(label)) {
                 Perf.note("ABBR row '" + label + "' -> '" + text + "'");
@@ -313,7 +335,7 @@ module PickList {
         var bdc = (bmp as Graphics.BufferedBitmap).getDc();
         bdc.setColor(Palette.BG, Palette.BG);
         bdc.clear();
-        drawRow(bdc, bw / 2, 0, fitFor(dc, idx, label, isShort), focused, Palette.BG);
+        drawRow(bdc, bw / 2, 0, fitFor(bdc, idx, label, isShort), focused, Palette.BG);
         _rowBmp[key] = ref;
         return ref;
     }
@@ -517,6 +539,7 @@ module PickList {
                         Graphics.FONT_TINY, "No books", Graphics.TEXT_JUSTIFY_CENTER);
             return;
         }
+        _warmQ = [] as Lang.Array; // last frame's predictions are stale now
         var rowH = _cRowH;
         var pxi = _px.toNumber();
         var first = pxi / rowH;
@@ -534,16 +557,32 @@ module PickList {
                 break;
             }
             var y = _cTop + r * rowH - off;
+            if (y >= _cBottom) {
+                break; // fully below the clip: drawing (or caching) it is wasted work
+            }
             var label = labels[i] as Lang.String;
             var isShort = fullWidth(dc, i, label) > roomAt(y);
-            var ref = bmps ? rowBitmap(dc, i, label, i == focus, isShort) : null;
+            // v6: a frame only blits cached rows; a miss is drawn directly (cheaper than
+            // allocating a bitmap mid-scroll) and its bitmap is built on an idle slice.
+            var ref = bmps ? cachedRow(i, i == focus, isShort) : null;
             if (ref != null) {
                 dc.drawBitmap(w / 2 - (_cMaxW + 2) / 2, y, ref);
             } else {
                 drawRow(dc, w / 2, y, fitFor(dc, i, label, isShort), i == focus, Graphics.COLOR_TRANSPARENT);
+                if (bmps) {
+                    _warmQ.add([i, i == focus, isShort]);
+                }
             }
         }
         dc.clearClip();
+        if (bmps && !dragActive()) {
+            // Predict the next press either way (button, or a swipe step) so it is all blits.
+            queueFrame(n, focus + 1 < n ? focus + 1 : 0);
+            queueFrame(n, focus > 0 ? focus - 1 : n - 1);
+        }
+        if (bmps && _warmQ.size() > 0) {
+            scheduleWarm();
+        }
         dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
         if (off != 0) {
             return;
@@ -566,8 +605,109 @@ module PickList {
         }
     }
 
+    function cachedRow(idx as Lang.Number, focused as Lang.Boolean, isShort as Lang.Boolean) {
+        var ref = _rowBmp[idx * 4 + (isShort ? 2 : 0) + (focused ? 1 : 0)];
+        if (ref != null && (ref as Graphics.BufferedBitmapReference).get() != null) {
+            return ref;
+        }
+        return null;
+    }
+
+    // ---- Idle warm-up (v6) -------------------------------------------------------------
+    // POKE: WARM_TICK_MS / WARM_BUDGET_MS — row bitmaps are built on one Timer in slices of
+    // at most WARM_BUDGET_MS, never inside a frame, and never trigger a repaint.
+    const WARM_TICK_MS = 50; // CIQ minimum timer period
+    const WARM_BUDGET_MS = 10;
+    var _warmQ as Lang.Array = [] as Lang.Array; // [idx, focused, isShort]
+    var _warmTimer = null;
+
+    //! Queue the uncached rows a button press that lands on focus f would draw.
+    function queueFrame(n as Lang.Number, f as Lang.Number) as Void {
+        var labels = _cLabels;
+        if (labels == null || _cRowH <= 0) {
+            return;
+        }
+        var px = (f - (_cVis - 1) / 2) * _cRowH;
+        var m = maxPx().toNumber();
+        if (px > m) {
+            px = m;
+        }
+        if (px < 0) {
+            px = 0;
+        }
+        var first = px / _cRowH;
+        var mdc = null;
+        var r;
+        for (r = 0; r < _cVis; r++) {
+            var i = first + r;
+            if (i >= n) {
+                break;
+            }
+            var y = _cTop + r * _cRowH;
+            var fw = _fullW[i];
+            if (fw == null) {
+                if (mdc == null) {
+                    mdc = MeasureDc.get();
+                    if (mdc == null) {
+                        return;
+                    }
+                }
+                fw = fullWidth(mdc as Graphics.Dc, i, (labels as Lang.Array)[i] as Lang.String);
+            }
+            var isShort = (fw as Lang.Number) > roomAt(y);
+            if (cachedRow(i, i == f, isShort) == null) {
+                _warmQ.add([i, i == f, isShort]);
+            }
+        }
+    }
+
+    function scheduleWarm() as Void {
+        if (_warmTimer == null) {
+            _warmTimer = new Timer.Timer();
+        } else {
+            (_warmTimer as Timer.Timer).stop();
+        }
+        (_warmTimer as Timer.Timer).start(new Lang.Method(PickList, :onWarm), WARM_TICK_MS, false);
+    }
+
+    function stopWarm() as Void {
+        if (_warmTimer != null) {
+            (_warmTimer as Timer.Timer).stop();
+        }
+        _warmQ = [] as Lang.Array;
+    }
+
+    function onWarm() as Void {
+        var t0 = System.getTimer();
+        var pt0 = Perf.start();
+        var labels = _cLabels;
+        var mdc = MeasureDc.get();
+        if (labels == null || mdc == null) {
+            _warmQ = [] as Lang.Array;
+            return;
+        }
+        var n = 0;
+        while (_warmQ.size() > 0 && System.getTimer() - t0 < WARM_BUDGET_MS) {
+            var q = _warmQ[0] as Lang.Array;
+            _warmQ = _warmQ.slice(1, null);
+            var i = q[0] as Lang.Number;
+            if (i < (labels as Lang.Array).size() && cachedRow(i, q[1] as Lang.Boolean, q[2] as Lang.Boolean) == null) {
+                rowBitmap(mdc as Graphics.Dc, i, (labels as Lang.Array)[i] as Lang.String,
+                          q[1] as Lang.Boolean, q[2] as Lang.Boolean);
+                n++;
+            }
+        }
+        if (n > 0) {
+            Perf.idle("rows", pt0);
+        }
+        if (_warmQ.size() > 0) {
+            scheduleWarm();
+        }
+    }
+
     //! Theme toggled: drop every cached bitmap so rows redraw in the new palette.
     function invalidate() as Void {
+        stopWarm();
         _cLabels = null;
         _rowBmp = {};
         _titleBmp = null;
@@ -599,6 +739,10 @@ class PickListView extends WatchUi.View {
     function onUpdate(dc as Graphics.Dc) as Void {
         focus = PickList.takeFocus(focus, labels);
         PickList.draw(dc, title, labels, focus);
+    }
+
+    function onHide() as Void {
+        PickList.stopWarm();
     }
 }
 
@@ -702,24 +846,60 @@ class PickListDelegate extends WatchUi.BehaviorDelegate {
     }
 }
 
-//! Home (book list) Menu2 — Flipper home: Left = Collection(Bookmarks), Right = Testament, Right again = Filter.
+//! Home (book list) app menu — Flipper home: Left = Collection(Bookmarks), Right = Testament,
+//! Right again = Filter; plus Continue, Settings and About (v6). Opened by MENU (hold UP /
+//! hold the lower button), the list's last row "Menu & Settings", or a tap on the title.
 class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
     function initialize() {
         Menu2InputDelegate.initialize();
     }
 
+    //! [book, chapter, verse] to continue at, or null (nothing read yet).
+    static function resumeTarget() as Lang.Array or Null {
+        var p = LastReadApp.pending;
+        if (p == null) {
+            p = LastReadApp.stored();
+        }
+        return p;
+    }
+
+    static function items() as Lang.Array {
+        var out = [] as Lang.Array; // [label, sublabel or null, id]
+        var r = resumeTarget();
+        if (r != null) {
+            out.add(["Continue", Books.refLabel(r[0] as Lang.Number, r[1] as Lang.Number, r[2] as Lang.Number), :resume]);
+        }
+        var nb = Bookmarks.load().size();
+        out.add(["Bookmarks", nb == 0 ? "None yet" : (nb == 1 ? "1 saved" : nb + " saved"), :bookmarks]);
+        out.add(["By Testament", "Old, New", :testament]);
+        out.add(["Filter books", "All, A to Z, 1 to 3", :letter]);
+        out.add(["Settings", "Scroll, theme, buzz", :settings]);
+        out.add(["About", "Bible BSB", :about]);
+        return out;
+    }
+
     static function open() as Void {
-        var menu = UiMenu.create("Browse");
-        menu.addItem(UiMenu.item("Bookmarks", null, :bookmarks));
-        menu.addItem(UiMenu.item("By Testament", null, :testament));
-        menu.addItem(UiMenu.item("Filter books", "All, A to Z, 1 to 3", :letter));
-        menu.addItem(UiMenu.item("All books", null, :all));
-        menu.addItem(UiMenu.item("Settings", "Scroll, theme, buzz", :theme));
+        var menu = UiMenu.create("Menu");
+        var list = items();
+        var i;
+        for (i = 0; i < list.size(); i++) {
+            var it = list[i] as Lang.Array;
+            menu.addItem(UiMenu.item(it[0] as Lang.String, it[1] as Lang.String or Null, it[2] as Lang.Symbol));
+        }
         WatchUi.pushView(menu, new HomeMenu2Delegate(), WatchUi.SLIDE_UP);
     }
 
     function onSelect(item as WatchUi.MenuItem) as Void {
         var id = item.getId();
+        if (id == :settings) {
+            // Settings opens on top of the menu: Back returns here, like Garmin's own menus.
+            NativeLists.openSettings();
+            return;
+        }
+        if (id == :about) {
+            WatchUi.pushView(new AboutView(), new AboutDelegate(), WatchUi.SLIDE_LEFT);
+            return;
+        }
         WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
         if (id == :bookmarks) {
             NativeLists.openBookmarks();
@@ -727,16 +907,75 @@ class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
             NativeLists.openBrowse();
         } else if (id == :letter) {
             NativeLists.openFilter();
-        } else if (id == :theme) {
-            NativeLists.openSettings();
-        } else if (id == :all) {
-            var books = PickList.booksForFilter(0);
-            var v2 = new PickListView("All books", PickList.bookLabels(books));
-            WatchUi.pushView(v2, new PickListDelegate(v2, 0, books), WatchUi.SLIDE_LEFT);
+        } else if (id == :resume) {
+            var r = resumeTarget();
+            if (r != null) {
+                var b = r[0] as Lang.Number;
+                var c = r[1] as Lang.Number;
+                AppState.selectedBook = b;
+                LastReadApp.resumeVerse = r[2] as Lang.Number;
+                LastReadApp.pending = r;
+                ReaderView.openFor(b, c);
+            }
         }
     }
 
     function onBack() as Void {
         WatchUi.popView(WatchUi.SLIDE_DOWN);
+    }
+}
+
+//! About: what this is, and that it is all on the watch.
+class AboutView extends WatchUi.View {
+    // POKE: ABOUT_VERSION
+    const VERSION = "v6";
+
+    function initialize() {
+        View.initialize();
+    }
+
+    function onUpdate(dc as Graphics.Dc) as Void {
+        Palette.applyBackground(dc);
+        var w = dc.getWidth();
+        var h = dc.getHeight();
+        var tf = Graphics.FONT_SMALL;
+        var bf = Graphics.FONT_XTINY;
+        var th = dc.getFontHeight(tf);
+        var bh = dc.getFontHeight(bf);
+        var rows = ["Berean Standard Bible", "Whole Bible on the watch", "Works offline", VERSION];
+        var total = th + 6 + rows.size() * bh;
+        var y = (h - total) / 2;
+        dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(w / 2, y, tf, "Bible BSB", Graphics.TEXT_JUSTIFY_CENTER);
+        y += th + 6;
+        dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
+        var i;
+        for (i = 0; i < rows.size(); i++) {
+            dc.drawText(w / 2, y + i * bh, bf, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+        }
+    }
+}
+
+class AboutDelegate extends WatchUi.BehaviorDelegate {
+    function initialize() {
+        BehaviorDelegate.initialize();
+    }
+
+    function onBack() as Lang.Boolean {
+        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+        return true;
+    }
+
+    function onSelect() as Lang.Boolean {
+        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+        return true;
+    }
+
+    function onSwipe(evt) as Lang.Boolean {
+        if (evt.getDirection() == WatchUi.SWIPE_RIGHT) {
+            WatchUi.popView(WatchUi.SLIDE_RIGHT);
+            return true;
+        }
+        return false;
     }
 }
