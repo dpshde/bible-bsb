@@ -33,6 +33,26 @@ class ThemedMenu extends WatchUi.CustomMenu {
     }
 }
 
+//! POKE: MENU_CENTER_X — CustomMenu item dcs start right of the system's left focus gutter
+//! (~13% of the screen), so the item dc's own w/2 sits right of the screen centre (+18 px on
+//! enduro3). Centre on the SCREEN instead: screen centre expressed in item-dc coordinates.
+module MenuCenter {
+    function cx(dc as Graphics.Dc) as Lang.Number {
+        var sw = System.getDeviceSettings().screenWidth;
+        var off = sw - dc.getWidth(); // gutter on the left
+        if (off < 0) {
+            off = 0;
+        }
+        return sw / 2 - off;
+    }
+
+    //! Widest row that stays symmetric about the screen centre inside the item dc.
+    function clampRoom(dc as Graphics.Dc, room as Lang.Number) as Lang.Number {
+        var max = 2 * cx(dc) - 4;
+        return room < max ? room : max;
+    }
+}
+
 class ThemedMenuItem extends WatchUi.CustomMenuItem {
     var _label as Lang.String;
     var _sub as Lang.String or Null;
@@ -52,7 +72,8 @@ class ThemedMenuItem extends WatchUi.CustomMenuItem {
         var f = focused ? Graphics.FONT_SMALL : Graphics.FONT_TINY;
         // POKE: MENU_ROW_ROOM — rows above/below focus sit where the circle is narrower; the
         // focused row also clears the system focus mark masked by MenuFocusMask.
-        var room = focused ? (w * 0.74).toNumber() : (w * 0.66).toNumber();
+        var room = MenuCenter.clampRoom(dc, focused ? (w * 0.74).toNumber() : (w * 0.66).toNumber());
+        var cx = MenuCenter.cx(dc);
         var rows = [_label] as Lang.Array;
         if (dc.getTextWidthInPixels(_label, f) > room) {
             // Wrap to two rows (one font for both, dropping to TINY on focus) before any "…".
@@ -79,11 +100,11 @@ class ThemedMenuItem extends WatchUi.CustomMenuItem {
         }
         var i;
         for (i = 0; i < rows.size(); i++) {
-            dc.drawText(w / 2, y + i * lh, f, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, y + i * lh, f, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
         }
         dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
         for (i = 0; i < subRows.size(); i++) {
-            dc.drawText(w / 2, y + th + 1 + i * slh, sf, subRows[i] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, y + th + 1 + i * slh, sf, subRows[i] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
         }
     }
 }
@@ -131,7 +152,7 @@ class ThemedWrapItem extends WatchUi.CustomMenuItem {
         }
         var w = dc.getWidth();
         // POKE: GOTO_WRAP_ROOM — off-center items sit where the circle is narrower.
-        var room = focused ? (w * 0.74).toNumber() : (w * 0.62).toNumber();
+        var room = MenuCenter.clampRoom(dc, focused ? (w * 0.74).toNumber() : (w * 0.62).toNumber());
         var full = _label + _suffix;
         // One font per state for every row (no per-row step-down): siblings match.
         // Headings are long: both states use XTINY so a focused heading wraps exactly like its
@@ -200,7 +221,7 @@ class ThemedWrapItem extends WatchUi.CustomMenuItem {
         }
         var i;
         for (i = 0; i < rows.size(); i++) {
-            dc.drawText(w / 2, y + i * lh, f, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(MenuCenter.cx(dc), y + i * lh, f, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
         }
     }
 }
