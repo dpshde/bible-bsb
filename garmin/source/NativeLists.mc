@@ -203,9 +203,11 @@ module NativeLists {
         var c = Bookmarks.unpackChapter(id);
         var v = Bookmarks.unpackVerse(id);
         if (v > 1) {
-            LastReadApp.resumeVerse = v; // reader lands on the bookmarked verse
+            LastReadApp.resumeVerse = v; // reader lands on the bookmarked (start) verse
             LastReadApp.pending = [b, c, v];
         }
+        // v9: a range opens with its verses shown gold until the first press.
+        ReaderView.pendingRange = Bookmarks.isRange(id) ? [b, c, v, Bookmarks.unpackEnd(id)] : null;
         ReaderView.openFor(b, c);
     }
 
@@ -309,7 +311,7 @@ class BookmarkActionDelegate extends WatchUi.Menu2InputDelegate {
             return;
         }
         if (a == :remove) {
-            Bookmarks.toggle(Bookmarks.unpackBook(_id), Bookmarks.unpackChapter(_id), Bookmarks.unpackVerse(_id));
+            Bookmarks.remove(_id); // v9: removes a range bookmark too
             var p = _parent as WatchUi.Menu2;
             var idx = p.findItemById(_id);
             if (idx >= 0) {

@@ -13,6 +13,14 @@ using Toybox.WatchUi;
 //! are a heavier built-in face than the verse body (Faces).
 class ReaderView extends WatchUi.View {
     var toast as Lang.String or Null = null;
+    // v9 range bookmark: selStart > 0 while verses selStart..selEnd of selBook/selCh are shown
+    // gold. selPick = an interactive pick (UP/DOWN extend, START saves, BACK cancels); otherwise
+    // it is the brief highlight of an opened range bookmark, cleared by the first input.
+    var selStart as Lang.Number = -1;
+    var selEnd as Lang.Number = -1;
+    var selBook as Lang.Number = -1;
+    var selCh as Lang.Number = -1;
+    var selPick as Lang.Boolean = false;
     var _toastTimer as Timer.Timer or Null = null;
     var _laidOut as Lang.Boolean = false;
     var _bmpBg as Lang.Number = -1; // Palette.BG the cached line bitmaps were drawn on
@@ -846,14 +854,17 @@ class ReaderView extends WatchUi.View {
             _refKey = rk;
         }
         var preview = _ref;
+        if (selStart > 0) {
+            preview = rangeRef();
+        }
         // v6: the ref is a cached bitmap per verse (next/previous built on idle slices).
-        var rb = toast == null ? _refBmp[rk] : null;
+        var rb = (toast == null && selStart <= 0) ? _refBmp[rk] : null;
         if (rb != null && ((rb as Lang.Array)[0] as Graphics.BufferedBitmapReference).get() != null) {
             var rw = (rb as Lang.Array)[1] as Lang.Number;
             dc.drawBitmap(w / 2 - rw / 2, previewY, (rb as Lang.Array)[0] as Graphics.BufferedBitmapReference);
         } else {
             dc.drawText(w / 2, previewY, Faces.light(previewFont), preview, Graphics.TEXT_JUSTIFY_CENTER);
-            if (toast == null && (Graphics has :createBufferedBitmap)) {
+            if (toast == null && selStart <= 0 && (Graphics has :createBufferedBitmap)) {
                 _missQ.add([-1, book, chapter, verse]);
             }
         }
@@ -883,7 +894,7 @@ class ReaderView extends WatchUi.View {
     function drawVerseLineCached(dc as Graphics.Dc, y as Lang.Number, lineH as Lang.Number, idx as Lang.Number,
                                  ln as ScrollModel.Line, focusBook as Lang.Number,
                                  focusChapter as Lang.Number, focusVerse as Lang.Number) as Void {
-        if (toast != null || !(Graphics has :createBufferedBitmap)) {
+        if (toast != null || selStart > 0 || !(Graphics has :createBufferedBitmap)) {
             drawVerseLine(dc, y, lineH, ln, focusBook, focusChapter, focusVerse);
             return;
         }
@@ -947,7 +958,7 @@ class ReaderView extends WatchUi.View {
     function schedulePrerender() as Void {
         var misses = _missQ;
         _missQ = [] as Lang.Array;
-        if (toast != null || _lineHC == 0 || !(Graphics has :createBufferedBitmap)) {
+        if (toast != null || selStart > 0 || _lineHC == 0 || !(Graphics has :createBufferedBitmap)) {
             return;
         }
         var q = [] as Lang.Array;
@@ -1070,7 +1081,10 @@ class ReaderView extends WatchUi.View {
         var isFocus = ln.book == focusBook && ln.chapter == focusChapter && ln.verse == focusVerse;
         // Focus via color only (same system face) — BMFont weights reverted.
         var bodyColor = Palette.TEXT;
-        if (!isFocus) {
+        if (selStart > 0) {
+            // v9: selected verses gold, every other verse dimmed (same face, colour only).
+            bodyColor = inSel(ln) ? Palette.GOLD : Palette.DIM_VERSE;
+        } else if (!isFocus) {
             bodyColor = Palette.DIM_VERSE; // POKE: Palette.DIM_VERSE
         }
         // POKE: WORDS_OF_JESUS — if markup existed, bodyColor → Palette.JESUS for those runs.
@@ -1372,6 +1386,130 @@ class ReaderView extends WatchUi.View {
         }
     }
 
+    // ---- v9 range bookmarks -------------------------------------------------------------
+    function inSel(ln as ScrollModel.Line) as Lang.Boolean {
+        return ln.book == selBook && ln.chapter == selCh && ln.verse >= selStart && ln.verse <= selEnd;
+    }
+
+    //! Bottom ref while a range shows: "GEN 1:1–3".
+    function rangeRef() as Lang.String {
+        var r = Books.refLabel(selBook, selCh, selStart);
+        return selEnd > selStart ? r + "–" + selEnd : r;
+    }
+
+    //! Start a pick on the focused verse (a lone verse is a valid range: START saves it).
+    function startRange() as Void {
+        var f = resolveFocus();
+        var v = f[:verse] as Lang.Number;
+        if (v <= 0) {
+            return;
+        }
+        selBook = f[:book] as Lang.Number;
+        selCh = f[:chapter] as Lang.Number;
+        selStart = v;
+        selEnd = v;
+        selPick = true;
+        Feedback.step();
+        WatchUi.requestUpdate();
+    }
+
+    //! Highlight an opened range bookmark until the first input (no pick).
+    function showRange(book as Lang.Number, chapter as Lang.Number, start as Lang.Number, end as Lang.Number) as Void {
+        selBook = book;
+        selCh = chapter;
+        selStart = start;
+        selEnd = end;
+        selPick = false;
+    }
+
+    function clearRange() as Void {
+        if (selStart > 0) {
+            selStart = -1;
+            selEnd = -1;
+            selPick = false;
+            WatchUi.requestUpdate();
+        }
+    }
+
+    //! [first, last] line index of a verse in the buffer, or null when it is not loaded.
+    function verseLines(book as Lang.Number, chapter as Lang.Number, v as Lang.Number) as Lang.Array or Null {
+        var lines = AppState.scroll.lines;
+        var first = -1;
+        var last = -1;
+        var i;
+        for (i = 0; i < lines.size(); i++) {
+            var ln = lines[i] as ScrollModel.Line;
+            if (ln.kind == ScrollModel.KIND_VERSE && ln.verse == v && ln.chapter == chapter && ln.book == book) {
+                if (first < 0) {
+                    first = i;
+                }
+                last = i;
+            } else if (first >= 0) {
+                break;
+            }
+        }
+        return first < 0 ? null : [first, last];
+    }
+
+    //! DOWN/swipe up grows the range by a verse, UP/swipe down shrinks it (never below the start
+    //! verse, never past the chapter's last verse). The band scrolls to keep the end in view.
+    function extendRange(dir as Lang.Number) as Void {
+        var e = selEnd + dir;
+        if (e < selStart) {
+            return;
+        }
+        var r = verseLines(selBook, selCh, e);
+        if (r == null && dir > 0) {
+            ensureAhead();
+            r = verseLines(selBook, selCh, e);
+        }
+        if (r == null) {
+            return; // end of chapter (ranges stay in one chapter)
+        }
+        selEnd = e;
+        var sm = AppState.scroll;
+        var vis = sm.visibleCount > 2 ? sm.visibleCount - 1 : 1;
+        if (dir > 0 && (r[1] as Lang.Number) > sm.scrollOffset + vis - 1) {
+            // Scroll by whole verses (like verse mode): the top line is always a verse start, so
+            // the band never opens on the tail of a verse, and focus after saving is that verse.
+            var want = (r[1] as Lang.Number) - vis + 1;
+            var top = r[0] as Lang.Number;
+            var k;
+            for (k = e - 1; k >= selStart; k--) {
+                var rk = verseLines(selBook, selCh, k);
+                if (rk == null || (rk[0] as Lang.Number) < want) {
+                    break;
+                }
+                top = rk[0] as Lang.Number;
+            }
+            sm.scrollOffset = top;
+        } else if (dir < 0 && (r[0] as Lang.Number) < sm.scrollOffset) {
+            sm.scrollOffset = r[0] as Lang.Number;
+        }
+        sm.clampOffset();
+        Feedback.step();
+        WatchUi.requestUpdate();
+    }
+
+    //! START / tap: save the range; the toast pill confirms.
+    function confirmRange() as Void {
+        var result = Bookmarks.addRange(selBook, selCh, selStart, selEnd);
+        selStart = -1;
+        selEnd = -1;
+        selPick = false;
+        if (result == :added) {
+            showToast("Bookmarked");
+        } else if (result == :exists) {
+            showToast("Already saved");
+        } else {
+            showToast("Bookmarks full");
+        }
+        WatchUi.requestUpdate();
+        if (Attention has :vibrate) {
+            Attention.vibrate([new Attention.VibeProfile(50, 100)]);
+        }
+    }
+
     function openMenu() as Void {
         ReaderMenu2.open(me);
     }
@@ -1384,6 +1522,8 @@ class ReaderView extends WatchUi.View {
     function onExitSleep() as Void {
     }
 
+    static var pendingRange as Lang.Array or Null = null; // [book, chapter, start, end]
+
     static function openFor(book as Lang.Number, chapter as Lang.Number) as Void {
         AppState.selectedBook = book;
         AppState.selectedChapter = chapter;
@@ -1393,6 +1533,12 @@ class ReaderView extends WatchUi.View {
             view = new ReaderView();
         } else {
             (view as ReaderView).adoptPrepared();
+        }
+        var pr = pendingRange;
+        pendingRange = null;
+        if (pr != null) {
+            (view as ReaderView).showRange(pr[0] as Lang.Number, pr[1] as Lang.Number,
+                                           pr[2] as Lang.Number, pr[3] as Lang.Number);
         }
         WatchUi.pushView(view, new ReaderDelegate(view), WatchUi.SLIDE_LEFT);
     }
@@ -1453,6 +1599,18 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
 
     function onKey(evt as WatchUi.KeyEvent) as Lang.Boolean {
         var k = evt.getKey();
+        if (_view.selPick) {
+            if (k == WatchUi.KEY_ENTER) {
+                _view.confirmRange();
+                return true;
+            }
+            if (k == WatchUi.KEY_DOWN || k == WatchUi.KEY_UP) {
+                _view.extendRange(k == WatchUi.KEY_DOWN ? 1 : -1);
+                return true;
+            }
+            return false;
+        }
+        _view.clearRange(); // an opened range's highlight ends on the first press
         if (k == WatchUi.KEY_ENTER) {
             if (InputGate.accept(_view.shownAt, System.getTimer())) {
                 _view.openMenu();
@@ -1469,6 +1627,9 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onHold(evt) as Lang.Boolean {
+        if (_view.selPick) {
+            return true;
+        }
         if (InputGate.accept(_view.shownAt, System.getTimer())) {
             _view.bookmarkFocusedVerse();
         }
@@ -1476,6 +1637,11 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onTap(evt) as Lang.Boolean {
+        if (_view.selPick) {
+            _view.confirmRange();
+            return true;
+        }
+        _view.clearRange();
         // Taps meant for the grid (mash during the open flash) must not open this menu.
         if (InputGate.accept(_view.shownAt, System.getTimer())) {
             _view.openMenu();
@@ -1485,6 +1651,16 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
 
     function onSwipe(evt) as Lang.Boolean {
         var dir = evt.getDirection();
+        if (_view.selPick) {
+            if (dir == WatchUi.SWIPE_UP || dir == WatchUi.SWIPE_DOWN) {
+                _view.extendRange(dir == WatchUi.SWIPE_UP ? 1 : -1);
+            } else if (dir == WatchUi.SWIPE_RIGHT) {
+                TouchGuard.markBack();
+                _view.clearRange(); // swipe right = cancel the pick
+            }
+            return true;
+        }
+        _view.clearRange();
         if (dir == WatchUi.SWIPE_UP) {
             return step(1, true);
         }
@@ -1502,12 +1678,19 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onMenu() as Lang.Boolean {
+        if (_view.selPick) {
+            return true;
+        }
         _view.openMenu();
         return true;
     }
 
     function onBack() as Lang.Boolean {
         if (TouchGuard.consumeBack()) {
+            return true;
+        }
+        if (_view.selPick) {
+            _view.clearRange(); // BACK = cancel the pick, stay in the reader
             return true;
         }
         // SPEC: return to grid for *current* (possibly continued) chapter.

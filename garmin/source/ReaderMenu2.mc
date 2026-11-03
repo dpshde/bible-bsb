@@ -14,7 +14,8 @@ module ReaderMenu2 {
         ID_JUMP_CHAPTER = 5,
         ID_BROWSE_TESTAMENT = 6,
         ID_BACK_READING = 7,
-        ID_THEME = 8
+        ID_THEME = 8,
+        ID_BOOKMARK_RANGE = 9
     }
 
     function open(reader as ReaderView) as Void {
@@ -31,6 +32,8 @@ module ReaderMenu2 {
             bookmarked ? "Remove bookmark" : "Bookmark verse",
             ref,
             ID_BOOKMARK_VERSE));
+        // v9: range bookmark — pick verses in the reader, START/tap saves, BACK cancels.
+        menu.addItem(UiMenu.item("Bookmark range", "From " + chapter + ":" + verse, ID_BOOKMARK_RANGE));
         menu.addItem(UiMenu.item("Bookmarks", null, ID_BOOKMARKS_LIST));
         // Flipper 51d0ce4: Go to verse (NFC omitted — see SPEC divergences).
         menu.addItem(UiMenu.item("Go to verse", null, ID_GOTO_VERSE));
@@ -161,6 +164,11 @@ class ReaderMenu2Delegate extends WatchUi.Menu2InputDelegate {
         if (id == ReaderMenu2.ID_BOOKMARK_VERSE) {
             WatchUi.popView(WatchUi.SLIDE_RIGHT);
             _reader.bookmarkFocusedVerse();
+            return;
+        }
+        if (id == ReaderMenu2.ID_BOOKMARK_RANGE) {
+            WatchUi.popView(WatchUi.SLIDE_RIGHT);
+            _reader.startRange();
             return;
         }
         if (id == ReaderMenu2.ID_BOOKMARKS_LIST) {
