@@ -1,5 +1,6 @@
 using Toybox.Application;
 using Toybox.Lang;
+using Toybox.System;
 using Toybox.WatchUi;
 
 //! Simulator round-trip builds only (annotation `hwtest`, excluded from every normal build): the
@@ -15,10 +16,20 @@ module HwTestSeed {
             HwSync.settingsChanged();
         }
     }
+
+    //! Round-trip check: the watch's view (chosen color + verses in it), compared with sync.js.
+    function report(color, verses as Lang.Array) as Void {
+        var vs = HwMap.sortStrs(verses.slice(0, null));
+        var t = "";
+        for (var i = 0; i < vs.size(); i++) { t += (i > 0 ? " " : "") + vs[i]; }
+        System.println("HWSYNC view color=" + color + " verses=" + t);
+    }
 }
 
 (:nohwtest)
 module HwTestSeed {
     function apply() as Void {
+    }
+    function report(color, verses as Lang.Array) as Void {
     }
 }

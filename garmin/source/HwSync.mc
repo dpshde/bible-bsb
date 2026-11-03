@@ -74,6 +74,17 @@ module HwMap {
         return out;
     }
 
+    //! Byte-order sort (insertion; lists are short), for stable logs.
+    function sortStrs(a as Lang.Array) as Lang.Array {
+        for (var i = 1; i < a.size(); i++) {
+            var x = a[i] as Lang.String;
+            var j = i - 1;
+            while (j >= 0 && cmpBytes(HwB.utf8(a[j] as Lang.String), HwB.utf8(x)) > 0) { a[j + 1] = a[j]; j--; }
+            a[j + 1] = x;
+        }
+        return a;
+    }
+
     function sortNums(a as Lang.Array<Lang.Number>) as Lang.Array<Lang.Number> {
         for (var i = 1; i < a.size(); i++) {
             var x = a[i];
@@ -136,6 +147,25 @@ module HwMap {
             if (x[i] != y[i]) { return x[i] - y[i]; }
         }
         return x.size() - y.size();
+    }
+
+    //! 256-byte plaintext blocks in a blob of `chars` base64url characters (nonce 12 + tag 16).
+    function blocks(chars as Lang.Number) as Lang.Number {
+        var pt = chars * 3 / 4 - 28;
+        return pt <= 0 ? 1 : (pt + 255) / 256;
+    }
+
+    //! The colors of a live highlight record's parts ([] for a tombstone or another kind).
+    function colorsOf(r as HwObj) as Lang.Array {
+        var out = [];
+        if (r.get("deleted") == true || !"highlight".equals(r.get("kind"))) { return out; }
+        var hs = r.get("highlights");
+        if (!(hs instanceof Lang.Array)) { return out; }
+        for (var i = 0; i < hs.size(); i++) {
+            var c = hs[i] instanceof HwObj ? (hs[i] as HwObj).get("color") : null;
+            if (c instanceof Lang.String && out.indexOf(c) < 0) { out.add(c); }
+        }
+        return out;
     }
 
     //! A color record that can be "the" Bookmarks color: live and named Bookmarks.
@@ -224,14 +254,17 @@ module HwMap {
 //! - Items (§5.3): openItem / sealItem. Blob = base64url(nonce(12) ‖ ciphertext ‖ tag(16)), AAD =
 //!   ASCII item id, plaintext space-padded to a multiple of 256 (min 256), trailing spaces stripped
 //!   on read; an item whose decrypted kind+ref doesn't HMAC back to its id is skipped.
-//! - Pages: GET asks for `limit=PAGE` (additive; servers without it send up to 500) and follows
-//!   `more`. POSTs carry at most POST_MAX items (server cap 100).
+//! - Pages: GET asks for `limit=PAGE` (halved on -402/-403, then the cursor steps past a single
+//!   too-large item) and follows
+//!   `more`. POSTs carry at most POST_MAX items (server cap 100), halved on -102.
+//! - Pacing: crypto by 256-byte block budget, record edits EDITS_PER_TICK per tick; items over
+//!   MAX_BLOCKS (long notes) are passed over undecrypted.
 //! - Bookmarks color: chosen only after a complete pull, lowest `created` then lowest ref among live
 //!   colors named Bookmarks (HwMap.pickColor); created by the watch only when none exists.
 //! - Refill (§5.6 step 3, watch exception agreed with Forge): after an epoch change or seq going
 //!   back the watch re-pushes only its own records, i.e. the highlight records of verses in its
-//!   Bookmarks color plus that color record. The watch never stores notes, x- kinds, other colors'
-//!   records or tombstones it didn't need, so phones and the web refill those.
+//!   Bookmarks color, that color record and unsent local edits. It keeps no notes, x- kinds or big
+//!   items at all, and doesn't re-send other devices' records, so phones and the web refill those.
 //! Off unless Garmin Connect settings give a server, a sync key and
 //! "Sync bookmarks" = on: then no network call is ever made. Work is paced 1–2 records per
 //! timer tick (the watchdog trips around the third 256-byte GCM op in one event).
@@ -246,10 +279,15 @@ module HwSync {
     const S_CUR = "hwCur";
     const S_SEQ = "hwSeq";
     const S_EPOCH = "hwEpoch";
+    const S_IDX = "hwIdx";     // highlight ref -> its colors (so a rescan never re-parses records)
     const S_CANDS = "hwCands"; // live "Bookmarks" color refs -> created
-    const PAGE = 40;      // items per GET page (~500 chars each: ~20 KB, under the watch's response cap)
-    const POST_MAX = 40;  // items per POST (server cap 100; 40 keeps the sealed batch small in memory)
-    const PER_TICK = 2;
+    const PAGE = 30;      // items per GET page: ~13 KB of typical items. The Enduro 3 simulator answers -402
+                          // above ~16 KB (limit=37 ok at 15,976 B, limit=40 fails at 17,266 B).
+    const MAX_STEPS = 25; // cursor steps past single too-large items per sync (see onPull)
+    const POST_MAX = 20;  // items per POST (server cap 100): ~9 KB of typical items; halves on -102
+    const PER_TICK = 2;   // 256-byte GCM blocks per timer tick (the watchdog trips around the third)
+    const EDITS_PER_TICK = 2; // record parse + re-serialize per tick (5 in one event tripped the watchdog)
+    const MAX_BLOCKS = 2; // larger items (long notes, ~22 KB max) are skipped undecrypted: see HwMap.blocks
     const TICK_MS = 50;
 
     var _keyText as Lang.String or Null = null;
@@ -263,8 +301,11 @@ module HwSync {
     var _added as Lang.Array<Lang.String> = [];
     var _removed as Lang.Array<Lang.String> = [];
     var _more as Lang.Boolean = false;
+    var _page as Lang.Number = PAGE; // halves on a too-large response, for the rest of this sync
+    var _steps as Lang.Number = 0;
+    var _post as Lang.Number = POST_MAX; // halves on BLE_REQUEST_TOO_LARGE, for the rest of this sync
     var _t0 as Lang.Number = 0;
-    var _stats as Lang.Array<Lang.Number> = [0, 0, 0, 0]; // pulled, pushed, skipped, pages
+    var _stats as Lang.Array<Lang.Number> = [0, 0, 0, 0, 0]; // pulled, pushed, skipped, pages, too big
     var lastMs as Lang.Number = -1;
     var lastResult as Lang.String = "";
 
@@ -340,7 +381,7 @@ module HwSync {
     function settingsChanged() as Void {
         var kt = prop(PROP_KEY);
         if (_keyText != null && !(_keyText as Lang.String).equals(kt)) {
-            var ks = [S_RECS, S_DIRTY, S_BM, S_COLOR, S_CUR, S_SEQ, S_EPOCH, S_CANDS];
+            var ks = [S_RECS, S_DIRTY, S_BM, S_COLOR, S_CUR, S_SEQ, S_EPOCH, S_CANDS, S_IDX];
             for (var i = 0; i < ks.size(); i++) { Application.Storage.deleteValue(ks[i]); }
         }
         _keys = null;
@@ -357,9 +398,12 @@ module HwSync {
         if (keys() == null) { return; }
         if (_phase != :idle) { _again = true; return; }
         _t0 = System.getTimer();
-        _stats = [0, 0, 0, 0];
+        _stats = [0, 0, 0, 0, 0];
         _added = [];
         _removed = [];
+        _page = PAGE;
+        _steps = 0;
+        _post = POST_MAX;
         _phase = :pull;
         pull();
     }
@@ -374,7 +418,7 @@ module HwSync {
     }
 
     function pull() as Void {
-        Communications.makeWebRequest(url() + "?after=" + get(S_CUR, 0) + "&limit=" + PAGE, null,
+        Communications.makeWebRequest(url() + "?after=" + get(S_CUR, 0) + "&limit=" + _page, null,
             {:method => Communications.HTTP_REQUEST_METHOD_GET, :headers => headers(),
              :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON}, new Lang.Method(HwSync, :onPull));
     }
@@ -417,9 +461,28 @@ module HwSync {
     }
 
     function onPull(code as Lang.Number, data as Null or Lang.Dictionary or Lang.String or Lang.ByteArray or PersistedContent.Iterator) as Void {
+        // -402 response too large / -403 out of memory parsing it: big items (long notes, up to
+        // ~22 KB each) can push a page past the watch's response limit. Ask for fewer and retry.
+        if ((code == -402 || code == -403) && _page > 1) {
+            _page = _page / 2;
+            System.println("HWSYNC page too large (" + code + "): limit -> " + _page);
+            pull();
+            return;
+        }
+        // Still too large at limit=1: the first item after the cursor is one big item (a long note,
+        // never needed on the watch), and every seq between the cursor and it is unused. Step the
+        // cursor by one until it's passed; capped per sync, resumed next sync.
+        if ((code == -402 || code == -403) && _steps < MAX_STEPS) {
+            _steps++;
+            if (_steps == 1) { _stats[4] = _stats[4] + 1; }
+            Application.Storage.setValue(S_CUR, (get(S_CUR, 0) as Lang.Number) + 1);
+            pull();
+            return;
+        }
         if (code != 200 || !(data instanceof Lang.Dictionary)) { fail(code); return; }
         var ans = data as Lang.Dictionary;
         _stats[3] = _stats[3] + 1;
+        if (_steps > 0) { _steps = 0; _page = PAGE; } // past the big item: back to full pages
         if (lost(ans)) { refill(ans); pull(); return; }
         if (ans["epoch"] != null) { Application.Storage.setValue(S_EPOCH, ans["epoch"]); }
         var items = ans["items"] as Lang.Array;
@@ -438,24 +501,33 @@ module HwSync {
 
     function tick() as Void {
         if (_phase == :merge) { mergeSome(); }
+        else if (_phase == :edit) { editSome(); }
         else if (_phase == :seal) { sealSome(); }
     }
 
-    //! Decrypt + merge up to PER_TICK pulled items.
+    //! Decrypt + merge pulled items, PER_TICK 256-byte blocks per tick.
     function mergeSome() as Void {
         var recs = get(S_RECS, {}) as Lang.Dictionary;
         var dirty = get(S_DIRTY, []) as Lang.Array;
         var bm = get(S_BM, []) as Lang.Array;
         var cur = get(S_CUR, 0);
         var cands = get(S_CANDS, {}) as Lang.Dictionary;
-        for (var n = 0; n < PER_TICK && _queue.size() > 0; n++) {
+        var idx = get(S_IDX, {}) as Lang.Dictionary;
+        var budget = PER_TICK;
+        while (budget > 0 && _queue.size() > 0) {
             var it = _queue[0] as Lang.Dictionary;
+            var id = it["id"];
+            var bl = it["blob"];
+            var nb = bl instanceof Lang.String ? HwMap.blocks((bl as Lang.String).length()) : 0;
+            if (nb > budget && budget < PER_TICK) { break; } // next tick, with a full budget
             _queue = _queue.slice(1, null);
             cur = it["seq"];
             _stats[0] = _stats[0] + 1;
-            var id = it["id"];
-            var bl = it["blob"];
             if (!(id instanceof Lang.String) || !(bl instanceof Lang.String)) { continue; }
+            // The watch can't decrypt a big item within one watchdog slice, and only reads small
+            // records (highlights, colors), so a big one is passed over unread.
+            if (nb > MAX_BLOCKS) { _stats[4] = _stats[4] + 1; continue; }
+            budget -= nb;
             var got = openItem(id as Lang.String, bl as Lang.String); // includes the §5.3 id check
             if (got == null) { _stats[2] = _stats[2] + 1; continue; }
             var text = got[0] as Lang.String;
@@ -469,6 +541,7 @@ module HwSync {
             if (c < 0) { if (dirty.indexOf(id) < 0) { dirty.add(id); } continue; } // ours is newer: resend
             if (c == 0) { continue; }
             recs[id] = text;
+            if ("highlight".equals(kind)) { index(idx, rf, r); }
             if ("color".equals(kind)) {
                 // Picked once the pull is complete (chooseColor), not first-seen.
                 if (HwMap.isBookmarksColor(r as HwObj)) { cands[rf] = HwMap.num((r as HwObj).get("created")); } else { cands.remove(rf); }
@@ -485,6 +558,7 @@ module HwSync {
         Application.Storage.setValue(S_BM, bm);
         Application.Storage.setValue(S_CUR, cur);
         Application.Storage.setValue(S_CANDS, cands);
+        Application.Storage.setValue(S_IDX, idx);
         if (_queue.size() > 0) { tickSoon(); return; }
         if (_more) { pull(); return; }
         // The pull is complete: only now pick (or switch) the Bookmarks color.
@@ -513,16 +587,22 @@ module HwSync {
         if (on) { _added.add(r); _removed.remove(r); } else { _removed.add(r); _added.remove(r); }
     }
 
+    //! Keep the ref -> colors index in step with a stored highlight record.
+    function index(idx as Lang.Dictionary, rf as Lang.String, r as HwObj) as Void {
+        var cs = HwMap.colorsOf(r);
+        if (cs.size() == 0) { idx.remove(rf); } else { idx[rf] = cs; }
+    }
+
+    //! Verses in the Bookmarks color the watch hasn't marked yet, from the index (no JSON parsing:
+    //! a full re-parse of a few dozen records trips the watchdog).
     function rescan() as Void {
-        var recs = get(S_RECS, {}) as Lang.Dictionary;
         var bm = get(S_BM, []) as Lang.Array;
         var color = get(S_COLOR, null);
-        var ks = recs.keys();
+        var idx = get(S_IDX, {}) as Lang.Dictionary;
+        var ks = idx.keys();
         for (var i = 0; i < ks.size(); i++) {
-            var r = HwJson.parse(recs[ks[i]] as Lang.String);
-            if (!(r instanceof HwObj) || !"highlight".equals((r as HwObj).get("kind"))) { continue; }
-            var rf = (r as HwObj).get("ref") as Lang.String;
-            if (HwMap.inColor(r as HwObj, color) && bm.indexOf(rf) < 0) { bm.add(rf); noteDelta(rf, true); }
+            var rf = ks[i] as Lang.String;
+            if ((idx[rf] as Lang.Array).indexOf(color) >= 0 && bm.indexOf(rf) < 0) { bm.add(rf); noteDelta(rf, true); }
         }
         Application.Storage.setValue(S_BM, bm);
     }
@@ -562,22 +642,43 @@ module HwSync {
             Application.Storage.setValue(S_CANDS, cands);
             Application.Storage.setValue(S_COLOR, color);
         }
+        Application.Storage.setValue(S_RECS, recs);
+        Application.Storage.setValue(S_DIRTY, dirty);
         var edits = [] as Lang.Array;
         for (var i = 0; i < want.size(); i++) { if (bm.indexOf(want[i]) < 0) { edits.add([want[i], true]); } }
         for (var i = 0; i < bm.size(); i++) { if (want.indexOf(bm[i]) < 0) { edits.add([bm[i], false]); } }
-        for (var i = 0; i < edits.size(); i++) {
-            var e = edits[i] as Lang.Array;
+        // Each edit parses + re-serializes a record: a handful in one event trips the watchdog,
+        // so they're paced like the crypto.
+        _queue = edits;
+        _phase = :edit;
+        tickSoon();
+    }
+
+    function editSome() as Void {
+        var recs = get(S_RECS, {}) as Lang.Dictionary;
+        var dirty = get(S_DIRTY, []) as Lang.Array;
+        var bm = get(S_BM, []) as Lang.Array;
+        var idx = get(S_IDX, {}) as Lang.Dictionary;
+        var color = get(S_COLOR, null) as Lang.String;
+        var now = Time.now().value().toLong();
+        for (var n = 0; n < EDITS_PER_TICK && _queue.size() > 0; n++) {
+            var e = _queue[0] as Lang.Array;
+            _queue = _queue.slice(1, null);
             var rf = e[0] as Lang.String;
             var id = itemId("highlight", rf);
             var old = recs[id] == null ? null : HwJson.parse(recs[id] as Lang.String) as HwObj;
-            recs[id] = HwJson.stringify(HwMap.edit(old, rf, color as Lang.String, e[1] as Lang.Boolean, now));
+            var nr = HwMap.edit(old, rf, color, e[1] as Lang.Boolean, now);
+            recs[id] = HwJson.stringify(nr);
+            index(idx, rf, nr);
             if (dirty.indexOf(id) < 0) { dirty.add(id); }
-            if (e[1]) { bm.add(rf); } else { bm.remove(rf); }
+            if (e[1]) { if (bm.indexOf(rf) < 0) { bm.add(rf); } } else { bm.remove(rf); }
         }
         Application.Storage.setValue(S_RECS, recs);
         Application.Storage.setValue(S_DIRTY, dirty);
         Application.Storage.setValue(S_BM, bm);
-        _queue = dirty.slice(0, POST_MAX);
+        Application.Storage.setValue(S_IDX, idx);
+        if (_queue.size() > 0) { tickSoon(); return; }
+        _queue = dirty.slice(0, _post);
         _out = [];
         if (_queue.size() == 0) { done(); return; }
         _phase = :seal;
@@ -586,15 +687,23 @@ module HwSync {
 
     function sealSome() as Void {
         var recs = get(S_RECS, {}) as Lang.Dictionary;
-        for (var n = 0; n < PER_TICK && _queue.size() > 0; n++) {
+        var budget = PER_TICK;
+        while (budget > 0 && _queue.size() > 0) {
             var id = _queue[0] as Lang.String;
-            _queue = _queue.slice(1, null);
             var text = recs[id] as Lang.String or Null;
+            var nb = text == null ? 0 : ((text as Lang.String).length() + 255) / 256; // ~bytes for these records
+            if (nb > budget && budget < PER_TICK) { break; }
+            _queue = _queue.slice(1, null);
             if (text == null) { continue; }
+            budget -= nb < 1 ? 1 : nb;
             _out.add({"id" => id, "blob" => sealItem(id, text as Lang.String)});
         }
         if (_queue.size() > 0) { tickSoon(); return; }
         if (_out.size() == 0) { done(); return; }
+        post();
+    }
+
+    function post() as Void {
         _phase = :post;
         Communications.makeWebRequest(url(), {"items" => _out},
             {:method => Communications.HTTP_REQUEST_METHOD_POST, :headers => headers(),
@@ -602,6 +711,13 @@ module HwSync {
     }
 
     function onPost(code as Lang.Number, data as Null or Lang.Dictionary or Lang.String or Lang.ByteArray or PersistedContent.Iterator) as Void {
+        if (code == -102 && _out.size() > 1) { // BLE_REQUEST_TOO_LARGE: send half; the rest stays dirty
+            _post = _out.size() / 2;
+            _out = _out.slice(0, _post);
+            System.println("HWSYNC request too large: " + _post + " items per POST");
+            post();
+            return;
+        }
         if (code != 200 || !(data instanceof Lang.Dictionary)) { fail(code); return; }
         var ans = data as Lang.Dictionary;
         if (lost(ans)) { refill(ans); _phase = :pull; pull(); return; }
@@ -615,15 +731,16 @@ module HwSync {
         var seq = ans["seq"];
         if (seq instanceof Lang.Number && seq > (get(S_SEQ, 0) as Lang.Number)) { Application.Storage.setValue(S_SEQ, seq); }
         _stats[1] = _stats[1] + _out.size();
-        if (left.size() > 0) { _queue = left.slice(0, POST_MAX); _out = []; _phase = :seal; tickSoon(); return; }
+        if (left.size() > 0) { _queue = left.slice(0, _post); _out = []; _phase = :seal; tickSoon(); return; }
         done();
     }
 
     function done() as Void {
         lastMs = System.getTimer() - _t0;
         lastResult = "ok";
-        System.println("HWSYNC done ms=" + lastMs + " pulled=" + _stats[0] + " pushed=" + _stats[1] + " skipped=" + _stats[2] + " pages=" + _stats[3]
+        System.println("HWSYNC done ms=" + lastMs + " pulled=" + _stats[0] + " pushed=" + _stats[1] + " skipped=" + _stats[2] + " pages=" + _stats[3] + " big=" + _stats[4]
             + " bookmarks=" + Bookmarks.load().size());
+        HwTestSeed.report(get(S_COLOR, null), get(S_BM, []) as Lang.Array);
         _phase = :idle;
         if (_again) { _again = false; start(); }
     }

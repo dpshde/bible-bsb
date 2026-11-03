@@ -178,3 +178,21 @@ function testHwOpenItemVector(logger as Test.Logger) as Lang.Boolean {
     Test.assertEqual(((got as Lang.Array)[1] as HwObj).get("ref"), "JHN.3.16");
     return true;
 }
+
+//! Verification 2026-11-03: big items are passed over undecrypted (a 2 KB note tripped the
+//! watchdog), and the rescan index never needs the records re-parsed.
+(:test)
+function testHwBlocksAndIndex(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(HwMap.blocks(379), 1);   // 256-byte plaintext
+    Test.assertEqual(HwMap.blocks(721), 2);   // 512
+    Test.assertEqual(HwMap.blocks(2768), 8);  // a ~2 KB note: over MAX_BLOCKS, skipped
+    Test.assert(HwMap.blocks(2768) > HwSync.MAX_BLOCKS && HwMap.blocks(721) <= HwSync.MAX_BLOCKS);
+    var r = HwJson.parse("{\"kind\":\"highlight\",\"ref\":\"PHP.4.13\",\"updated\":1,\"highlights\":[{\"color\":\"c-0older\"},{\"color\":\"yellow\"},{\"color\":\"yellow\"}]}") as HwObj;
+    var cs = HwMap.colorsOf(r);
+    Test.assertEqual(cs.size(), 2);
+    Test.assert(cs.indexOf("c-0older") >= 0 && cs.indexOf("yellow") >= 0);
+    Test.assertEqual(HwMap.colorsOf(HwJson.parse("{\"kind\":\"highlight\",\"ref\":\"PHP.4.13\",\"deleted\":true}") as HwObj).size(), 0);
+    var s = HwMap.sortStrs(["ROM.5.4", "JHN.3.16", "ROM.5.3"]);
+    Test.assertEqual(s[0], "JHN.3.16"); Test.assertEqual(s[2], "ROM.5.4");
+    return true;
+}
