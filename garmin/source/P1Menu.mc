@@ -69,7 +69,9 @@ class P1MenuItem extends WatchUi.CustomMenuItem {
         var x = (MeasureDc.screenW() * 0.06).toNumber();
         var room = w - x - (MeasureDc.screenW() * 0.04).toNumber();
         var lf = Graphics.FONT_SMALL;
-        var sf = Graphics.FONT_TINY;
+        // Dylan 2026-11-03: sublabels in the light face (Faces.light: Enduro 3's built-in
+        // RobotoCondensed-Regular; the regular system font elsewhere). Labels and titles stay bold.
+        var sf = Faces.light(Graphics.FONT_TINY);
         var rows = [_label] as Lang.Array;
         if (dc.getTextWidthInPixels(_label, lf) > room) {
             lf = Graphics.FONT_TINY;
@@ -98,7 +100,7 @@ class P1MenuItem extends WatchUi.CustomMenuItem {
         }
     }
 
-    function fit(dc as Graphics.Dc, s as Lang.String, f as Graphics.FontDefinition, room as Lang.Number) as Lang.String {
+    function fit(dc as Graphics.Dc, s as Lang.String, f as Graphics.FontType, room as Lang.Number) as Lang.String {
         if (dc.getTextWidthInPixels(s, f) <= room) {
             return s;
         }
