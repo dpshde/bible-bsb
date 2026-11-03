@@ -218,18 +218,27 @@ module NativeLists {
             // over label + sublabel: as one sublabel Enduro 3 cuts it at "Hold START or long-…".
             m.addItem(UiMenu.item("Hold START or", "long-press a verse", ID_EMPTY));
         }
-        var i;
-        var shown = items.size() > SHOW_MAX ? SHOW_MAX : items.size();
+        // Dylan 2026-11-03: ranges merge at display time (Bookmarks.mergeRows): first on adjacency
+        // (cheap, every bookmark), then the shown rows' verses split again by color.
+        var runs = Bookmarks.mergeRows(items, null, 100000);
+        var head = runs.size() > SHOW_MAX ? runs.slice(0, SHOW_MAX) : runs;
+        var vs = Bookmarks.verses(head);
+        var cids = HwSync.colorIds(vs);
+        var rows = Bookmarks.mergeRows(vs, cids, 100000);
         // Dylan 2:48 PM: synced highlights keep their Hidden Word color: sublabel "Prayer · words…".
-        // Text only (native Menu2, built-in fonts); no swatch, since a highlight color can be
-        // green or blue, which the watch UI never draws.
-        var colors = HwSync.colorLabels(items.slice(0, shown));
-        for (i = 0; i < shown; i++) {
-            var id = items[i] as Lang.Number;
-            m.addItem(UiMenu.bookmark(Bookmarks.formatLabel(id), colors[id], id));
+        var names = {};
+        for (var i = 0; i < rows.size(); i++) {
+            var id = rows[i] as Lang.Number;
+            var cid = cids[id & 0xFFFFFF];
+            var lab = null;
+            if (cid != null) {
+                lab = names[cid];
+                if (lab == null) { lab = HwSync.colorName(cid as Lang.String); names[cid] = lab; }
+            }
+            m.addItem(UiMenu.bookmark(Bookmarks.formatLabel(id), lab, id));
         }
-        if (items.size() > shown) {
-            m.addItem(UiMenu.item((items.size() - shown) + " more", "Newest " + SHOW_MAX + " shown", ID_EMPTY));
+        if (runs.size() > head.size()) {
+            m.addItem(UiMenu.item((runs.size() - head.size()) + " more", "Newest " + SHOW_MAX + " shown", ID_EMPTY));
         }
         if (HwSync.prop(HwSync.PROP_ON) == true) {
             m.addItem(UiMenu.item(SYNC_LABEL, syncSub(), ID_SYNC));
@@ -274,6 +283,74 @@ module NativeLists {
         // v9: a range opens with its verses shown gold until the first press.
         ReaderView.pendingRange = Bookmarks.isRange(id) ? [b, c, v, Bookmarks.unpackEnd(id)] : null;
         Nav.openRef(b, c, v, true); // critique #4: Home > Grid > Reader, whatever was open before
+    }
+
+    // ---- A merged row's verses (Dylan 2026-11-03) ------------------------------------------
+    //! Selecting "Psalms 23:1–4" lists its verses (ref + light verse text); each one opens, or
+    //! is deleted / recolored alone (only that verse's record is written).
+    var rangeId as Lang.Number = 0;   // the merged row the sub-list shows
+    var rangeMenu = null;
+    var verseId as Lang.Number = 0;   // the verse the action menu is for
+    const ID_OPEN = -10;
+    const ID_RECOLOR = -11;
+    const ID_DELETE = -12;
+
+    function buildRange(rid as Lang.Number) {
+        var m = UiMenu.create(Bookmarks.formatLabel(rid));
+        var s = Bookmarks.unpackVerse(rid);
+        for (var v = s; v <= Bookmarks.unpackEnd(rid); v++) {
+            var id = (rid & 0xFFFF00) | v;
+            if (Bookmarks.hasVerse(id)) { m.addItem(UiMenu.bookmark(Bookmarks.formatLabel(id), null, id)); }
+        }
+        return m;
+    }
+
+    function openRange(rid as Lang.Number) as Void {
+        rangeId = rid;
+        var m = buildRange(rid);
+        rangeMenu = m;
+        Nav.push(m, new RangeVersesDelegate(), WatchUi.SLIDE_LEFT);
+    }
+
+    //! After a delete: the sub-list again without that verse (or back to Bookmarks when empty).
+    function refreshRange() as Void {
+        var left = 0;
+        for (var v = Bookmarks.unpackVerse(rangeId); v <= Bookmarks.unpackEnd(rangeId); v++) {
+            if (Bookmarks.hasVerse((rangeId & 0xFFFF00) | v)) { left++; }
+        }
+        if (left == 0) {
+            Nav.pop(WatchUi.SLIDE_RIGHT);
+            backToBookmarks();
+            return;
+        }
+        var m = buildRange(rangeId);
+        rangeMenu = m;
+        WatchUi.switchToView(m, new RangeVersesDelegate(), WatchUi.SLIDE_IMMEDIATE);
+    }
+
+    //! Leaving the sub-list: Bookmarks underneath is rebuilt when a verse changed.
+    function backToBookmarks() as Void {
+        rangeMenu = null;
+        if (bmMenu != null && listChanged(bmVer, Bookmarks.version)) { showBookmarks(rangeId); }
+    }
+
+    function openVerseActions(id as Lang.Number) as Void {
+        verseId = id;
+        var m = UiMenu.create(Bookmarks.formatLabel(id));
+        m.addItem(UiMenu.item("Open", "In the reader", ID_OPEN));
+        var c = HwSync.colorIds([id])[id];
+        m.addItem(UiMenu.item("Recolor", c != null ? HwSync.colorName(c as Lang.String) : "Pick a color", ID_RECOLOR));
+        m.addItem(UiMenu.item("Delete", "This verse only", ID_DELETE));
+        Nav.push(m, new VerseActionDelegate(), WatchUi.SLIDE_LEFT);
+    }
+
+    function openRecolor() as Void {
+        var m = UiMenu.create("Recolor");
+        var cs = HwSync.colorChoices();
+        for (var i = 0; i < cs.size(); i++) {
+            m.addItem(UiMenu.item((cs[i] as Lang.Array)[1] as Lang.String, null, (cs[i] as Lang.Array)[0]));
+        }
+        WatchUi.switchToView(m, new RecolorDelegate(), WatchUi.SLIDE_IMMEDIATE); // replaces the action menu
     }
 
     // ---- Go to verse (section headings) -------------------------------------------------
@@ -365,8 +442,12 @@ class BookmarksMenuDelegate extends WatchUi.Menu2InputDelegate {
             WatchUi.requestUpdate();
             return;
         }
-        // Critique #7: START opens the bookmark (no Open/Remove step). Remove it from the reader
-        // menu ("Remove bookmark") on that verse.
+        // A merged row ("Psalms 23:1–4") lists its verses; a single verse opens straight away
+        // (critique #7: no Open/Remove step; remove it from the reader menu on that verse).
+        if (Bookmarks.isRange(id)) {
+            NativeLists.openRange(id);
+            return;
+        }
         NativeLists.openBookmark(id);
     }
 
@@ -374,6 +455,47 @@ class BookmarksMenuDelegate extends WatchUi.Menu2InputDelegate {
         NativeLists.bmMenu = null;
         Nav.pop(WatchUi.SLIDE_RIGHT);
     }
+}
+
+class RangeVersesDelegate extends WatchUi.Menu2InputDelegate {
+    function initialize() { Menu2InputDelegate.initialize(); }
+    function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
+        NativeLists.openVerseActions(item.getId() as Lang.Number);
+    }
+    function onBack() as Void {
+        Nav.pop(WatchUi.SLIDE_RIGHT);
+        NativeLists.backToBookmarks();
+    }
+}
+
+class VerseActionDelegate extends WatchUi.Menu2InputDelegate {
+    function initialize() { Menu2InputDelegate.initialize(); }
+    function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
+        var a = item.getId();
+        if (a == NativeLists.ID_OPEN) {
+            NativeLists.rangeMenu = null;
+            NativeLists.openBookmark(NativeLists.verseId);
+        } else if (a == NativeLists.ID_RECOLOR) {
+            NativeLists.openRecolor();
+        } else if (a == NativeLists.ID_DELETE) {
+            Bookmarks.removeVerse(NativeLists.verseId);
+            Nav.pop(WatchUi.SLIDE_IMMEDIATE);
+            NativeLists.refreshRange();
+        }
+    }
+    function onBack() as Void { Nav.pop(WatchUi.SLIDE_RIGHT); }
+}
+
+class RecolorDelegate extends WatchUi.Menu2InputDelegate {
+    function initialize() { Menu2InputDelegate.initialize(); }
+    function onSelect(item as WatchUi.MenuItem) as Void {
+        Perf.nav("sel");
+        Bookmarks.recolorVerse(NativeLists.verseId, item.getId() as Lang.String);
+        Nav.pop(WatchUi.SLIDE_RIGHT);
+    }
+    function onBack() as Void { Nav.pop(WatchUi.SLIDE_RIGHT); }
 }
 
 class GenrePickDelegate extends WatchUi.Menu2InputDelegate {

@@ -130,6 +130,57 @@ module HwMap {
         return best;
     }
 
+    //! A part with no `start` and no `end` covers the whole verse (SPEC 1.2).
+    function isWhole(h as HwObj) as Lang.Boolean {
+        return h.get("start") == null && h.get("end") == null;
+    }
+
+    //! The color a verse shows as in the Bookmarks list and for range merging (Hidden Word web,
+    //! SPEC 1.2): the whole-verse part's color (the most recently colored one if several), else
+    //! the top part's (topColor: largest edited, else created). null for a tombstone / no parts.
+    function displayColor(r as HwObj) as Lang.String or Null {
+        if (r.get("deleted") == true || !"highlight".equals(r.get("kind"))) { return null; }
+        var hs = r.get("highlights");
+        if (!(hs instanceof Lang.Array)) { return null; }
+        var best = null;
+        var bestAt = 0l;
+        for (var i = 0; i < hs.size(); i++) {
+            if (!(hs[i] instanceof HwObj) || !isWhole(hs[i] as HwObj)) { continue; }
+            var h = hs[i] as HwObj;
+            var c = h.get("color");
+            if (!(c instanceof Lang.String)) { continue; }
+            var at = h.get("edited") != null ? num(h.get("edited")) : num(h.get("created"));
+            if (best == null || at >= bestAt) { best = c; bestAt = at; }
+        }
+        return best != null ? best : topColor(r);
+    }
+
+    //! Recolor one verse's record (watch Bookmarks > range > verse > Recolor): every whole-verse
+    //! part takes `color` (edited = now); with none, a whole-verse part in `color` is added.
+    //! Partial parts, notes and unknown fields are kept (SPEC: copy, change, write back whole).
+    //! A dead / unknown record becomes a new one-part record (same as a watch bookmark).
+    function recolor(old as HwObj or Null, r as Lang.String, color as Lang.String, now as Lang.Long) as HwObj {
+        if (old == null || old.get("deleted") == true || !((old as HwObj).get("highlights") instanceof Lang.Array)) {
+            return edit(old, r, color, true, now);
+        }
+        var o = old as HwObj;
+        var upd = now;
+        if (num(o.get("updated")) + 1 > upd) { upd = num(o.get("updated")) + 1; }
+        var hs = o.get("highlights") as Lang.Array;
+        var whole = false;
+        for (var i = 0; i < hs.size(); i++) {
+            if (hs[i] instanceof HwObj && isWhole(hs[i] as HwObj)) {
+                (hs[i] as HwObj).put("color", color);
+                (hs[i] as HwObj).put("edited", now);
+                whole = true;
+            }
+        }
+        if (!whole) { hs.add(new HwObj().put("color", color).put("created", now)); }
+        o.put("highlights", hs);
+        o.put("updated", upd);
+        return o;
+    }
+
     //! What the Bookmarks list shows for a color id: the library's name for it, else the
     //! built-in id capitalized ("Yellow"); a nameless custom color shows "Color".
     function colorLabel(id as Lang.String, names as Lang.Dictionary) as Lang.String {
@@ -415,12 +466,11 @@ module HwSync {
         _ixDirty = {};
     }
 
-    //! Bookmarks list labels: packed bookmark id -> color label, for single-verse ids the index
-    //! knows. Resolved shard by shard (one shard in memory at a time).
-    function colorLabels(ids as Lang.Array) as Lang.Dictionary {
+    //! Bookmarks list colors: packed bookmark id -> color id (displayColor at pull time), for
+    //! single-verse ids the index knows. Resolved shard by shard (one shard in memory at a time).
+    function colorIds(ids as Lang.Array) as Lang.Dictionary {
         var out = {};
         if ((get(S_CNT, {}) as Lang.Dictionary).size() == 0) { return out; }
-        var names = get(S_NAMES, {}) as Lang.Dictionary;
         var by = {}; // shard -> [[id, ref], ...]
         for (var i = 0; i < ids.size(); i++) {
             var id = ids[i] as Lang.Number;
@@ -437,10 +487,47 @@ module HwSync {
             var rows = by[ks[j]] as Lang.Array;
             for (var k = 0; k < rows.size(); k++) {
                 var e = d[(rows[k] as Lang.Array)[1]];
-                if (e != null) { out[(rows[k] as Lang.Array)[0]] = HwMap.colorLabel((e as Lang.Array)[0] as Lang.String, names); }
+                if (e != null) { out[(rows[k] as Lang.Array)[0]] = (e as Lang.Array)[0]; }
             }
         }
         return out;
+    }
+
+    //! Bookmarks list labels: packed bookmark id -> color label (colorIds, named).
+    function colorLabels(ids as Lang.Array) as Lang.Dictionary {
+        var c = colorIds(ids);
+        var names = get(S_NAMES, {}) as Lang.Dictionary;
+        var ks = c.keys();
+        for (var i = 0; i < ks.size(); i++) { c[ks[i]] = HwMap.colorLabel(c[ks[i]] as Lang.String, names); }
+        return c;
+    }
+
+    function colorName(id as Lang.String or Null) as Lang.String or Null {
+        return id == null ? null : HwMap.colorLabel(id as Lang.String, get(S_NAMES, {}) as Lang.Dictionary);
+    }
+
+    //! Recolor choices: [[color id, label], ...]: the built-ins, then the library's named colors.
+    function colorChoices() as Lang.Array {
+        var names = get(S_NAMES, {}) as Lang.Dictionary;
+        var out = [] as Lang.Array;
+        for (var i = 0; i < HwMap.BUILT_IN.size(); i++) {
+            out.add([HwMap.BUILT_IN[i], HwMap.colorLabel(HwMap.BUILT_IN[i] as Lang.String, names)]);
+        }
+        var ks = names.keys();
+        for (var i = 0; i < ks.size(); i++) {
+            if (HwMap.BUILT_IN.indexOf(ks[i]) < 0) { out.add([ks[i], HwMap.colorLabel(ks[i] as Lang.String, names)]); }
+        }
+        return out;
+    }
+
+    //! Journal a recolor of one verse (single packed verse id): [ref, true, color].
+    function localColor(id as Lang.Number, color as Lang.String) as Void {
+        var v = Bookmarks.unpackVerse(id);
+        if (v <= 0) { return; }
+        var ops = get(S_OPS, []) as Lang.Array;
+        ops.add([HwMap.ref(Bookmarks.unpackBook(id), Bookmarks.unpackChapter(id), v), true, color]);
+        if (ops.size() > MAX_OPS) { ops = []; Application.Storage.setValue(S_SEEDED, false); }
+        Application.Storage.setValue(S_OPS, ops);
     }
 
     //! Bookmarks.toggle / addRange / remove: journal the change for the next sync (even with sync
@@ -850,7 +937,7 @@ module HwSync {
                 recPut(id as Lang.String, text);
             }
             var e = ixGet(rf);
-            var top = HwMap.topColor(r);
+            var top = HwMap.displayColor(r);
             ixSet(rf, top, HwMap.num(r.get("updated")).toNumber(), cnt);
             if (ops.hasKey(rf)) { continue; } // a local change to this verse is still to be written
             var p = HwMap.split(rf);
@@ -899,8 +986,9 @@ module HwSync {
             ops = ops.slice(1, null);
             var rf = op[0] as Lang.String;
             var on = op[1] as Lang.Boolean;
+            var col = op.size() > 2 ? op[2] as Lang.String : null; // recolor (localColor)
             var e = ixGet(rf);
-            if (on && e != null) { continue; } // already highlighted (any color): nothing to add
+            if (col == null && on && e != null) { continue; } // already highlighted (any color): nothing to add
             if (!on && e == null) { continue; } // nothing live to delete
             var id = itemId("highlight", rf);
             var ot = recGet(id);
@@ -908,10 +996,11 @@ module HwSync {
             if (old == null && e != null) { // someone else's record: only its `updated` is known
                 old = new HwObj().put("kind", "highlight").put("ref", rf).put("updated", (e as Lang.Array)[1]).put("deleted", true);
             }
-            var nr = HwMap.edit(old, rf, HwMap.DEFAULT_COLOR, on, now);
+            var nr = col != null ? HwMap.recolor(old, rf, col, now) : HwMap.edit(old, rf, HwMap.DEFAULT_COLOR, on, now);
             n++;
             recPut(id, HwJson.stringify(nr));
-            ixSet(rf, on ? HwMap.DEFAULT_COLOR : null, HwMap.num(nr.get("updated")).toNumber(), cnt);
+            ixSet(rf, on ? HwMap.displayColor(nr) : null, HwMap.num(nr.get("updated")).toNumber(), cnt);
+            if (col != null) { Bookmarks.version++; } // the open Bookmarks list rebuilds with the new color
             if (dirty.indexOf(id) < 0) { dirty.add(id); }
         }
         recFlush();

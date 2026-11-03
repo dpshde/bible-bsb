@@ -167,7 +167,12 @@ class BookmarkItem extends P1MenuItem {
     function drawRow(dc as Graphics.Dc) as Void {
         if (_pending) {
             _pending = false;
-            _sub = join(_color, Snippets.of(getId() as Lang.Number));
+            var id = getId() as Lang.Number;
+            var sn = Snippets.of(id & 0xFFFFFF); // a merged row: its first verse's text + "…"
+            if (sn != null && Bookmarks.isRange(id) && !(sn as Lang.String).substring((sn as Lang.String).length() - 1, null).equals("…")) {
+                sn = (sn as Lang.String) + "…";
+            }
+            _sub = join(_color, sn);
             _lay = null;
         }
         P1MenuItem.drawRow(dc);

@@ -228,6 +228,105 @@ module Bookmarks {
         }
     }
 
+    // ---- Display rows: verse ranges merged at display time (Hidden Word web, SPEC 1.2) ---------
+    // Storage is unchanged (one id per bookmark; synced highlights are one id per verse). The list
+    // shows a run of verses that are consecutive, same book, same chapter and same color as one
+    // row ("Psalms 23:1–4"); a gap, a color change or a chapter change starts a new row. Colors:
+    // packed single-verse id -> color id (HwSync.colorIds, HwMap.displayColor); null = no colors
+    // (merge on adjacency only). Rows come out newest first (by their newest verse), as packed
+    // range ids (packRange), at most `max`. Chapter bookmarks (verse 0) stay their own rows.
+    function mergeRows(ids as Lang.Array, colors as Lang.Dictionary or Null, max as Lang.Number) as Lang.Array {
+        var have = {};
+        var i;
+        for (i = 0; i < ids.size(); i++) {
+            var id = ids[i] as Lang.Number;
+            var s = unpackVerse(id);
+            if (s <= 0) { continue; }
+            var base = id & 0xFFFF00;
+            for (var v = s; v <= unpackEnd(id); v++) { have[base | v] = true; }
+        }
+        var used = {};
+        var out = [] as Lang.Array;
+        for (i = 0; i < ids.size() && out.size() < max; i++) {
+            var id = ids[i] as Lang.Number;
+            var s = unpackVerse(id);
+            if (s <= 0) {
+                if (!used.hasKey(id)) { used[id] = true; out.add(id); }
+                continue;
+            }
+            var base = id & 0xFFFF00;
+            for (var v = s; v <= unpackEnd(id) && out.size() < max; v++) {
+                if (used.hasKey(base | v)) { continue; }
+                var col = colors != null ? (colors as Lang.Dictionary)[base | v] : null;
+                var lo = v;
+                while (lo > 1 && have.hasKey(base | (lo - 1)) && !used.hasKey(base | (lo - 1))
+                       && sameColor(colors, base | (lo - 1), col)) { lo--; }
+                var hi = v;
+                while (hi < 255 && have.hasKey(base | (hi + 1)) && !used.hasKey(base | (hi + 1))
+                       && sameColor(colors, base | (hi + 1), col)) { hi++; }
+                for (var k = lo; k <= hi; k++) { used[base | k] = true; }
+                out.add(base | lo | (hi > lo ? (hi << 24) : 0));
+            }
+        }
+        return out;
+    }
+
+    function sameColor(colors as Lang.Dictionary or Null, id as Lang.Number, col) as Lang.Boolean {
+        if (colors == null) { return true; }
+        var c = (colors as Lang.Dictionary)[id];
+        return c == null ? col == null : (col != null && c.equals(col));
+    }
+
+    //! The single verses of rows (packed ids), in row order, verses ascending.
+    function verses(rows as Lang.Array) as Lang.Array {
+        var out = [] as Lang.Array;
+        for (var i = 0; i < rows.size(); i++) {
+            var id = rows[i] as Lang.Number;
+            var s = unpackVerse(id);
+            if (s <= 0) { out.add(id); continue; }
+            for (var v = s; v <= unpackEnd(id); v++) { out.add((id & 0xFFFF00) | v); }
+        }
+        return out;
+    }
+
+    //! Is this single verse on the list (as itself or inside a stored range)?
+    function hasVerse(id as Lang.Number) as Lang.Boolean {
+        return cover().hasKey(id & 0xFFFFFF);
+    }
+
+    //! Delete ONE verse (Bookmarks > merged row > verse > Delete): that verse leaves the list (a
+    //! stored range around it splits) and only its record is journaled (tombstone on sync).
+    function removeVerse(id as Lang.Number) as Void {
+        id = id & 0xFFFFFF;
+        var list = load();
+        var next = [] as Lang.Array;
+        var hit = false;
+        for (var i = 0; i < list.size(); i++) {
+            var r = list[i] as Lang.Number;
+            var s = unpackVerse(r);
+            var v = unpackVerse(id);
+            if (s > 0 && (r & 0xFFFF00) == (id & 0xFFFF00) && v >= s && v <= unpackEnd(r)) {
+                hit = true;
+                var b = unpackBook(r);
+                var c = unpackChapter(r);
+                if (v > s) { next.add(packRange(b, c, s, v - 1)); }
+                if (v < unpackEnd(r)) { next.add(packRange(b, c, v + 1, unpackEnd(r))); }
+                continue;
+            }
+            next.add(r);
+        }
+        if (!hit) { return; }
+        save(next);
+        HwSync.local(id, false);
+        HwSync.changed();
+    }
+
+    //! Recolor ONE verse: only its record is rewritten (HwMap.recolor on sync).
+    function recolorVerse(id as Lang.Number, color as Lang.String) as Void {
+        HwSync.localColor(id & 0xFFFFFF, color);
+        HwSync.changed();
+    }
+
     //! "John 3:16", "Genesis 1:1–3" (en dash), "Psalms 119".
     function formatLabel(id as Lang.Number) as Lang.String {
         var b = unpackBook(id);
