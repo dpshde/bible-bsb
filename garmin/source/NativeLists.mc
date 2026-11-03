@@ -9,22 +9,30 @@ module NativeLists {
     // ---- Settings (docs/SETTINGS_PARITY.md) ------------------------------------------
     // POKE: SCROLL_LABEL — "Jump by verse" on = verse mode, off = line by line.
     const SCROLL_LABEL = "Jump by verse";
-    const SCROLL_ON = "Each press moves one verse";
-    const SCROLL_OFF = "Each press moves one line";
+    const SCROLL_ON = "One verse per press";
+    const SCROLL_OFF = "One line per press";
 
     function scrollItem(id as Lang.Object) {
         return UiMenu.toggle(SCROLL_LABEL, SCROLL_ON, SCROLL_OFF,
                              AppState.scroll.mode == ScrollModel.MODE_VERSE, id);
     }
 
+    //! Settings is a gold CustomMenu on every target: Menu2 forces a green system switch on
+    //! ToggleMenuItem and lets the rows above/below focus run into the round edge. Here rows are
+    //! 30% of the screen (only focus +/- 1 on screen) and the sublabel states the value.
     function openSettings() as Void {
-        var m = UiMenu.create("Settings");
-        m.addItem(scrollItem(:scroll));
-        m.addItem(UiMenu.toggle("Dark theme", "Light text on black", "Dark text on white",
-                                Palette.theme != Palette.THEME_LIGHT, :theme));
-        m.addItem(UiMenu.toggle("Tap vibration", "Buzz when a tap opens something", "No buzz",
-                                Feedback.enabled(), :vibe));
-        WatchUi.pushView(m, new SettingsDelegate(), WatchUi.SLIDE_LEFT);
+        WatchUi.pushView(buildSettings(), new SettingsDelegate(), WatchUi.SLIDE_LEFT);
+    }
+
+    function buildSettings() {
+        var m = new ThemedMenu("Settings");
+        m.addItem(new ThemedToggleItem(SCROLL_LABEL, SCROLL_ON, SCROLL_OFF,
+                                       AppState.scroll.mode == ScrollModel.MODE_VERSE, :scroll));
+        m.addItem(new ThemedToggleItem("Dark theme", "Light on black", "Dark on white",
+                                       Palette.theme != Palette.THEME_LIGHT, :theme));
+        m.addItem(new ThemedToggleItem("Tap vibration", "Buzz on tap", "No buzz",
+                                       Feedback.enabled(), :vibe));
+        return m;
     }
 
     //! Apply one setting; every value persists in Application.Storage.
@@ -114,14 +122,21 @@ module NativeLists {
     function openFiltered(idx as Lang.Number) as Void {
         var books = PickList.booksForFilter(idx);
         var title = idx == 0 ? "All books" : (idx >= 19 ? "Books: 1–3" : "Books: " + PickList.FILTER_LABELS[idx]);
-        var v = new PickListView(title, PickList.bookLabels(books));
-        WatchUi.pushView(v, new PickListDelegate(v, 0, books), WatchUi.SLIDE_LEFT);
+        // Native Menu2 like Browse (label = book, sublabel = chapter count); was a custom PickList
+        // with a solid gold focus box.
+        var m = UiMenu.create(title);
+        var i;
+        for (i = 0; i < books.size(); i++) {
+            var b = books[i] as Lang.Number;
+            m.addItem(UiMenu.item(Books.name(b), chaptersLabel(b), b));
+        }
+        WatchUi.pushView(m, new BrowseBookDelegate(), WatchUi.SLIDE_LEFT);
     }
 
     // ---- Bookmarks ---------------------------------------------------------------------
     // POKE: BOOKMARK_SNIPPETS — verse snippets for the newest N (each costs a chapter load).
     const SNIPPETS = 12;
-    const SNIPPET_CHARS = 22; // fits a round sublabel row (fr265: "Through Him all…")
+    const SNIPPET_CHARS = 16; // native Menu2 sublabel on Enduro 3 fits ~17 chars: "Through Him all…" (word-boundary cut)
     const ID_EMPTY = -1;
 
     function openBookmarks() as Void {
@@ -156,7 +171,7 @@ module NativeLists {
         if (s.length() <= SNIPPET_CHARS) {
             return s;
         }
-        s = s.substring(0, SNIPPET_CHARS);
+        s = s.substring(0, SNIPPET_CHARS + 1); // +1: a word ending exactly at the limit stays
         var k = RoundLayout.lastSpaceAt(s);
         return (k > 0 ? s.substring(0, k) : s) + "…";
     }
@@ -164,7 +179,7 @@ module NativeLists {
     function openBookmarkActions(id as Lang.Number, parent) as Void {
         var m = UiMenu.create(Bookmarks.formatLabel(id));
         m.addItem(UiMenu.item("Open", null, :open));
-        m.addItem(UiMenu.item("Remove", "From bookmarks", :remove));
+        m.addItem(UiMenu.item("Remove", null, :remove)); // no sublabel: the bottom row clips on Enduro 3
         WatchUi.pushView(m, new BookmarkActionDelegate(id, parent), WatchUi.SLIDE_LEFT);
     }
 
@@ -181,21 +196,21 @@ module NativeLists {
 
     // ---- Go to verse (section headings) -------------------------------------------------
     //! items: [title, " (a–b)", firstVerse] (firstVerse -1 = "Verse…").
+    //! Go to verse stays a CustomMenu on every target: Menu2 cuts long section headings at the
+    //! round edge, while ThemedWrapItem wraps each heading to a 2-row pyramid and keeps the
+    //! verse range " (1–4)" whole on the last row (gold text focus, no pill).
     function openSections(reader as ReaderView, items as Lang.Array) as Void {
-        var m = UiMenu.create("Go to verse");
+        var m = new ThemedMenu("Go to verse");
         var i;
         for (i = 0; i < items.size(); i++) {
             var it = items[i] as Lang.Array;
             var span = it[1] as Lang.String;
-            var sub = null;
-            if (span.length() > 3) {
-                var inner = span.substring(2, span.length() - 1); // " (1–25)" -> "1–25"
-                sub = inner.find("–") != null ? "Verses " + inner : "Verse " + inner;
-            } else if ((it[2] as Lang.Number) < 0) {
-                sub = "Pick any verse";
-            }
             var label = it[0] as Lang.String;
-            m.addItem(UiMenu.item(label, sub, it[2] as Lang.Number));
+            if ((it[2] as Lang.Number) < 0) {
+                m.addItem(new ThemedMenuItem(label, "Pick any verse", it[2] as Lang.Number));
+            } else {
+                m.addItem(new ThemedWrapItem(label, span, it[2] as Lang.Number));
+            }
         }
         WatchUi.pushView(m, new SectionGotoDelegate(reader), WatchUi.SLIDE_LEFT);
     }
@@ -318,6 +333,13 @@ class SettingsDelegate extends WatchUi.Menu2InputDelegate {
 
     function onSelect(item as WatchUi.MenuItem) as Void {
         NativeLists.applySetting(item.getId(), UiMenu.toggledState(item));
+        if (item.getId() == :theme) {
+            // Repaint the whole menu in the new Dark/Light palette (menu background included).
+            var m = NativeLists.buildSettings();
+            m.setFocus(1);
+            WatchUi.switchToView(m, new SettingsDelegate(), WatchUi.SLIDE_IMMEDIATE);
+            return;
+        }
         WatchUi.requestUpdate();
     }
 

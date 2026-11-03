@@ -3,7 +3,7 @@ using Toybox.Lang;
 using Toybox.Timer;
 
 //! Last-read position persisted across relaunch (Storage "last" = [book, chapter, verse];
-//! "lastRef" = "JHN 3:16", "lastText" = first ~80 chars, read by the glance).
+//! "lastRef" = "John 3:16", "lastText" = first ~160 chars, read by the glance).
 //! Written on reader hide and app stop only (not per scroll step) to spare flash.
 (:glance)
 module LastRead {
@@ -86,12 +86,12 @@ module LastReadApp {
         var c = p[1] as Lang.Number;
         var v = p[2] as Lang.Number;
         Application.Storage.setValue(LastRead.KEY, p);
-        Application.Storage.setValue(LastRead.KEY_REF, Books.refLabel(b, c, v));
+        Application.Storage.setValue(LastRead.KEY_REF, Books.name(b) + " " + c + ":" + v); // glance: full name, no OSIS code
         var t = ContentLoader.verseText(b, c, v);
         if (t != null) {
             var s = ContentLoader.plainVerseText(t as Lang.String);
-            if (s.length() > 80) {
-                s = s.substring(0, 80);
+            if (s.length() > 160) { // glance wraps at words and ellipsizes only what cannot fit
+                s = s.substring(0, 160);
             }
             Application.Storage.setValue(LastRead.KEY_TEXT, s);
         }

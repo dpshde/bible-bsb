@@ -10,9 +10,12 @@ class ThemedMenu extends WatchUi.CustomMenu {
 
     function initialize(title as Lang.String) {
         var h = System.getDeviceSettings().screenHeight;
-        CustomMenu.initialize((h * 0.18).toNumber(), Palette.BG, {
-            :focusItemHeight => (h * 0.26).toNumber(),
-            :titleItemHeight => (h * 0.22).toNumber()
+        // POKE: MENU_ROW_H — 30% rows: only the rows above/below focus are on screen, both
+        // where the circle is still wide, so no row runs into the bezel.
+        CustomMenu.initialize((h * 0.30).toNumber(), Palette.BG, {
+            :focusItemHeight => (h * 0.30).toNumber(),
+            :titleItemHeight => (h * 0.22).toNumber(),
+            :foreground => new MenuFocusMask((h * 0.30).toNumber())
         });
         _title = title;
     }
@@ -47,23 +50,62 @@ class ThemedMenuItem extends WatchUi.CustomMenuItem {
         dc.setColor(Palette.BG, Palette.BG);
         dc.clear();
         var f = focused ? Graphics.FONT_SMALL : Graphics.FONT_TINY;
+        // POKE: MENU_ROW_ROOM — rows above/below focus sit where the circle is narrower; the
+        // focused row also clears the system focus mark masked by MenuFocusMask.
+        var room = focused ? (w * 0.74).toNumber() : (w * 0.66).toNumber();
+        var rows = [_label] as Lang.Array;
+        if (dc.getTextWidthInPixels(_label, f) > room) {
+            // Wrap to two rows (one font for both, dropping to TINY on focus) before any "…".
+            f = Graphics.FONT_TINY;
+            if (dc.getTextWidthInPixels(_label, f) > room) {
+                rows = RoundLayout.wrapRows(dc, _label, f, room, 2);
+            }
+        }
         var fh = dc.getFontHeight(f);
-        var sub = _sub;
+        var lh = fh - 3;
         var sf = Graphics.FONT_XTINY;
-        var sh = sub != null ? dc.getFontHeight(sf) : 0;
-        var y = (h - fh - sh) / 2;
-        var label = RoundLayout.ellipsize(dc, _label, f, w - 24);
+        var sh = dc.getFontHeight(sf);
+        var slh = sh - 3;
+        var subRows = _sub != null
+            ? RoundLayout.wrapRows(dc, _sub as Lang.String, sf, room, rows.size() > 1 ? 1 : 2)
+            : [] as Lang.Array;
+        var th = fh + (rows.size() - 1) * lh;
+        var stotal = subRows.size() > 0 ? sh + (subRows.size() - 1) * slh : 0;
+        var y = (h - th - stotal) / 2;
         if (focused) {
             dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT); // no cards/pills
         } else {
             dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
         }
-        dc.drawText(w / 2, y, f, label, Graphics.TEXT_JUSTIFY_CENTER);
-        if (sub != null) {
-            dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(w / 2, y + fh + 1, sf, RoundLayout.ellipsize(dc, sub as Lang.String, sf, w - 24),
-                        Graphics.TEXT_JUSTIFY_CENTER);
+        var i;
+        for (i = 0; i < rows.size(); i++) {
+            dc.drawText(w / 2, y + i * lh, f, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
         }
+        dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
+        for (i = 0; i < subRows.size(); i++) {
+            dc.drawText(w / 2, y + th + 1 + i * slh, sf, subRows[i] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+        }
+    }
+}
+
+//! CustomMenu's system chrome: a teal focus slash (AMOLED) or a white bar (MIP) in a black
+//! left gutter. Off-palette, so this foreground paints the theme background over the gutter.
+class MenuFocusMask extends WatchUi.Drawable {
+    var _fh as Lang.Number;
+
+    function initialize(focusH as Lang.Number) {
+        Drawable.initialize({});
+        _fh = focusH;
+    }
+
+    function draw(dc as Graphics.Dc) as Void {
+        var w = dc.getWidth();
+        var h = dc.getHeight();
+        dc.setColor(Palette.BG, Palette.BG);
+        // POKE: MENU_MASK_W — the system keeps a left gutter (~13% of the width) for its focus
+        // mark and fills it black; paint it in the theme background over the full height so
+        // Light mode has no dark strip.
+        dc.fillRectangle(0, 0, (w * 0.13).toNumber() + 1, h);
     }
 }
 
@@ -89,10 +131,12 @@ class ThemedWrapItem extends WatchUi.CustomMenuItem {
         }
         var w = dc.getWidth();
         // POKE: GOTO_WRAP_ROOM — off-center items sit where the circle is narrower.
-        var room = focused ? (w * 0.80).toNumber() : (w * 0.72).toNumber();
+        var room = focused ? (w * 0.74).toNumber() : (w * 0.62).toNumber();
         var full = _label + _suffix;
-        var fonts = focused ? [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY]
-                            : [Graphics.FONT_TINY, Graphics.FONT_XTINY];
+        // One font per state for every row (no per-row step-down): siblings match.
+        // Headings are long: both states use XTINY so a focused heading wraps exactly like its
+        // neighbours (3 rows max) instead of ending in "…"; focus is shown by gold.
+        var fonts = [Graphics.FONT_XTINY];
         var out = null;
         var k;
         for (k = 0; k < fonts.size() && out == null; k++) {
@@ -101,14 +145,14 @@ class ThemedWrapItem extends WatchUi.CustomMenuItem {
                 out = [f, [full]];
             }
         }
-        var wrapFonts = focused ? [Graphics.FONT_TINY, Graphics.FONT_XTINY] : [Graphics.FONT_XTINY];
+        var wrapFonts = fonts;
         for (k = 0; k < wrapFonts.size() && out == null; k++) {
             var f2 = wrapFonts[k] as Graphics.FontDefinition;
             var parts = RoundLayout.pyramidSplit(dc, full, f2, (room * 0.86).toNumber(), room);
             if (parts != null) {
                 out = [f2, parts];
-            } else if (focused && f2 == Graphics.FONT_XTINY) {
-                // Focused item is taller: a third pyramid row before any truncation.
+            } else {
+                // A third pyramid row before any truncation (rows are 30% of the screen tall).
                 var three = RoundLayout.wrapThree(dc, full, f2, (room * 0.72).toNumber(),
                                                   (room * 0.88).toNumber(), room);
                 if (three != null) {
@@ -118,7 +162,7 @@ class ThemedWrapItem extends WatchUi.CustomMenuItem {
         }
         if (out == null) {
             // Last resort: shorten the TITLE, keep the verse span whole on row 2.
-            var f3 = Graphics.FONT_XTINY;
+            var f3 = fonts[0] as Graphics.FontDefinition;
             var sw = dc.getTextWidthInPixels(_suffix, f3);
             var p2 = RoundLayout.pyramidSplitEllipsize(dc, _label, f3, (room * 0.86).toNumber(), room - sw);
             out = [f3, [p2[0], (p2[1] as Lang.String) + _suffix]];
@@ -150,9 +194,7 @@ class ThemedWrapItem extends WatchUi.CustomMenuItem {
             if (tw > w - 8) {
                 tw = w - 8;
             }
-            dc.setColor(Palette.FOCUS_BG, Palette.FOCUS_BG);
-            dc.fillRoundedRectangle((w - tw) / 2, y - 1, tw, total + 2, 6);
-            dc.setColor(Palette.FOCUS_FG, Graphics.COLOR_TRANSPARENT);
+            dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT); // gold text, no pill
         } else {
             dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
         }
@@ -169,8 +211,13 @@ class ThemedWrapItem extends WatchUi.CustomMenuItem {
 //! minimal CustomMenu above (gold text focus, no cards/pills) with the same delegate API.
 //! Native menus follow the system palette, so the app's Light theme does not tint them.
 module UiMenu {
+    //! POKE: MENU_NATIVE — true (5:50 PM, Dylan: keep Garmin native Menu2). Targets without
+    //! Menu2 themes fall back to the gold CustomMenu below. Rows stay inside the round screen by
+    //! keeping labels and sublabels short (NativeLists), since Menu2 cannot inset rows.
+    const MENU_NATIVE = true;
+
     function isNative() as Lang.Boolean {
-        return WatchUi has :MENU_THEME_ORANGE;
+        return MENU_NATIVE && MenuStyle.DARK_NATIVE && (WatchUi has :MENU_THEME_ORANGE);
     }
 
     function create(title as Lang.String) {
@@ -192,7 +239,9 @@ module UiMenu {
     function toggle(label as Lang.String, subOn as Lang.String, subOff as Lang.String,
                     on as Lang.Boolean, id as Lang.Object) {
         if (isNative()) {
-            return new WatchUi.ToggleMenuItem(label, {:enabled => subOn, :disabled => subOff}, id, on, null);
+            // Plain native item whose sublabel names the current state: no system switch
+            // (the system draws it green on every target, and green is off-palette).
+            return new StateMenuItem(label, subOn, subOff, on, id);
         }
         return new ThemedToggleItem(label, subOn, subOff, on, id);
     }
@@ -201,6 +250,9 @@ module UiMenu {
     function toggledState(item) as Lang.Boolean {
         if (item instanceof ThemedToggleItem) {
             return (item as ThemedToggleItem).flip();
+        }
+        if (item instanceof StateMenuItem) {
+            return (item as StateMenuItem).flip();
         }
         return (item as WatchUi.ToggleMenuItem).isEnabled();
     }
@@ -225,4 +277,39 @@ class ThemedToggleItem extends ThemedMenuItem {
         WatchUi.requestUpdate();
         return _on;
     }
+}
+
+//! Native on/off row: the sublabel states the current value ("One verse per press" /
+//! "One line per press"), so no green system switch is needed.
+class StateMenuItem extends WatchUi.MenuItem {
+    var _on as Lang.Boolean;
+    var _subOn as Lang.String;
+    var _subOff as Lang.String;
+
+    function initialize(label as Lang.String, subOn as Lang.String, subOff as Lang.String,
+                        on as Lang.Boolean, id as Lang.Object) {
+        MenuItem.initialize(label, on ? subOn : subOff, id, null);
+        _on = on;
+        _subOn = subOn;
+        _subOff = subOff;
+    }
+
+    function flip() as Lang.Boolean {
+        _on = !_on;
+        setSubLabel(_on ? _subOn : _subOff);
+        WatchUi.requestUpdate();
+        return _on;
+    }
+}
+
+//! Per-device Menu2 background (monkey.jungle LIGHT_MENU_DEVICES): vivoactive5, venu3 and
+//! venusq2 draw Menu2 lists on a white panel, so those builds use the dark CustomMenu.
+(:darkmenu)
+module MenuStyle {
+    const DARK_NATIVE = true;
+}
+
+(:lightmenu)
+module MenuStyle {
+    const DARK_NATIVE = false;
 }

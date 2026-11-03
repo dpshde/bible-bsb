@@ -90,6 +90,7 @@ class ChapterGridView extends WatchUi.View {
     var _top as Lang.Number = -1;
     var _bottom as Lang.Number = 0;
     var _subY as Lang.Number = 0;
+    var _subRows as Lang.Number = 2;
     var _theme as Lang.Number = -1;
     // Tap feedback: tapped cell flashes gold for FLASH_MS, then the chapter opens.
     var flashIdx as Lang.Number = -1;
@@ -154,8 +155,11 @@ class ChapterGridView extends WatchUi.View {
             firstSectionTitle(_gridBook, 1);
             layoutTitle(dc, w, h, titleFont);
             _subY = _titleY + dc.getFontHeight(titleFont) + 1;
-            _top = _subY + (_heads != null ? 2 * sh : 0) + 4;
-            _bottom = h - RoundLayout.edgeMargin(w, h);
+            _subRows = subRowsFor(dc, w, h, sf, sh);
+            // POKE: GRID_INSETS — the rule stays under the subtitle (top - 9); cells start 5px lower so the focus pill clears it, and
+            // the bottom inset keeps the last row clear of the round edge.
+            _top = _subY + (_heads != null ? _subRows * (sh - 2) + 2 : 0) + 4 + 5;
+            _bottom = h - RoundLayout.edgeMargin(w, h) - (h * 0.04).toNumber();
         }
         var top = _top;
         var titleY = _titleY;
@@ -183,7 +187,12 @@ class ChapterGridView extends WatchUi.View {
                 } else {
                     var c2 = RoundLayout.chordWidth(_subY + sh - 2, w, h) - 6;
                     // POKE: GRID_SUBTITLE_WRAP — pyramid 2 lines; ellipsis only after line 2, at a word.
-                    _subParts = RoundLayout.pyramidSplitEllipsize(dc, st, sf, c1, c2);
+                    var two = RoundLayout.pyramidSplit(dc, st, sf, c1, c2);
+                    if (two == null && _subRows == 3) {
+                        var c3 = RoundLayout.chordWidth(_subY + 2 * (sh - 2), w, h) - 6;
+                        two = RoundLayout.wrapThree(dc, st, sf, c1, c2, c3);
+                    }
+                    _subParts = two != null ? two : RoundLayout.pyramidSplitEllipsize(dc, st, sf, c1, c2);
                 }
             }
         }
@@ -309,17 +318,18 @@ class ChapterGridView extends WatchUi.View {
         if (_subParts != null) {
             var sp = _subParts as Lang.Array;
             dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
-            var y = sp.size() > 1 ? _subY : _subY + sh / 2 - 1;
-            Perf.texts++;
-            dc.drawText(w / 2, y, sf, sp[0] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
-            if (sp.size() > 1) {
+            // Rows centered in the reserved subtitle block (2 or 3 rows per book).
+            var y = _subY + ((_subRows - sp.size()) * (sh - 2)) / 2;
+            var k;
+            for (k = 0; k < sp.size(); k++) {
                 Perf.texts++;
-                dc.drawText(w / 2, y + sh - 2, sf, sp[1] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+                dc.drawText(w / 2, y + k * (sh - 2), sf, sp[k] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
             }
         }
-        var ruleLeft = RoundLayout.chordLeft(top - 4, w, h);
+        var ry = top - 9;
+        var ruleLeft = RoundLayout.chordLeft(ry, w, h);
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(ruleLeft, top - 4, ruleLeft + RoundLayout.chordWidth(top - 4, w, h), top - 4);
+        dc.drawLine(ruleLeft, ry, ruleLeft + RoundLayout.chordWidth(ry, w, h), ry);
     }
 
     //! Every visible cell; dy shifts into bitmap space. focusIdx >= 0 draws that one as a pill.
@@ -445,6 +455,28 @@ class ChapterGridView extends WatchUi.View {
     }
 
     //! PERF: per-book heading index (one tiny resource per book), not a chapter JSON per focus move.
+    //! POKE: GRID_SUBTITLE_ROWS — reserve a 3rd subtitle row for this book only if some
+    //! chapter heading cannot fit the 2-row pyramid (vivoactive5 Acts 13), so it wraps instead
+    //! of ending in "…". Measured once per book; fixed per book so the grid never shifts.
+    function subRowsFor(dc as Graphics.Dc, w as Lang.Number, h as Lang.Number,
+                        sf as Graphics.FontDefinition, sh as Lang.Number) as Lang.Number {
+        var hs = _heads;
+        if (hs == null) {
+            return 2;
+        }
+        var c1 = RoundLayout.chordWidth(_subY, w, h) - 6;
+        var c2 = RoundLayout.chordWidth(_subY + sh - 2, w, h) - 6;
+        var i;
+        for (i = 0; i < hs.size(); i++) {
+            var t = hs[i] as Lang.String;
+            if (t.length() > 0 && dc.getTextWidthInPixels(t, sf) > c1
+                && RoundLayout.pyramidSplit(dc, t, sf, c1, c2) == null) {
+                return 3;
+            }
+        }
+        return 2;
+    }
+
     function firstSectionTitle(book as Lang.Number, chapter as Lang.Number) as Lang.String or Null {
         if (_headsBook != book) {
             _headsBook = book;

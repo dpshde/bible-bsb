@@ -30,6 +30,9 @@ class BsbBibleApp extends Application.AppBase {
         Palette.loadTheme(); // persisted Dark/Light (Application.Storage "theme")
         LastReadApp.restore(); // resume book/chapter/verse (Storage "last")
         _appStarted = true;
+        if (GlancePreview.PREVIEW) {
+            return [new GlancePreviewView()];
+        }
         return [new BookListView(), new BookListDelegate()];
     }
 }

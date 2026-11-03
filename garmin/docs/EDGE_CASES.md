@@ -82,3 +82,16 @@ The small square at the left edge of the glance frames is the system-drawn app l
 the separator line, not a missing-character box. The simulator previews the glance in the top slot
 of the loop, where the bezel crops that icon. Verse-of-the-day text uses —, ‘ ’ and “ ”, which the
 system glance font renders.
+
+## v4 milestone checks (7:10 PM ET)
+| Check | Result |
+|---|---|
+| Settings flip: Jump by verse, Dark theme, Tap vibration | pass: sublabel states the new value at once; Dark theme repaints the whole menu (no dark gutter in Light) |
+| Settings persist (storage write, reload, corrupt value) | pass: `.DAT` written on flip; `testSettingsPersist`. Simulator relaunch wipes app data, so the kill/relaunch check is pending on the watch (see SETTINGS_PARITY.md) |
+| Go to verse headings (John 14) | pass: wrap to up to 3 rows, range kept ("In My Father's House Are Many Rooms (1–4)") |
+| Bookmark snippets | pass: cut at a word ("Through Him all…", "In the beginning…") |
+| vivoactive5 Acts 13 subtitle | pass: 3-row pyramid "Paul's First / Missionary / Journey Begins", no "…" |
+| Grid insets (fr265 2 Chronicles, chapter 1 pill) | pass: pill clears the rule; bottom row inset from the edge |
+| Long names, same font (enduro3, fr265, vivoactive5) | pass; logged last resort: grid title "Song of Solomon" → "Song" on fr265/vivoactive5; off-center list rows abbreviate (`logs/abbr-*.txt`) |
+| Menus on vivoactive5 / venu3 / venusq2 | pass: dark gold CustomMenu (their Menu2 draws a white panel) |
+| Unit tests | 54/54 pass |

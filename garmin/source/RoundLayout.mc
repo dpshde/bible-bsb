@@ -520,4 +520,35 @@ module RoundLayout {
             [contentX + iconW / 2, iy + iconH - 4], [contentX, iy + iconH]]);
         dc.drawText(contentX + iconW + iconGap, boxY + padY, font, label, Graphics.TEXT_JUSTIFY_LEFT);
     }
+
+    //! Greedy word wrap into at most maxRows rows of width <= room; if words remain, the last
+    //! row ends at a word with "…" (never inside a word unless one word alone is too wide).
+    function wrapRows(dc as Graphics.Dc, text as Lang.String, font as Graphics.FontDefinition,
+                      room as Lang.Number, maxRows as Lang.Number) as Lang.Array {
+        var words = ContentLoader.splitWords(text);
+        var rows = [] as Lang.Array;
+        var cur = "";
+        var i = 0;
+        while (i < words.size() && rows.size() < maxRows) {
+            var cand = cur.length() == 0 ? words[i] as Lang.String : cur + " " + words[i];
+            if (cur.length() == 0 || dc.getTextWidthInPixels(cand, font) <= room) {
+                cur = cand;
+                i++;
+            } else {
+                rows.add(cur);
+                cur = "";
+            }
+        }
+        if (cur.length() > 0 && rows.size() < maxRows) {
+            rows.add(cur);
+        }
+        if (i < words.size() && rows.size() > 0) {
+            rows[rows.size() - 1] = ellipsize(dc, (rows[rows.size() - 1] as Lang.String) + " " + words[i], font, room);
+            var last = rows[rows.size() - 1] as Lang.String;
+            if (!last.substring(last.length() - 1, last.length()).equals("…")) {
+                rows[rows.size() - 1] = ellipsize(dc, last + " …", font, room);
+            }
+        }
+        return rows;
+    }
 }

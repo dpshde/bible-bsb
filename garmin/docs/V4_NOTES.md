@@ -11,10 +11,22 @@
   when needed and "Verse…" (pick any verse). The range and verse pickers are native too.
 - **Filter books:** the 22 Flipper options as a native list (sublabel: book names, or a count).
 - **Reader menu and home Browse menu:** native.
-- **Style (`POKE: MENU_STYLE`):** on targets with Menu2 themes (API 4.1.8+), MENU_THEME_ORANGE,
-  the closest system accent to gold. Older targets fall back to a minimal CustomMenu (gold text
-  focus, no cards or pills) with the same delegate API. Native menus follow the system palette,
-  so the app's Light theme does not tint them.
+- **Menu style per list (`POKE: MENU_STYLE`, `MENU_NATIVE`, `LIGHT_MENU_DEVICES`):**
+  - Native Menu2 (MENU_THEME_ORANGE): Browse, Bookmarks (+ Open/Remove), Filter books and the
+    filtered book list, reader menu, on Enduro 3, fr265 and fr165.
+  - Gold CustomMenu (no band, card or pill; gold text marks focus): Go to verse (headings wrap
+    to up to 3 rows and keep the verse range), Settings (no green switch; sublabel states the
+    value), and every menu on vivoactive5, venu3 and venusq2, whose Menu2 draws a white list
+    panel under every theme (`screens/v4/va5/browse-notheme.png`).
+  - Labels and sublabels stay short so native rows don't clip ("Remove bookmark" + "John 1:3";
+    snippets cut at a word near 16 characters; "One verse per press"; Remove has no sublabel).
+- **AMOLED focus band (fr265, fr165): unfixable in native Menu2.** The band is the device's own
+  focus art: every Menu2 theme asset on fr265 (`nLists_Default/Orange/Yellow/Red/…png` in the
+  device profile) fades to dark navy at the right, and there is no API to recolor it. ORANGE is
+  the least blue. Flip `MENU_NATIVE` (or add fr265 to `LIGHT_MENU_DEVICES`) to use the gold
+  CustomMenu there instead.
+- **Enduro 3 lime marks:** the lime arcs at 10 and 2 o'clock are the simulator's Enduro 3 bezel
+  art, outside the display; they appear on every screen including fully custom views.
 - **Retired custom views:** BrowseView, BookmarksView, GotoSectionsView and FilterGridView
   (kept outside the repo in `labs/garmin/retired-v3/`).
 
@@ -37,7 +49,7 @@ home screen feel fast. Keep it custom unless it starts to feel worse than the na
 - Reader header: fixed font with pyramid rows (unchanged; it had no step-down).
 
 ## Edge fixes carried in
-- Glance verse of the day: centered and word-wrapped, with a word-boundary ellipsis.
+- Glance (native pattern): gold reference, left-aligned and vertically centered in the glance DC; one or two light-gray verse rows ending at a word with "…"; full DC width; the app draws no icon, box or border (the system draws the launcher icon). The simulator pins the glance slot to the top of the screen where the round mask crops it, so `screens/v4/after/glance-loop-*.png` render the real glance view at the glance-loop slot (capture harness `GlancePreview`, off in every shipped build). Launcher icon: round gold book (was a navy square).
 - Acts grid subtitle: pyramid split over two lines, an ellipsis only after line 2 and at a word.
 - edgeB navigation: stale drag focus across lists is fixed; the section range skips missing
   verses (Matthew 17 now reads "19–20").

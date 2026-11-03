@@ -20,14 +20,23 @@ behaviors and where it lives on Garmin.
 | Book filter (22 options) | All, A to Z, 1, 2, 3 | All | Browse > Filter books (native) | match (see FILTER_PARITY.md) |
 | Share via NFC (`bible_nfc`) | — | — | none | divergence: Connect IQ apps cannot emit NFC |
 | Header marquee (pause, then scroll) | fixed | — | Two-row pyramid section header | divergence (layout): round screens wrap instead of scrolling |
-| Scrolling | fixed: one line per press | line | **Settings > Jump by verse**: on = "Each press moves one verse", off = "Each press moves one line" (`POKE: SCROLL_LABEL`) | Garmin addition; off = Flipper behavior |
-| Theme | fixed: monochrome LCD | — | **Settings > Dark theme**: on = "Light text on black", off = "Dark text on white" | Garmin addition |
-| Haptics | none (no motor) | — | **Settings > Tap vibration**: on = "Buzz when a tap opens something", off = "No buzz"; the watch's own vibration setting still wins | Garmin addition |
+| Scrolling | fixed: one line per press | line | **Settings > Jump by verse**: on = "One verse per press", off = "One line per press" (`POKE: SCROLL_LABEL`) | Garmin addition; off = Flipper behavior |
+| Theme | fixed: monochrome LCD | — | **Settings > Dark theme**: on = "Light on black", off = "Dark on white" | Garmin addition |
+| Haptics | none (no motor) | — | **Settings > Tap vibration**: on = "Buzz on tap", off = "No buzz"; the watch's own vibration setting still wins | Garmin addition |
 
-All three Garmin settings are native `ToggleMenuItem`s in **Settings** (reached from Browse and
-from the reader menu). The reader menu keeps "Jump by verse" as a quick toggle. Values persist in
+All three Garmin settings live in **Settings** (reached from Browse and from the reader menu), a
+gold CustomMenu on every target: Menu2's ToggleMenuItem draws a green system switch and its
+off-focus rows clip at the round edge. Each row's sublabel states the current value, so no
+switch is drawn. The reader menu keeps "Jump by verse" as a quick native row (same sublabels). Values persist in
 `Application.Storage` (`scrollMode`, `theme`, `vibe`). Corrupt or missing values fall back to the
 defaults (`testSettingsPersist`, plus the existing storage-hardening tests).
 
-## Persistence test (simulator: toggle, kill, relaunch)
-Frames `screens/v4/<device>-v4-settings-{default,toggled,after-relaunch}.png` on Enduro 3 and fr265.
+## Persistence test (toggle, kill, relaunch)
+| Check | Result |
+|---|---|
+| Toggle writes storage at once | **pass**: `FR265.DAT`/`.IDX` appear in the simulator's app data the moment a setting flips (no exit needed) |
+| Unit test `testSettingsPersist` (write, reload, corrupt value falls back to default) | **pass** (54/54 tests) |
+| Simulator kill + relaunch | **not verifiable in the simulator**: every simulator restart and every `monkeydo` install wipes the app's data directory (checked: `.DAT` gone before the app starts), so settings read as defaults after any relaunch there. Frames: `screens/v4/per/`. |
+| On-watch kill + relaunch | pending: needs the installed v4 on the Enduro 3 (Settings → flip all three → hold Back to exit → reopen) |
+
+Frames: `screens/v4/after/<device>-settings-{default,toggled}.png` (Enduro 3, fr265).

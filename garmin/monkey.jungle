@@ -11,5 +11,10 @@ base.resourcePath = resources
 # venusq2.resourcePath = resources;resources-rectangle
 
 # Palette: MIP (64-color) devices get palette-exact gold; everyone else true gold.
-base.excludeAnnotations = mip
-enduro3.excludeAnnotations = amoled
+base.excludeAnnotations = mip;lightmenu
+enduro3.excludeAnnotations = amoled;lightmenu
+# POKE: LIGHT_MENU_DEVICES — Menu2 draws a white list panel on these (system default; no
+# :theme changes it), so they get the dark gold CustomMenu instead.
+vivoactive5.excludeAnnotations = mip;darkmenu
+venu3.excludeAnnotations = mip;darkmenu
+venusq2.excludeAnnotations = mip;darkmenu

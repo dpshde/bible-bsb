@@ -714,7 +714,7 @@ class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
         menu.addItem(UiMenu.item("By Testament", null, :testament));
         menu.addItem(UiMenu.item("Filter books", "All, A to Z, 1 to 3", :letter));
         menu.addItem(UiMenu.item("All books", null, :all));
-        menu.addItem(UiMenu.item("Settings", "Scrolling, theme, vibration", :theme));
+        menu.addItem(UiMenu.item("Settings", "Scroll, theme, buzz", :theme));
         WatchUi.pushView(menu, new HomeMenu2Delegate(), WatchUi.SLIDE_UP);
     }
 

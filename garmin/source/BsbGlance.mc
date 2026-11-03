@@ -4,31 +4,28 @@ using Toybox.System;
 using Toybox.WatchUi;
 
 //! Glance: last-read ref + its words, else the offline verse of the day.
-//! Every row is centered inside SAFE_FRAC of the glance width (round bezels clip the slot's
-//! corners); the verse word-wraps over the rows that fit and is only ever shortened at a
-//! word boundary with an ellipsis (edge pass: "Whatever you do, work ." fixed).
+//! Native glance layout (5:50 PM, Dylan): no icon, box or border drawn by the app; the verse
+//! is only ever shortened at a word boundary with an ellipsis.
 (:glance)
 class BsbGlanceView extends WatchUi.GlanceView {
-    // POKE: GLANCE_SAFE_FRAC — usable width share of the glance slot.
-    const SAFE_FRAC = 0.82;
 
     function initialize() {
         GlanceView.initialize();
     }
 
-    var _logged as Lang.Boolean = false;
 
+    //! Native glance pattern (Weather, Steps): left-aligned, vertically centered in the
+    //! glance DC, full DC width (the system draws the app icon outside this DC where a device
+    //! shows one). Title = reference in gold; under it 1-2 light-gray verse rows ending "…".
     function onUpdate(dc as Graphics.Dc) as Void {
         var w = dc.getWidth();
         var h = dc.getHeight();
-        if (!_logged) {
-            _logged = true; // safe-area audit: the system places this DC right of the app icon
-            System.println("GLANCE dc " + w + "x" + h);
-        }
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
         dc.clear();
-        var f = Graphics.FONT_GLANCE;
-        var fh = dc.getFontHeight(f);
+        var tf = Graphics.FONT_GLANCE;
+        var bf = Graphics.FONT_GLANCE;
+        var th = Graphics.getFontAscent(tf) + 2; // native glances set rows by ascent, not full font height
+        var bh = Graphics.getFontAscent(bf) + 2;
         var ref = LastRead.ref();
         var head;
         var body;
@@ -41,27 +38,46 @@ class BsbGlanceView extends WatchUi.GlanceView {
             head = Votd.REFS[i] as Lang.String;
             body = Votd.TEXTS[i] as Lang.String;
         }
-        var room = (w * SAFE_FRAC).toNumber();
-        var maxRows = h / fh - 1;
-        if (maxRows < 1) {
-            maxRows = 1;
+        if (dc.getTextWidthInPixels(head, tf) > w) {
+            head = shortRef(dc, head, tf, w);
         }
-        if (maxRows > 3) {
-            maxRows = 3;
+        // POKE: GLANCE_ROWS — verse rows under the title (1-2, as many as the DC holds).
+        var rowsFit = (h - th) / bh;
+        if (rowsFit > 2) {
+            rowsFit = 2;
         }
-        var rows = wrap(dc, body, f, room, maxRows);
-        var total = fh * (1 + rows.size());
-        var y = (h - total) / 2;
-        if (y < 0) {
-            y = 0;
+        if (rowsFit < 1) {
+            rowsFit = 1;
         }
-        dc.setColor(0xFFAA55, Graphics.COLOR_TRANSPARENT); // gold (MIP-safe)
-        dc.drawText(w / 2, y, f, head, Graphics.TEXT_JUSTIFY_CENTER);
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        var rows = body.length() > 0 ? wrap(dc, body, bf, w, rowsFit) : [] as Lang.Array;
+        var total = th + bh * rows.size();
+        var y = (h - total) / 2 - (dc.getFontHeight(tf) - Graphics.getFontAscent(tf)) / 2;
+        var ds = System.getDeviceSettings();
+        var amoled = (ds has :requiresBurnInProtection) && ds.requiresBurnInProtection;
+        dc.setColor(amoled ? 0xC89D54 : 0xFFAA55, Graphics.COLOR_TRANSPARENT); // gold; MIP nearest
+        dc.drawText(0, y, tf, head, Graphics.TEXT_JUSTIFY_LEFT);
+        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
         var r;
         for (r = 0; r < rows.size(); r++) {
-            dc.drawText(w / 2, y + fh * (r + 1), f, rows[r] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(0, y + th + bh * r, bf, rows[r] as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);
         }
+    }
+
+    //! Last resort when "Book c:v" is wider than the DC: shorten the book word (logged).
+    function shortRef(dc as Graphics.Dc, head as Lang.String, f as Graphics.FontDefinition,
+                      w as Lang.Number) as Lang.String {
+        var k = lastSpace(head);
+        if (k <= 0) {
+            return head;
+        }
+        var book = head.substring(0, k);
+        var cv = head.substring(k, head.length());
+        var n = book.length() - 1;
+        while (n > 1 && dc.getTextWidthInPixels(book.substring(0, n) + "." + cv, f) > w) {
+            n--;
+        }
+        System.println("NOTE glance ref shortened: " + head);
+        return book.substring(0, n) + "." + cv;
     }
 
     //! Greedy word wrap into <= maxRows rows of width <= room. If words remain, the last row

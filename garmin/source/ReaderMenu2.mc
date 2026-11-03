@@ -24,12 +24,12 @@ module ReaderMenu2 {
         var verse = focus[:verse] as Lang.Number;
         var bookmarked = isBookmarked(book, chapter, verse);
 
-        var ref = Books.refLabel(book, chapter, verse);
+        var ref = Books.name(book) + " " + chapter + ":" + verse; // full name, no OSIS code
         var menu = UiMenu.create("Menu");
         menu.addItem(NativeLists.scrollItem(ID_SCROLL_MODE)); // POKE: SCROLL_LABEL
         menu.addItem(UiMenu.item(
-            bookmarked ? ("Remove " + ref) : ("Bookmark " + ref),
-            null,
+            bookmarked ? "Remove bookmark" : "Bookmark verse",
+            ref,
             ID_BOOKMARK_VERSE));
         menu.addItem(UiMenu.item("Bookmarks", null, ID_BOOKMARKS_LIST));
         // Flipper 51d0ce4: Go to verse (NFC omitted — see SPEC divergences).
@@ -37,7 +37,7 @@ module ReaderMenu2 {
         menu.addItem(UiMenu.item("Jump to chapter", null, ID_JUMP_CHAPTER));
         // Alternate entry path — POKE: default vs snake book list.
         menu.addItem(UiMenu.item("By Testament", null, ID_BROWSE_TESTAMENT));
-        menu.addItem(UiMenu.item("Settings", "Scrolling, theme, vibration", ID_THEME));
+        menu.addItem(UiMenu.item("Settings", "Scroll, theme, buzz", ID_THEME));
         menu.addItem(UiMenu.item("Back to reading", null, ID_BACK_READING));
 
         WatchUi.pushView(menu, new ReaderMenu2Delegate(reader), WatchUi.SLIDE_LEFT);
