@@ -58,21 +58,24 @@ function testMenuHintSeen(logger as Test.Logger) as Lang.Boolean {
     return true;
 }
 
-//! v7: headings and verse text use different faces where the watch has two weights; the
-//! heading face never depends on focus (one face per role).
+//! v8: reader verse text is the heavy face, reader headings + reference line the light face;
+//! titles and the chapter divider keep the heavy heading face. One face per role (focus = dimming).
 (:test)
 function testFacesRoles(logger as Test.Logger) as Lang.Boolean {
     var body = Faces.body();
     var head = Faces.head(Graphics.FONT_XTINY);
-    Test.assert(body != null && head != null);
+    var light = Faces.light(Graphics.FONT_XTINY);
+    Test.assert(body != null && head != null && light != null);
     if (SysWeight.BOLD) {
-        Test.assert(head == Graphics.FONT_XTINY);        // bold system font for headings
+        Test.assert(body == Graphics.FONT_XTINY);         // bold system font for verses
+        Test.assert(head == Graphics.FONT_XTINY);         // bold titles / divider
         if (Graphics has :getVectorFont) {
-            Test.assert(!(body instanceof Lang.Number));  // regular built-in face for verses
+            Test.assert(!(light instanceof Lang.Number)); // regular built-in face for headings + ref
         }
     } else {
-        Test.assert(body == Graphics.FONT_XTINY);         // body unchanged on regular watches
+        Test.assert(light == Graphics.FONT_XTINY);        // system (regular) font for headings + ref
     }
     Test.assert(Faces.body() == body);                   // cached, stable
+    Test.assert(Faces.light(Graphics.FONT_XTINY) == light);
     return true;
 }

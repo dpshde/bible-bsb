@@ -1,7 +1,9 @@
 using Toybox.Graphics;
 using Toybox.Lang;
 
-//! v7 (Dylan): headings and verse text in different weights, built-in watch faces only.
+//! v7/v8 (Dylan): headings and verse text in different weights. v8 inverts the reader:
+//! verse text heavy, section headings + reference line light (light()), chapter divider heavy.
+//! v7 notes, built-in watch faces only.
 //! Enduro 3's system fonts are all RobotoCondensed-Bold, so there the verse body moves to the
 //! watch's own RobotoCondensed-Regular (vector face) and headings keep the bold system font.
 //! Watches whose system fonts are regular keep the body and get headings in the watch's
@@ -17,12 +19,31 @@ module Faces {
     function body() as Graphics.FontType {
         if (!_bodyDone) {
             _bodyDone = true;
-            _body = SysWeight.BOLD ? vectorLike(["RobotoCondensedRegular", "RobotoRegular"], Graphics.FONT_XTINY) : null;
+            // v8 (Dylan): verse text is the heavy face. Enduro 3: the bold system font itself;
+            // regular-font watches: the watch's RobotoCondensed-Bold when it has one.
+            _body = SysWeight.BOLD ? null : vectorLike(["RobotoCondensedBold", "RobotoBold"], Graphics.FONT_XTINY);
         }
         return _body != null ? _body as Graphics.VectorFont : Graphics.FONT_XTINY;
     }
 
-    //! Face for a heading drawn at the size of `base`.
+    var _light as Lang.Dictionary = {}; // FontDefinition -> VectorFont, or false (none)
+
+    //! v8: reader section headings and the GEN x:y reference line, in the light (regular) face.
+    //! Enduro 3: the watch's RobotoCondensed-Regular; regular-font watches: the system font.
+    function light(base as Graphics.FontDefinition) as Graphics.FontType {
+        if (!SysWeight.BOLD) {
+            return base;
+        }
+        var v = _light[base];
+        if (v == null) {
+            var vf = vectorLike(["RobotoCondensedRegular", "RobotoRegular"], base);
+            v = vf != null ? vf : false;
+            _light[base] = v;
+        }
+        return (v instanceof Lang.Boolean) ? base : v as Graphics.VectorFont;
+    }
+
+    //! Heavy face for a title / landmark (list, grid, menu titles; reader chapter divider).
     function head(base as Graphics.FontDefinition) as Graphics.FontType {
         if (SysWeight.BOLD) {
             return base;

@@ -663,14 +663,14 @@ class ReaderView extends WatchUi.View {
         // POKE: HEAD_COLOR — heading gold (upstream) vs MUTED, since the bottom ref is gold too.
         dc.setColor(tc(Palette.GOLD), Palette.BG);
         if ((_headRows[0] as Lang.String).length() > 0) {
-            Faces.drawHead(dc, cx, _row1Y - yOff, headFont, _headRows[0] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, _row1Y - yOff, Faces.light(headFont), _headRows[0] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
         }
         if ((_headRows[1] as Lang.String).length() > 0) {
-            Faces.drawHead(dc, cx, _row2Y - yOff, headFont, _headRows[1] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, _row2Y - yOff, Faces.light(headFont), _headRows[1] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
         }
         var three = _headThree;
         if (three != null && (three[2] as Lang.String).length() > 0) {
-            Faces.drawHead(dc, cx, _row3Y - yOff, headFont, three[2] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, _row3Y - yOff, Faces.light(headFont), three[2] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
         }
     }
 
@@ -852,7 +852,7 @@ class ReaderView extends WatchUi.View {
             var rw = (rb as Lang.Array)[1] as Lang.Number;
             dc.drawBitmap(w / 2 - rw / 2, previewY, (rb as Lang.Array)[0] as Graphics.BufferedBitmapReference);
         } else {
-            dc.drawText(w / 2, previewY, previewFont, preview, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(w / 2, previewY, Faces.light(previewFont), preview, Graphics.TEXT_JUSTIFY_CENTER);
             if (toast == null && (Graphics has :createBufferedBitmap)) {
                 _missQ.add([-1, book, chapter, verse]);
             }
@@ -993,7 +993,7 @@ class ReaderView extends WatchUi.View {
         bdc.setColor(Palette.BG, Palette.BG);
         bdc.clear();
         bdc.setColor(Palette.GOLD, Palette.BG);
-        bdc.drawText(tw / 2, 0, f, text, Graphics.TEXT_JUSTIFY_CENTER);
+        bdc.drawText(tw / 2, 0, Faces.light(f), text, Graphics.TEXT_JUSTIFY_CENTER);
         _refBmp[rk] = [ref, tw];
     }
 
