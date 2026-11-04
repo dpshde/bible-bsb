@@ -10,6 +10,8 @@ using Toybox.WatchUi;
 const HOME_ROWS = 67;
 const HOME_MENU_ROW = 66;
 
+const HOME_TITLE = "Books";
+
 class BookListView extends WatchUi.View {
     var focus as Lang.Number = 0; // 0..65 = book (Genesis..Revelation), 66 = menu row
     // Hit-test cache from last onUpdate
@@ -43,7 +45,8 @@ class BookListView extends WatchUi.View {
         }
         _rowCount = HOME_ROWS;
         focus = PickList.takeFocus(focus, _labels as Lang.Array);
-        PickList.draw(dc, AppInfo.name(), _labels as Lang.Array, focus);
+        // POKE: HOME_TITLE — neutral until Dylan names the app (was AppInfo.name(), "Bible BSB").
+        PickList.draw(dc, HOME_TITLE, _labels as Lang.Array, focus);
         MenuHint.draw(dc, PickList.lastBottom);
         Perf.navPaint("home");
     }

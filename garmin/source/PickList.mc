@@ -173,19 +173,28 @@ module PickList {
         _room = {};
         _warmQ = [] as Lang.Array;
         _cTitleRows = [] as Lang.Array;
-        var y = titleLayout(dc, title, RoundLayout.edgeMargin(w, h)) + 4;
-        _cTitleH = y;
+        var margin = RoundLayout.edgeMargin(w, h);
+        var titleH = titleLayout(dc, title, margin) + 4 - margin; // measure only
         var rowH = dc.getFontHeight(Zoom.LIST_FONT) + Zoom.LIST_ROW_PAD;
-        // POKE: PICKLIST_BOTTOM — list window ends where the chord is >= 62% of the width.
-        var bottom = h - RoundLayout.edgeMargin(w, h);
-        while (bottom > y + rowH && RoundLayout.chordWidth(bottom, w, h) < (w * 0.62).toNumber()) {
-            bottom -= 2;
+        // 0.9.8 (Dylan, real Enduro 3: list sat high, empty band below): the window is centred on
+        // the screen with an odd row count, so the focused (middle) row is at the true centre,
+        // level with the left-edge menu mark, and rows/chevrons balance top and bottom. The
+        // title sits just above the window.
+        // POKE: PICKLIST_BOTTOM — window rows stay where the chord is >= 62% of the width.
+        var vis = 1;
+        while (true) {
+            var nv = vis + 2;
+            var t = h / 2 - (nv * rowH) / 2;
+            if (t < margin + titleH || RoundLayout.chordWidth(t, w, h) < (w * 0.62).toNumber()) {
+                break;
+            }
+            vis = nv;
         }
-        var vis = (bottom - y) / rowH;
-        if (vis < 1) {
-            vis = 1;
-        }
-        bottom = y + vis * rowH;
+        var y = h / 2 - (vis * rowH) / 2;
+        var bottom = y + vis * rowH;
+        _cTitleRows = [] as Lang.Array;
+        titleLayout(dc, title, y - titleH);
+        _cTitleH = y;
         _cTop = y;
         _cBottom = bottom;
         _cRowH = rowH;
@@ -960,7 +969,7 @@ class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
 //! About: what this is, and that it is all on the watch.
 class AboutView extends WatchUi.View {
     // POKE: ABOUT_VERSION
-    const VERSION = "0.9.7"; // About screen (was "v7" through store 0.9.4)
+    const VERSION = "0.9.8"; // About screen (was "v7" through store 0.9.4)
 
     function initialize() {
         View.initialize();

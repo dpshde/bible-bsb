@@ -23,6 +23,12 @@ module FastMenuPoke {
     // POKE: FAST_WARM_MS — after a step, the rows the next step will need are painted this long
     // later (idle), so the next press is pure bitmap copies. 0 = no warm-up.
     const WARM_MS = 60;
+    // POKE: MARQUEE_* (0.9.8) — the focused row's label / sublabel that end in "…" scroll
+    // sideways: wait DELAY, STEP_PX every TICK_MS, hold END_MS at the end, jump back, repeat.
+    const MARQUEE_DELAY_MS = 1000;
+    const MARQUEE_TICK_MS = 50;
+    const MARQUEE_STEP_PX = 3;
+    const MARQUEE_END_MS = 1000;
 }
 
 class FastMenu extends WatchUi.View {
@@ -137,7 +143,73 @@ class FastMenu extends WatchUi.View {
         WatchUi.requestUpdate();
     }
 
+    // ---- Marquee (0.9.8): focused row only; a step resets it so scrolling stays cached ------
+    var _mqTimer as Timer.Timer or Null = null;
+    var _mqItem = null;
+    var _mqEnd as Lang.Boolean = false;
+
+    function mqStop() as Void {
+        if (_mqTimer != null) {
+            (_mqTimer as Timer.Timer).stop();
+        }
+        if (_mqItem != null) {
+            _mqItem.mq = 0;
+            _mqItem = null;
+        }
+    }
+
+    function mqKick() as Void {
+        mqStop();
+        var it = focusedItem();
+        if (it != null && (it has :mq)) {
+            _mqItem = it;
+            _mqEnd = false;
+            if (_mqTimer == null) {
+                _mqTimer = new Timer.Timer();
+            }
+            (_mqTimer as Timer.Timer).start(method(:mqTick), FastMenuPoke.MARQUEE_DELAY_MS, false);
+        }
+    }
+
+    function mqTick() as Void {
+        var it = _mqItem;
+        if (it == null || WatchUi.getCurrentView()[0] != me || it != focusedItem()) {
+            mqStop();
+            return;
+        }
+        var over = it.mqOver() as Lang.Number;
+        if (over <= 0) {
+            _mqItem = null; // fits (or not laid out yet): nothing to scroll
+            return;
+        }
+        var t = _mqTimer as Timer.Timer;
+        if (_mqEnd) { // end pause over: back to the start, wait, go again
+            _mqEnd = false;
+            it.mq = 0;
+            t.start(method(:mqTick), FastMenuPoke.MARQUEE_DELAY_MS, false);
+        } else {
+            it.mq = it.mq + FastMenuPoke.MARQUEE_STEP_PX;
+            if (it.mq >= over) {
+                it.mq = over;
+                _mqEnd = true;
+                t.start(method(:mqTick), FastMenuPoke.MARQUEE_END_MS, false);
+            } else {
+                t.start(method(:mqTick), FastMenuPoke.MARQUEE_TICK_MS, false);
+            }
+        }
+        WatchUi.requestUpdate();
+    }
+
+    function onShow() as Void {
+        mqKick();
+    }
+
+    function onHide() as Void {
+        mqStop();
+    }
+
     function noteFocus() as Void {
+        mqKick();
         var it = focusedItem();
         if (it != null) {
             UiMenu.lastFocusId = (it as WatchUi.MenuItem).getId();
@@ -175,7 +247,16 @@ class FastMenu extends WatchUi.View {
                 continue;
             }
             var had = _cache[i * 2 + (i == focus ? 1 : 0)] != null;
-            var ref = rowBmp(i, i == focus, iw);
+            var ref = null;
+            if (i == focus && _mqItem != null && _mqItem.mq > 0) {
+                _pItem = items[i]; // scrolled frame: painted fresh, not cached
+                _pFocused = true;
+                ref = MenuBmp.render(iw, rowH, method(:paintPending));
+                _pItem = null;
+                had = false;
+            } else {
+                ref = rowBmp(i, i == focus, iw);
+            }
             if (ref != null) {
                 if (!had) {
                     paints++;
@@ -183,8 +264,35 @@ class FastMenu extends WatchUi.View {
                 dc.drawBitmap(gx, y, ref as Graphics.BufferedBitmapReference);
             }
         }
+        drawHint(dc, w, h);
         probe(t0, paints);
         warmSoon();
+    }
+
+    // ---- Hold hint (0.9.8): a muted footer naming the focused row's hold action ------------
+    var hinter = null; // the screen's delegate when it has holdHint(item) (FastMenuDelegate)
+
+    function drawHint(dc as Graphics.Dc, w as Lang.Number, h as Lang.Number) as Void {
+        if (hinter == null) {
+            return;
+        }
+        var it = focusedItem();
+        var s = it != null ? hinter.holdHint(it) : null;
+        if (s == null) {
+            return;
+        }
+        var f = Graphics.FONT_XTINY;
+        var fh = dc.getFontHeight(f);
+        // POKE: HOLD_HINT_Y — footer band at the bottom edge margin.
+        var y = h - fh - RoundLayout.edgeMargin(w, h) / 2;
+        var tw = dc.getTextWidthInPixels(s as Lang.String, f) + 12;
+        while (y > h / 2 && RoundLayout.chordWidth(y + fh, w, h) < tw) {
+            y -= 2; // round bezel: lift until the whole line fits the chord
+        }
+        dc.setColor(Palette.BG, Palette.BG);
+        dc.fillRectangle(0, y - 2, w, h - y + 2);
+        dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(w / 2, y, f, s as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
     }
 
     (:debug)
@@ -310,6 +418,51 @@ class FastMenuDelegate extends WatchUi.BehaviorDelegate {
         _inner = inner;
         // 0.9.7: the list follows the finger, one row per row height of travel (no wrap mid-drag).
         _drag = new DragStep(method(:dragStep), menu.rowH);
+        // 0.9.8: screens with a hold action (Bookmarks: merged range -> its verses) get START
+        // short/hold via KeyHold and touch long-press; the rest keep onKey START as before.
+        if (inner has :onHoldItem) {
+            _keys = new KeyHold(method(:activate), method(:holdFocused), null);
+        }
+        if (inner has :holdHint) {
+            menu.hinter = inner;
+        }
+    }
+
+    var _keys as KeyHold or Null = null;
+
+    function holdFocused() as Void {
+        var it = _menu.focusedItem();
+        if (it != null) {
+            Perf.nav("hold");
+            _inner.onHoldItem(it);
+        }
+    }
+
+    function onKeyPressed(evt as WatchUi.KeyEvent) as Lang.Boolean {
+        if (_keys != null) {
+            (_keys as KeyHold).pressed(evt.getKey());
+        }
+        return false;
+    }
+
+    function onKeyReleased(evt as WatchUi.KeyEvent) as Lang.Boolean {
+        if (_keys != null) {
+            (_keys as KeyHold).released(evt.getKey());
+        }
+        return false;
+    }
+
+    function onHold(evt) as Lang.Boolean {
+        if (!(_inner has :onHoldItem)) {
+            return false;
+        }
+        var i = _menu.rowAt((evt.getCoordinates() as Lang.Array)[1] as Lang.Number);
+        if (i >= 0) {
+            _menu.setFocus(i);
+            WatchUi.requestUpdate();
+            holdFocused();
+        }
+        return true;
     }
 
     function dragStep(d as Lang.Number) as Void {
@@ -344,7 +497,9 @@ class FastMenuDelegate extends WatchUi.BehaviorDelegate {
 
     function onKey(evt as WatchUi.KeyEvent) as Lang.Boolean {
         if (evt.getKey() == WatchUi.KEY_ENTER) {
-            activate();
+            if (_keys == null) {
+                activate();
+            } // else acted on at release (KeyHold): short = select, hold = onHoldItem
             return true;
         }
         return false;

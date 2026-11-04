@@ -31,7 +31,7 @@
             <iq:product id="vivoactive6"/>
         </iq:products>
         <iq:permissions>
-            <!-- Hidden Word bookmark sync (off by default; no calls unless a sync key is set
+            <!-- Selah Vault (formerly Hidden Word) bookmark sync (off by default; no calls unless a sync key is set
                  and "Sync bookmarks" is on in Garmin Connect settings). -->
             <iq:uses-permission id="Communications"/>
         </iq:permissions>

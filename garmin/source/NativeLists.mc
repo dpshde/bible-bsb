@@ -36,7 +36,7 @@ module NativeLists {
         m.addItem(UiMenu.toggle("Vibrate on scroll", "Tick on each step", "No tick",
                                 Feedback.stepEnabled(), :vibeScroll));
         // 0.9.7: sync on/off on the watch (same hwSync setting as Garmin Connect).
-        m.addItem(UiMenu.toggle(SYNC_SETTING, HwSync.hasKey() ? "Hidden Word on" : "On · no key yet",
+        m.addItem(UiMenu.toggle(SYNC_SETTING, HwSync.hasKey() ? "Selah Vault on" : "On · no key yet",
                                 "Off", HwSync.isOn(), :hwSync));
         return m;
     }
@@ -174,7 +174,7 @@ module NativeLists {
     }
 
     const SYNC_LABEL = "Sync now";
-    const SYNC_SETTING = "Hidden Word sync";
+    const SYNC_SETTING = "Selah Vault sync";
     const SYNC_OFF_LABEL = "Sync is off";
     const SYNC_NOKEY_LABEL = "Sync: no key";
     const SYNC_NOKEY_SUB = "Add it in Connect app";
@@ -304,7 +304,8 @@ module NativeLists {
         var v = Bookmarks.unpackVerse(id);
         // v9: a range opens with its verses shown gold until the first press.
         ReaderView.pendingRange = Bookmarks.isRange(id) ? [b, c, v, Bookmarks.unpackEnd(id)] : null;
-        Nav.openRef(b, c, v, true); // critique #4: Home > Grid > Reader, whatever was open before
+        // 0.9.8 (Dylan): the reader opens over the list, so BACK returns to it at the same row.
+        Nav.openRefOver(b, c, v);
     }
 
     // ---- A merged row's verses (Dylan 2026-11-03) ------------------------------------------
@@ -325,6 +326,11 @@ module NativeLists {
             if (Bookmarks.hasVerse(id)) { m.addItem(UiMenu.bookmark(Bookmarks.formatLabel(id), null, id)); }
         }
         return m;
+    }
+
+    // POKE: HOLD_VERSES_HINT — footer on a focused merged Bookmarks row.
+    function holdVersesHint() as Lang.String {
+        return MenuHint.kind() == MenuHint.KIND_UP ? "Hold START: each verse" : "Hold: each verse";
     }
 
     function openRange(rid as Lang.Number) as Void {
@@ -469,13 +475,31 @@ class BookmarksMenuDelegate extends WatchUi.Menu2InputDelegate {
             WatchUi.requestUpdate();
             return;
         }
-        // A merged row ("Psalms 23:1–4") lists its verses; a single verse opens straight away
-        // (critique #7: no Open/Remove step; remove it from the reader menu on that verse).
-        if (Bookmarks.isRange(id)) {
-            NativeLists.openRange(id);
-            return;
-        }
+        // 0.9.8 (Dylan): every row opens the reader; a merged row ("Psalms 23:1–4") opens at its
+        // first verse with the range highlighted. Its single verses are a HOLD away (onHoldItem).
         NativeLists.openBookmark(id);
+    }
+
+    //! FastMenuDelegate: START hold / touch long-press on a row.
+    function onHoldItem(item as WatchUi.MenuItem) as Void {
+        var id = item.getId();
+        if (id instanceof Lang.Number && isVerseRow(id as Lang.Number) && Bookmarks.isRange(id as Lang.Number)) {
+            NativeLists.openRange(id as Lang.Number);
+        }
+    }
+
+    //! FastMenu footer while a merged row is focused.
+    function holdHint(item) as Lang.String or Null {
+        var id = item.getId();
+        if (id instanceof Lang.Number && isVerseRow(id as Lang.Number) && Bookmarks.isRange(id as Lang.Number)) {
+            return NativeLists.holdVersesHint();
+        }
+        return null;
+    }
+
+    static function isVerseRow(id as Lang.Number) as Lang.Boolean {
+        return id != NativeLists.ID_EMPTY && id != NativeLists.ID_NOKEY
+            && id != NativeLists.ID_GENRE && id != NativeLists.ID_SYNC;
     }
 
     function onBack() as Void {

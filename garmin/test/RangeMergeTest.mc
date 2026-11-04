@@ -152,3 +152,27 @@ function testRangeSubListVerses(logger as Test.Logger) as Lang.Boolean {
     Bookmarks.save(keep);
     return true;
 }
+
+//! 0.9.8: a merged row selects into the reader; HOLD lists its verses (hint only on range rows).
+(:test)
+function testRangeHoldNotSelect(logger as Test.Logger) as Lang.Boolean {
+    var keep = Bookmarks.load();
+    Bookmarks.save([RmT.ps(23, 1), RmT.ps(23, 2), RmT.ps(23, 4)] as Lang.Array);
+    var rows = Bookmarks.mergeRows(Bookmarks.load(), null, 100);
+    var d = new BookmarksMenuDelegate();
+    Test.assert(d has :onHoldItem);
+    Test.assert(d.holdHint(new P1MenuItem("r", null, rows[0])) != null);
+    Test.assert(d.holdHint(new P1MenuItem("s", null, rows[1])) == null);
+    Test.assert(d.holdHint(new P1MenuItem("x", null, NativeLists.ID_SYNC)) == null);
+    Bookmarks.save(keep);
+    return true;
+}
+
+//! 0.9.8 marquee: only overflowing text scrolls; a fitted row reports nothing to scroll.
+(:test)
+function testMarqueeOverflow(logger as Test.Logger) as Lang.Boolean {
+    var it = new P1MenuItem("Ps", "short", 1);
+    Test.assert(it.mqOver() == 0); // not laid out yet
+    Test.assert(it.mq == 0);
+    return true;
+}

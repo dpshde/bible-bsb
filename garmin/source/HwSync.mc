@@ -300,7 +300,11 @@ module HwSync {
                           // above ~16 KB (limit=37 ok at 15,976 B, limit=40 fails at 17,266 B).
     const MAX_STEPS = 25; // cursor steps past single too-large items per sync (see onPull)
     const POST_MAX = 20;  // items per POST (server cap 100): ~9 KB of typical items; halves on -102
-    const PER_TICK = 2;   // 256-byte GCM blocks per timer tick (the watchdog trips around the third)
+    // 0.9.8 (Dylan, real Enduro 3: "UI freezes while syncing"): one item per tick, and a page's
+    // state is held in memory and written back one Storage value per tick (FLUSH_PER_TICK) at
+    // the page end. 0.9.7 re-read and re-wrote 5 values + index/record shards on every tick.
+    const PER_TICK = 1;   // 256-byte GCM blocks per timer tick (the watchdog trips around the third)
+    const FLUSH_PER_TICK = 1; // Storage.setValue calls per tick while a page is written back
     const EDITS_PER_TICK = 2; // record parse + re-serialize per tick (5 in one event tripped the watchdog)
     const MAX_BLOCKS = 2; // larger items (long notes, ~22 KB max) are skipped undecrypted: see HwMap.blocks
     const TICK_MS = 50;
@@ -379,7 +383,7 @@ module HwSync {
         if (!isOn()) { setStatus("sync off", "sync off"); return null; }
         var kt = keyText();
         if (!(kt instanceof Lang.String) || (kt as Lang.String).length() == 0) {
-            setStatus("no key: paste the sync key from Hidden Word", "no sync key");
+            setStatus("no key: paste the sync key from Selah Vault", "no sync key");
             return null;
         }
         if (_keys != null && kt.equals(_keyText)) { return _keys; }
@@ -785,6 +789,11 @@ module HwSync {
         setStatus("syncing " + clock() + ": keep the app open", "syncing...");
         seed();
         _t0 = System.getTimer();
+        _ms = null;
+        _wq = [] as Lang.Array;
+        sliceN = 0;
+        sliceMax = 0;
+        sliceTotal = 0;
         _stats = [0, 0, 0, 0, 0];
         _page = PAGE;
         _steps = 0;
@@ -905,12 +914,23 @@ module HwSync {
     }
 
     function tick() as Void {
+        var t0 = System.getTimer();
         try {
             if (_phase == :merge) { mergeSome(); }
+            else if (_phase == :flush) { flushSome(); }
             else if (_phase == :edit) { editSome(); }
             else if (_phase == :seal) { sealSome(); }
         } catch (e instanceof Lang.Exception) { crash(e); }
+        var ms = System.getTimer() - t0;
+        sliceN++;
+        sliceTotal += ms;
+        if (ms > sliceMax) { sliceMax = ms; }
     }
+
+    // Slice probe (0.9.8): timer slices this sync, their longest and total ms (HWSYNC done line).
+    var sliceN as Lang.Number = 0;
+    var sliceMax as Lang.Number = 0;
+    var sliceTotal as Lang.Number = 0;
 
     //! Local changes not yet written as records: verse ref -> on (the last change wins).
     function pendingOps() as Lang.Dictionary {
@@ -921,13 +941,20 @@ module HwSync {
     }
 
     //! Decrypt + merge pulled items, PER_TICK 256-byte blocks per tick.
+    var _ms as Lang.Array or Null = null; // page state while merging: [dirty, cur, cnt, names, hexes, ops]
+    var _wq as Lang.Array = [];           // page write-back queue: [storage key, value]
+
     function mergeSome() as Void {
-        var dirty = get(S_DIRTY, []) as Lang.Array;
-        var cur = get(S_CUR, 0);
-        var cnt = get(S_CNT, {}) as Lang.Dictionary;
-        var names = get(S_NAMES, {}) as Lang.Dictionary;
-        var hexes = get(S_HEX, {}) as Lang.Dictionary;
-        var ops = pendingOps();
+        if (_ms == null) {
+            _ms = [get(S_DIRTY, []), get(S_CUR, 0), get(S_CNT, {}), get(S_NAMES, {}), get(S_HEX, {}), pendingOps()];
+        }
+        var ms = _ms as Lang.Array;
+        var dirty = ms[0] as Lang.Array;
+        var cur = ms[1];
+        var cnt = ms[2] as Lang.Dictionary;
+        var names = ms[3] as Lang.Dictionary;
+        var hexes = ms[4] as Lang.Dictionary;
+        var ops = ms[5] as Lang.Dictionary;
         var budget = PER_TICK;
         while (budget > 0 && _queue.size() > 0) {
             var it = _queue[0] as Lang.Dictionary;
@@ -977,16 +1004,39 @@ module HwSync {
             if (top != null && e == null) { Bookmarks.syncAdd(p[0], p[1], p[2]); }
             if (top == null && e != null) { Bookmarks.syncRemove(p[0], p[1], p[2]); }
         }
-        recFlush();
-        ixFlush();
-        Application.Storage.setValue(S_DIRTY, dirty);
-        Application.Storage.setValue(S_CUR, cur);
-        Application.Storage.setValue(S_CNT, cnt);
-        Application.Storage.setValue(S_NAMES, names);
-        Application.Storage.setValue(S_HEX, hexes);
+        ms[1] = cur;
         if (_queue.size() > 0) { tickSoon(); return; }
+        // Page done: queue its writes (shards first, the cursor last) and write them a few per tick.
+        _wq = [] as Lang.Array;
+        if (_rc != null) {
+            for (var i = 0; i < SHARDS; i++) {
+                if ((_rcDirty as Lang.Array)[i] == true) { _wq.add([S_REC + i, (_rc as Lang.Array)[i]]); (_rcDirty as Lang.Array)[i] = false; }
+            }
+        }
+        var ks = _ixDirty.keys();
+        for (var j = 0; j < ks.size(); j++) { _wq.add([S_IX + ks[j], _ix[ks[j]]]); }
+        _ixDirty = {};
+        _wq.add([S_DIRTY, dirty]);
+        _wq.add([S_CNT, cnt]);
+        _wq.add([S_NAMES, names]);
+        _wq.add([S_HEX, hexes]);
+        _wq.add([S_CUR, cur]);
+        _ms = null;
+        _phase = :flush;
+        tickSoon();
+    }
+
+    function flushSome() as Void {
+        var n = 0;
+        while (n < FLUSH_PER_TICK && _wq.size() > 0) {
+            var w = _wq[0] as Lang.Array;
+            _wq = _wq.slice(1, null);
+            Application.Storage.setValue(w[0] as Lang.String, w[1] as Application.PropertyValueType);
+            n++;
+        }
+        if (_wq.size() > 0) { tickSoon(); return; }
         apply(); // one list write per page
-        if (_more) { pull(); return; }
+        if (_more) { _phase = :pull; pull(); return; }
         _phase = :edit;
         tickSoon();
     }
@@ -1105,6 +1155,7 @@ module HwSync {
         lastMs = System.getTimer() - _t0;
         Application.Storage.setValue(S_OKAT, Time.now().value());
         summary();
+        System.println("HWSYNC slices n=" + sliceN + " maxMs=" + sliceMax + " totalMs=" + sliceTotal);
         System.println("HWSYNC done ms=" + lastMs + " pulled=" + _stats[0] + " pushed=" + _stats[1] + " skipped=" + _stats[2] + " pages=" + _stats[3] + " big=" + _stats[4]
             + " bookmarks=" + Bookmarks.load().size());
         HwTestSeed.report(get(S_CNT, {}) as Lang.Dictionary, get(S_NAMES, {}) as Lang.Dictionary);

@@ -1524,6 +1524,8 @@ class ReaderView extends WatchUi.View {
     }
 
     static var pendingRange as Lang.Array or Null = null; // [book, chapter, start, end]
+    static var openOver as Lang.Boolean = false; // next openFor sits on a list (Nav.openRefOver)
+    var overList as Lang.Boolean = false;        // this reader sits on a list, not on its grid
 
     static function openFor(book as Lang.Number, chapter as Lang.Number, t as WatchUi.SlideType) as Void {
         AppState.selectedBook = book;
@@ -1535,6 +1537,8 @@ class ReaderView extends WatchUi.View {
         } else {
             (view as ReaderView).adoptPrepared();
         }
+        (view as ReaderView).overList = openOver;
+        openOver = false;
         var pr = pendingRange;
         pendingRange = null;
         if (pr != null) {

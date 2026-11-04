@@ -199,6 +199,10 @@ class ReaderMenu2Delegate extends WatchUi.Menu2InputDelegate {
             return;
         }
         if (id == ReaderMenu2.ID_JUMP_CHAPTER) {
+            if (_reader.overList) { // opened from a list: there is no grid under it
+                Nav.openBook(AppState.selectedBook);
+                return;
+            }
             Nav.pop(WatchUi.SLIDE_RIGHT); // menu
             Nav.pop(WatchUi.SLIDE_RIGHT); // reader
             return;

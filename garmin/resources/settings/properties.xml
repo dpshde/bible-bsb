@@ -1,5 +1,5 @@
 <properties>
-    <!-- Hidden Word sync (SPEC §5). Blank key or hwSync=false: the app makes no network calls. -->
+    <!-- Selah Vault (formerly Hidden Word) sync (SPEC §5). Blank key or hwSync=false: the app makes no network calls. -->
     <property id="hwServer" type="string">https://vault.selah.tools</property>
     <property id="hwKey" type="string"></property>
     <property id="hwSync" type="boolean">false</property>

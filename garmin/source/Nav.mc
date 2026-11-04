@@ -8,6 +8,7 @@ using Toybox.WatchUi;
 //! stale readers pile up in memory. One-chapter books skip the grid (Home > Reader), like openBook.
 module Nav {
     var depth as Lang.Number = 0; // views above Home
+    var readers as Lang.Array = [] as Lang.Array; // per pushed view: is it a reader (openRefOver)
 
     // POKE: SLIDE — one direction for the whole app: in from the right, out to the right.
     const IN = WatchUi.SLIDE_LEFT;
@@ -15,6 +16,7 @@ module Nav {
 
     function push(view as WatchUi.Views, delegate as WatchUi.InputDelegates, t as WatchUi.SlideType) as Void {
         depth++;
+        readers.add(view instanceof ReaderView);
         WatchUi.pushView(view, UiMenu.delegateFor(view, delegate), t);
     }
 
@@ -30,6 +32,9 @@ module Nav {
         }
         if (depth > 0) {
             depth--;
+        }
+        if (readers.size() > 0) {
+            readers = readers.slice(0, readers.size() - 1);
         }
         WatchUi.popView(t);
     }
@@ -51,6 +56,24 @@ module Nav {
             push(new ChapterGridView(), new ChapterGridDelegate(), WatchUi.SLIDE_IMMEDIATE);
         }
         ReaderView.openFor(book, chapter, animate ? IN : WatchUi.SLIDE_IMMEDIATE);
+    }
+
+    //! 0.9.8 (Dylan): open a reference ON TOP of the list it was picked from (Bookmarks, a
+    //! merged range's verses), so BACK from the reader returns to that list at the same row.
+    //! The reader's "Jump to chapter" then opens the grid (Nav.openBook) instead of popping.
+    function openRefOver(book as Lang.Number, chapter as Lang.Number, verse as Lang.Number) as Void {
+        if (readers.indexOf(true) >= 0) {
+            // A reader is already under this list (Bookmarks opened from the reader menu):
+            // reset to Home > Grid > Reader rather than stacking a second reader.
+            openRef(book, chapter, verse, true);
+            return;
+        }
+        AppState.selectedBook = book;
+        AppState.selectedChapter = chapter;
+        LastReadApp.resumeVerse = verse > 1 ? verse : 0;
+        LastReadApp.pending = [book, chapter, verse > 1 ? verse : 1];
+        ReaderView.openOver = true;
+        ReaderView.openFor(book, chapter, IN);
     }
 
     //! Open a book's chapter grid from a list (Testament, Go to…): Home > Grid(book).

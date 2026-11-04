@@ -77,7 +77,23 @@ class P1MenuItem extends WatchUi.CustomMenuItem {
             // Menu2 on newer devices; otherwise they end in "…".
             rows = _sub == null ? RoundLayout.wrapRows(dc, _label, lf, room, 2) : [fit(dc, _label, lf, room)];
         }
-        return [lf, rows, _sub != null ? fit(dc, _sub as Lang.String, sf, room) : null, sf];
+        // [4] label overflow px (one fitted row only), [5] sublabel overflow px, [6] room
+        var lo = rows.size() == 1 ? dc.getTextWidthInPixels(_label, lf) - room : 0;
+        var so = _sub != null ? dc.getTextWidthInPixels(_sub as Lang.String, sf) - room : 0;
+        return [lf, rows, _sub != null ? fit(dc, _sub as Lang.String, sf, room) : null, sf, lo, so, room];
+    }
+
+    // 0.9.8 marquee (FastMenu drives it): mq = px scrolled; mqOver = how far there is to go.
+    var mq as Lang.Number = 0;
+
+    function mqOver() as Lang.Number {
+        if (_lay == null) {
+            return 0;
+        }
+        var lay = _lay as Lang.Array;
+        var a = lay[4] as Lang.Number;
+        var b = lay[5] as Lang.Number;
+        return a > b ? a : b;
     }
 
     function draw(dc as Graphics.Dc) as Void {
@@ -122,13 +138,30 @@ class P1MenuItem extends WatchUi.CustomMenuItem {
             dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
             dc.fillRectangle(x - 7, y + 3, 3, total - 5);
         }
+        var off = focused ? mq : 0;
+        var lo = lay[4] as Lang.Number;
+        var so = lay[5] as Lang.Number;
+        if (off > 0) {
+            dc.setClip(x, 0, lay[6] as Lang.Number, h); // text area only; the focus bar stays
+        }
         dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
         for (var i = 0; i < rows.size(); i++) {
-            dc.drawText(x, y + lh * i, lf, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);
+            if (off > 0 && lo > 0) {
+                dc.drawText(x - (off < lo ? off : lo), y + lh * i, lf, _label, Graphics.TEXT_JUSTIFY_LEFT);
+            } else {
+                dc.drawText(x, y + lh * i, lf, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);
+            }
         }
         if (sub != null) {
             dc.setColor(focused ? Palette.GOLD : Palette.MUTED, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(x, y + lh * rows.size() - gap, sf, sub as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);
+            if (off > 0 && so > 0) {
+                dc.drawText(x - (off < so ? off : so), y + lh * rows.size() - gap, sf, _sub as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);
+            } else {
+                dc.drawText(x, y + lh * rows.size() - gap, sf, sub as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);
+            }
+        }
+        if (off > 0) {
+            dc.clearClip();
         }
     }
 
