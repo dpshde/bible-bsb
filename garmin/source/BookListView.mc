@@ -308,7 +308,7 @@ module MenuHint {
         } else {
             paintMark(dc, 0, 0);
         }
-        if (seen()) {
+        if (true) { // 0.9.8a (Dylan): no "Hold UP for menu" footer on home; arc + mark stay
             footTop = listBottom + 6; // the footer area still opens the menu on touch
             return;
         }

@@ -138,6 +138,8 @@ module PickList {
     var _cTitleH as Lang.Number = 0;
     var _titleBmp = null;
     var _cTop as Lang.Number = 0;
+    // POKE: CHEV_GAP (0.9.8a, Dylan) — px between the list window and its up/down chevrons.
+    const CHEV_GAP = 6;
     var _cBottom as Lang.Number = 0;
     var _cRowH as Lang.Number = 0;
     var _cVis as Lang.Number = 1;
@@ -185,7 +187,7 @@ module PickList {
         while (true) {
             var nv = vis + 2;
             var t = h / 2 - (nv * rowH) / 2;
-            if (t < margin + titleH || RoundLayout.chordWidth(t, w, h) < (w * 0.62).toNumber()) {
+            if (t < margin + titleH + CHEV_GAP || RoundLayout.chordWidth(t, w, h) < (w * 0.62).toNumber()) {
                 break;
             }
             vis = nv;
@@ -193,7 +195,7 @@ module PickList {
         var y = h / 2 - (vis * rowH) / 2;
         var bottom = y + vis * rowH;
         _cTitleRows = [] as Lang.Array;
-        titleLayout(dc, title, y - titleH);
+        titleLayout(dc, title, y - titleH - CHEV_GAP);
         _cTitleH = y;
         _cTop = y;
         _cBottom = bottom;
@@ -611,10 +613,10 @@ module PickList {
             return;
         }
         if (pxi > 0) {
-            dc.fillPolygon([[w / 2 - 5, _cTop - 1], [w / 2 + 5, _cTop - 1], [w / 2, _cTop - 5]]);
+            dc.fillPolygon([[w / 2 - 5, _cTop - 1 - CHEV_GAP], [w / 2 + 5, _cTop - 1 - CHEV_GAP], [w / 2, _cTop - 5 - CHEV_GAP]]);
         }
         if (first + _cVis < n) {
-            dc.fillPolygon([[w / 2 - 5, _cBottom], [w / 2 + 5, _cBottom], [w / 2, _cBottom + 4]]);
+            dc.fillPolygon([[w / 2 - 5, _cBottom + CHEV_GAP], [w / 2 + 5, _cBottom + CHEV_GAP], [w / 2, _cBottom + 4 + CHEV_GAP]]);
         }
     }
 
