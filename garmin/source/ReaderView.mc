@@ -1082,11 +1082,22 @@ class ReaderView extends WatchUi.View {
         var isFocus = ln.book == focusBook && ln.chapter == focusChapter && ln.verse == focusVerse;
         // Focus via color only (same system face) — BMFont weights reverted.
         var bodyColor = Palette.TEXT;
-        if (selStart > 0) {
-            // v9: selected verses gold, every other verse dimmed (same face, colour only).
+        var rangeBar = false;
+        if (selStart > 0 && selPick) {
+            // v9 range PICK: selected verses gold, every other verse dimmed (same face, colour only).
             bodyColor = inSel(ln) ? Palette.GOLD : Palette.DIM_VERSE;
+        } else if (selStart > 0) {
+            // 0.9.9a (Dylan: "not a fan of the orange" on an opened range bookmark): normal reader
+            // colours; the range is a thin neutral bar left of its lines.
+            bodyColor = isFocus ? Palette.TEXT : Palette.DIM_VERSE;
+            rangeBar = inSel(ln);
         } else if (!isFocus) {
             bodyColor = Palette.DIM_VERSE; // POKE: Palette.DIM_VERSE
+        }
+        if (rangeBar) {
+            // POKE: RANGE_BAR — 2 px muted bar in the left margin beside a bookmarked range.
+            dc.setColor(Palette.MUTED, Palette.BG);
+            dc.fillRectangle(x - 6, y + 2, 2, lineH - 2);
         }
         // POKE: WORDS_OF_JESUS — if markup existed, bodyColor → Palette.JESUS for those runs.
         var bodyFace = _bodyFont;

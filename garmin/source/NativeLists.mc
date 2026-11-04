@@ -311,75 +311,13 @@ module NativeLists {
     // ---- A merged row's verses (Dylan 2026-11-03) ------------------------------------------
     //! Selecting "Psalms 23:1–4" lists its verses (ref + light verse text); each one opens, or
     //! is deleted / recolored alone (only that verse's record is written).
-    var rangeId as Lang.Number = 0;   // the merged row the sub-list shows
-    var rangeMenu = null;
-    var verseId as Lang.Number = 0;   // the verse the action menu is for
-    const ID_OPEN = -10;
-    const ID_RECOLOR = -11;
-    const ID_DELETE = -12;
 
-    function buildRange(rid as Lang.Number) {
-        var m = UiMenu.create(Bookmarks.formatLabel(rid));
-        var s = Bookmarks.unpackVerse(rid);
-        for (var v = s; v <= Bookmarks.unpackEnd(rid); v++) {
-            var id = (rid & 0xFFFF00) | v;
-            if (Bookmarks.hasVerse(id)) { m.addItem(UiMenu.bookmark(Bookmarks.formatLabel(id), null, id)); }
-        }
-        return m;
-    }
 
-    // POKE: HOLD_VERSES_HINT — footer on a focused merged Bookmarks row.
-    function holdVersesHint() as Lang.String {
-        return MenuHint.kind() == MenuHint.KIND_UP ? "Hold START: each verse" : "Hold: each verse";
-    }
 
-    function openRange(rid as Lang.Number) as Void {
-        rangeId = rid;
-        var m = buildRange(rid);
-        rangeMenu = m;
-        Nav.push(m, new RangeVersesDelegate(), WatchUi.SLIDE_LEFT);
-    }
 
-    //! After a delete: the sub-list again without that verse (or back to Bookmarks when empty).
-    function refreshRange() as Void {
-        var left = 0;
-        for (var v = Bookmarks.unpackVerse(rangeId); v <= Bookmarks.unpackEnd(rangeId); v++) {
-            if (Bookmarks.hasVerse((rangeId & 0xFFFF00) | v)) { left++; }
-        }
-        if (left == 0) {
-            Nav.pop(WatchUi.SLIDE_RIGHT);
-            backToBookmarks();
-            return;
-        }
-        var m = buildRange(rangeId);
-        rangeMenu = m;
-        Nav.swap(m, new RangeVersesDelegate(), WatchUi.SLIDE_IMMEDIATE);
-    }
 
-    //! Leaving the sub-list: Bookmarks underneath is rebuilt when a verse changed.
-    function backToBookmarks() as Void {
-        rangeMenu = null;
-        if (bmMenu != null && listChanged(bmVer, Bookmarks.version)) { showBookmarks(rangeId); }
-    }
 
-    function openVerseActions(id as Lang.Number) as Void {
-        verseId = id;
-        var m = UiMenu.create(Bookmarks.formatLabel(id));
-        m.addItem(UiMenu.item("Open", "In the reader", ID_OPEN));
-        var c = HwSync.colorIds([id])[id];
-        m.addItem(UiMenu.item("Recolor", c != null ? HwSync.colorName(c as Lang.String) : "Pick a color", ID_RECOLOR));
-        m.addItem(UiMenu.item("Delete", "This verse only", ID_DELETE));
-        Nav.push(m, new VerseActionDelegate(), WatchUi.SLIDE_LEFT);
-    }
 
-    function openRecolor() as Void {
-        var m = UiMenu.create("Recolor");
-        var cs = HwSync.colorChoices();
-        for (var i = 0; i < cs.size(); i++) {
-            m.addItem(UiMenu.item((cs[i] as Lang.Array)[1] as Lang.String, null, (cs[i] as Lang.Array)[0]));
-        }
-        Nav.swap(m, new RecolorDelegate(), WatchUi.SLIDE_IMMEDIATE); // replaces the action menu
-    }
 
     // ---- Go to verse (section headings) -------------------------------------------------
     //! items: [title, " (a–b)", firstVerse] (firstVerse -1 = "Verse…").
@@ -476,31 +414,12 @@ class BookmarksMenuDelegate extends WatchUi.Menu2InputDelegate {
             return;
         }
         // 0.9.8 (Dylan): every row opens the reader; a merged row ("Psalms 23:1–4") opens at its
-        // first verse with the range highlighted. Its single verses are a HOLD away (onHoldItem).
+        // first verse. 0.9.9a (Dylan): no per-verse sub-list / hold action on the watch.
         NativeLists.openBookmark(id);
     }
 
-    //! FastMenuDelegate: START hold / touch long-press on a row.
-    function onHoldItem(item as WatchUi.MenuItem) as Void {
-        var id = item.getId();
-        if (id instanceof Lang.Number && isVerseRow(id as Lang.Number) && Bookmarks.isRange(id as Lang.Number)) {
-            NativeLists.openRange(id as Lang.Number);
-        }
-    }
 
-    //! FastMenu footer while a merged row is focused.
-    function holdHint(item) as Lang.String or Null {
-        var id = item.getId();
-        if (id instanceof Lang.Number && isVerseRow(id as Lang.Number) && Bookmarks.isRange(id as Lang.Number)) {
-            return NativeLists.holdVersesHint();
-        }
-        return null;
-    }
 
-    static function isVerseRow(id as Lang.Number) as Lang.Boolean {
-        return id != NativeLists.ID_EMPTY && id != NativeLists.ID_NOKEY
-            && id != NativeLists.ID_GENRE && id != NativeLists.ID_SYNC;
-    }
 
     function onBack() as Void {
         NativeLists.bmMenu = null;
@@ -508,46 +427,8 @@ class BookmarksMenuDelegate extends WatchUi.Menu2InputDelegate {
     }
 }
 
-class RangeVersesDelegate extends WatchUi.Menu2InputDelegate {
-    function initialize() { Menu2InputDelegate.initialize(); }
-    function onSelect(item as WatchUi.MenuItem) as Void {
-        Perf.nav("sel");
-        NativeLists.openVerseActions(item.getId() as Lang.Number);
-    }
-    function onBack() as Void {
-        Nav.pop(WatchUi.SLIDE_RIGHT);
-        NativeLists.backToBookmarks();
-    }
-}
 
-class VerseActionDelegate extends WatchUi.Menu2InputDelegate {
-    function initialize() { Menu2InputDelegate.initialize(); }
-    function onSelect(item as WatchUi.MenuItem) as Void {
-        Perf.nav("sel");
-        var a = item.getId();
-        if (a == NativeLists.ID_OPEN) {
-            NativeLists.rangeMenu = null;
-            NativeLists.openBookmark(NativeLists.verseId);
-        } else if (a == NativeLists.ID_RECOLOR) {
-            NativeLists.openRecolor();
-        } else if (a == NativeLists.ID_DELETE) {
-            Bookmarks.removeVerse(NativeLists.verseId);
-            Nav.pop(WatchUi.SLIDE_IMMEDIATE);
-            NativeLists.refreshRange();
-        }
-    }
-    function onBack() as Void { Nav.pop(WatchUi.SLIDE_RIGHT); }
-}
 
-class RecolorDelegate extends WatchUi.Menu2InputDelegate {
-    function initialize() { Menu2InputDelegate.initialize(); }
-    function onSelect(item as WatchUi.MenuItem) as Void {
-        Perf.nav("sel");
-        Bookmarks.recolorVerse(NativeLists.verseId, item.getId() as Lang.String);
-        Nav.pop(WatchUi.SLIDE_RIGHT);
-    }
-    function onBack() as Void { Nav.pop(WatchUi.SLIDE_RIGHT); }
-}
 
 class GenrePickDelegate extends WatchUi.Menu2InputDelegate {
     function initialize() {

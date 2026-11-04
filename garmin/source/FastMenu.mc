@@ -320,63 +320,16 @@ class FastMenu extends WatchUi.View {
                 }
             }
         }
-        var th = Perf.now();
-        drawHint(dc, w, h);
-        _hintMs = Perf.now() - th;
         probe(t0, paints);
         warmSoon();
     }
 
-    // ---- Hold hint (0.9.8): a muted footer naming the focused row's hold action ------------
-    var _hintMs as Lang.Number = 0;
-    var _hintC as Lang.Array or Null = null; // [text, bg, bitmap, y]
-    var _pHint = null;
 
-    function paintHint(dc as Graphics.Dc) as Void {
-        var p = _pHint as Lang.Array;
-        dc.setColor(Palette.BG, Palette.BG);
-        dc.clear();
-        dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
-        dc.drawText((p[2] as Lang.Number) / 2, 2, p[1] as Graphics.FontType, p[0] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
-    }
-    var hinter = null; // the screen's delegate when it has holdHint(item) (FastMenuDelegate)
-
-    function drawHint(dc as Graphics.Dc, w as Lang.Number, h as Lang.Number) as Void {
-        if (hinter == null) {
-            return;
-        }
-        var it = focusedItem();
-        var s = it != null ? hinter.holdHint(it) : null;
-        if (s == null) {
-            return;
-        }
-        var hc = _hintC;
-        if (hc != null && (hc[0] as Lang.String).equals(s) && hc[1] == Palette.BG
-            && ((hc[2] as Graphics.BufferedBitmapReference).get() != null)) {
-            dc.drawBitmap(0, hc[3] as Lang.Number, hc[2] as Graphics.BufferedBitmapReference);
-            return; // 0.9.8e: cached; was measured + drawn (vector font) on every frame
-        }
-        var f = Graphics.FONT_XTINY;
-        var fh = dc.getFontHeight(f);
-        // POKE: HOLD_HINT_Y — footer band at the bottom edge margin.
-        var y = h - fh - RoundLayout.edgeMargin(w, h) / 2;
-        var tw = dc.getTextWidthInPixels(s as Lang.String, f) + 12;
-        while (y > h / 2 && RoundLayout.chordWidth(y + fh, w, h) < tw) {
-            y -= 2; // round bezel: lift until the whole line fits the chord
-        }
-        _pHint = [s, f, w];
-        var ref = MenuBmp.render(w, h - y + 2, method(:paintHint));
-        _pHint = null;
-        if (ref != null) {
-            _hintC = [s, Palette.BG, ref, y - 2];
-            dc.drawBitmap(0, y - 2, ref as Graphics.BufferedBitmapReference);
-        }
-    }
 
     (:debug)
     function probe(t0 as Lang.Number, paints as Lang.Number) as Void {
         System.println("FAST ms=" + (System.getTimer() - t0) + " paints=" + paints + " f=" + focus
-            + " hint=" + _hintMs + " mq=" + (_mqItem != null ? _mqItem.mq : -1) + " t=" + System.getTimer());
+            + " mq=" + (_mqItem != null ? _mqItem.mq : -1) + " t=" + System.getTimer());
         Perf.touchFrame("menu", t0);
     }
 
@@ -503,52 +456,12 @@ class FastMenuDelegate extends WatchUi.BehaviorDelegate {
         _inner = inner;
         // 0.9.7: the list follows the finger, one row per row height of travel (no wrap mid-drag).
         _drag = new DragStep(method(:dragStep), menu.rowH);
-        // 0.9.8: screens with a hold action (Bookmarks: merged range -> its verses) get START
-        // short/hold via KeyHold and touch long-press; the rest keep onKey START as before.
-        if (inner has :onHoldItem) {
-            _keys = new KeyHold(method(:activate), method(:holdFocused), null);
-        }
-        if (inner has :holdHint) {
-            menu.hinter = inner;
-        }
     }
 
-    var _keys as KeyHold or Null = null;
 
-    function holdFocused() as Void {
-        var it = _menu.focusedItem();
-        if (it != null) {
-            Perf.nav("hold");
-            _inner.onHoldItem(it);
-        }
-    }
 
-    function onKeyPressed(evt as WatchUi.KeyEvent) as Lang.Boolean {
-        if (_keys != null) {
-            (_keys as KeyHold).pressed(evt.getKey());
-        }
-        return false;
-    }
 
-    function onKeyReleased(evt as WatchUi.KeyEvent) as Lang.Boolean {
-        if (_keys != null) {
-            (_keys as KeyHold).released(evt.getKey());
-        }
-        return false;
-    }
 
-    function onHold(evt) as Lang.Boolean {
-        if (!(_inner has :onHoldItem)) {
-            return false;
-        }
-        var i = _menu.rowAt((evt.getCoordinates() as Lang.Array)[1] as Lang.Number);
-        if (i >= 0) {
-            _menu.setFocus(i);
-            WatchUi.requestUpdate();
-            holdFocused();
-        }
-        return true;
-    }
 
     function dragStep(d as Lang.Number) as Void {
         _menu.stepWrap(d, false);
@@ -582,9 +495,7 @@ class FastMenuDelegate extends WatchUi.BehaviorDelegate {
 
     function onKey(evt as WatchUi.KeyEvent) as Lang.Boolean {
         if (evt.getKey() == WatchUi.KEY_ENTER) {
-            if (_keys == null) {
-                activate();
-            } // else acted on at release (KeyHold): short = select, hold = onHoldItem
+            activate();
             return true;
         }
         return false;
