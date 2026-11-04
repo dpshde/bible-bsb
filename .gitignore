@@ -19,3 +19,6 @@ __pycache__/
 # Personal sideload builds: generated sync-key override (tools/make_personal_sync.sh). Never commit.
 garmin/source/PersonalSync.mc
 garmin/personal/
+garmin/tmp-personal/
+tmp-beta*/
+*.bak*

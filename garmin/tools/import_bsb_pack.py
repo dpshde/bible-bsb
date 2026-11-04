@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regenerate garmin/resources/bsb/*.json + bsb.xml + source/BsbIndex.mc from the Flipper
 bsb.pack (BSB1 header, 10-byte records <BBHHI book,chapter,csize,rawsize,offset>, heatshrink).
-Usage: git show origin/main:bible_bsb/assets/bsb.pack > /tmp/bsb.pack; python3 tools/import_bsb_pack.py /tmp/bsb.pack
+Usage: git show origin/main:bible_bsb/assets/bsb.pack > "$TMPDIR/bsb.pack"; python3 tools/import_bsb_pack.py "$TMPDIR/bsb.pack"
 Needs: pip install heatshrink2"""
 import struct, sys, os, json, heatshrink2
 here = os.path.dirname(os.path.abspath(__file__)); root = os.path.dirname(here)

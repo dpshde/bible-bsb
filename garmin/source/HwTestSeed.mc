@@ -4,7 +4,7 @@ using Toybox.System;
 using Toybox.WatchUi;
 
 //! Simulator round-trip builds only (annotation `hwtest`, excluded from every normal build): the
-//! throwaway test key comes from a resource outside the repo and is written into the app's
+//! test-library key comes from a resource outside the repo and is written into the app's
 //! settings, as if typed in Garmin Connect. Normal builds compile the empty module below.
 (:hwtest)
 module HwTestSeed {

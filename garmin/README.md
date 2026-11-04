@@ -1,27 +1,32 @@
-# Garmin Connect IQ — BSB Bible (spike)
+# Garmin Connect IQ — Bible BSB
 
-Monkey C recreation spike of the Flipper Zero `bible_bsb` app. **Docs first, thin working slice second** — intentional `// POKE:` markers for pair mode with Dylan.
+Monkey C watch app for the Berean Standard Bible, following the Flipper Zero `bible_bsb` app in
+this repo (the Flipper code is not changed from here; everything lives under `garmin/`).
+Current version: **0.9.9a** (About screen shows 0.9.9). Primary device Enduro 3; see the products
+in `manifest.xml`. Intentional `// POKE:` markers name the values meant to be tuned.
 
 ## Layout
 
 | Path | Purpose |
 |------|---------|
-| `docs/flipper-baseline.md` | Flipper screens/inputs/pack/collection/scroll axes |
-| `docs/SPEC.md` | Garmin input, snake grid, bookmarks, continuation, scroll modes, divergences, screenshot matrix |
-| `docs/PLAN.md` | Pair milestones + teach-backs + screenshot capture steps |
-| `docs/HW_SYNC.md` | Hidden Word bookmark sync: the v1 contract the watch follows, incl. the watch-only refill exception |
-| `docs/BUILD.md` | SDK install / blockers / Dylan Mac commands |
-| `docs/screens/` | Simulator PNGs (`<device>/<state>.png`) — see `MISSING.md` |
-| `source/` | App, views, SnakeGrid, Bookmarks, ContentLoader, ScrollModel, ChapterNav |
+| `docs/SPEC.md` | Input, grid, bookmarks, continuation, scroll modes, divergences from Flipper |
+| `docs/flipper-baseline.md` | The Flipper behaviour this app is measured against |
+| `docs/HW_SYNC.md` | Selah Vault bookmark sync: current state + the v1 contract the watch follows |
+| `docs/BUILD.md` | SDK, keys, build, tests, store export, personal build |
+| `docs/EDGE_CASES.md`, `FILTER_PARITY.md`, `SETTINGS_PARITY.md`, `font-budget.md` | Reference notes |
+| `docs/screens/` | How to capture simulator screenshots; Flipper reference images |
+| `source/` | App, views (home list, chapter grid, reader, FastMenu lists), bookmarks, sync |
 | `test/` | Toybox.Test unit tests |
-| `resources/json/` | Spike chapters: John 3–4, Malachi 4, Matthew 1 stubs |
+| `resources/bsb/` | Full BSB text as JSON resources (`tools/import_bsb_pack.py`) |
+| `tools/` | Pack import, personal sync-key overlay |
 
-Do **not** change Flipper code from this spike; everything lives under `garmin/`.
+## Flow
 
-## Thin slice
-
-Open app → pick book → snake chapter grid → read John 3 → scroll into John 4 (continuation) → hold to bookmark → Bookmarks list. Toggle Verse/Line scroll from reader Select/Menu.
+Home (Books) → book → chapter grid → reader (scroll verse by verse or by line). Hold START in the
+reader bookmarks a verse; Bookmarks lists verses and merged ranges (a range opens the reader at
+its first verse). Optional Selah Vault sync keeps bookmarks in step with the phone/web library.
 
 ## Build
 
-See `docs/BUILD.md`. Requires Connect IQ SDK + device packs (Garmin login) + `developer_key.der`.
+See `docs/BUILD.md`. Needs the Connect IQ SDK, device packs and your own `developer_key.der`
+(gitignored).

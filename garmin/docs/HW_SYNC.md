@@ -1,4 +1,24 @@
-# Hidden Word sync (watch)
+# Selah Vault sync (watch)
+
+## Current state (0.9.9a)
+
+- **Name:** the service is **Selah Vault** (formerly Hidden Word); every user-visible string says
+  "Selah Vault". Internal ids keep the old prefix (`hwServer`, `hwKey`, `hwSync`, `hwStatus`,
+  `HwSync`, `HwMap`, Storage keys, the `hidden-word/v1/...` KDF labels) so existing installs and the
+  v1 wire format are unchanged.
+- **Server:** default `https://vault.selah.tools` (`hwServer`), v1 protocol below.
+- **On/off:** Garmin Connect setting "Selah Vault sync" plus the watch's own Settings toggle; the
+  Bookmarks list always ends with a sync row (`Sync now` / `Sync is off` / `Sync: no key`).
+- **Key:** never in the repo. Store builds ship the `(:keystub)` `PersonalSyncStub.mc`; a personal
+  sideload build gets its key from `tools/make_personal_sync.sh` (reads `$SELAH_VAULT_SYNC_KEY`,
+  writes a gitignored overlay under `tmp-personal/`, never echoes it).
+- **Pacing:** sync runs in timer slices of one page step or one Storage write each, so the UI keeps
+  responding (simulator: longest slice 15–19 ms on Enduro 3; one 56 ms slice seen on FR265).
+- **Tests:** `test/HwSyncTest.mc`; the `(:hwtest)` `HwTestSeed.mc` is excluded from every normal
+  build and only compiled with a separate test-library jungle that is not in this repo.
+
+The sections below are the history of how the contract was settled (0.9.1–0.9.2).
+
 
 **0.9.2 (Dylan, 2026-11-03 2:48 PM ET): every highlight of every color.** The watch's Bookmarks
 list shows all of the library's highlights, each with its color's name ("Prayer · And we know…").
@@ -31,13 +51,13 @@ The watch follows it like this:
 ## Verified
 
 - Unit tests: tie-break, duplicate-color choice, id-mismatch skip, padding, SPEC §10 vector through `openItem`.
-- Simulator round trips against a throwaway library: push, pull, remove (tombstone),
+- Simulator round trips against a dedicated test library: push, pull, remove (tombstone),
   paging with `limit=2` (6 items in 3 pages), and switching to an older duplicate color.
 
 ## Verification 2026-11-03
 
 All checks ran against hidden-word.dpshade.workers.dev (Worker 7e0a5a6f, with `limit`), writing only
-to the throwaway library. Scripts are outside the repo: `/workspace/labs/hw-verify/{probe,seed,view,health,bytes}.mjs`.
+to a dedicated test library (never a real one). The probe/seed scripts are not part of this repo.
 
 **Server**
 
@@ -78,7 +98,7 @@ to the throwaway library. Scripts are outside the repo: `/workspace/labs/hw-veri
 - Unit tests share the simulator app's storage and wipe its bookmarks. Reset the simulator after a test run before doing a round trip.
 
 **Not verified / open**
-- Refill after an epoch change or `seq` going back. That needs a DELETE of the throwaway library, which needs Dylan's yes. The code path is reviewed only.
+- Refill after an epoch change or `seq` going back. That needs a DELETE of the dedicated test library, which needs Dylan's yes. The code path is reviewed only.
 - Real watch hardware: the actual -402 limit (forum reports range from about 8 KB to 44 KB by model) and -102 on POST. Both fall back by halving, but neither has been seen on a device.
 - Pacing of `refill()` (one HMAC per bookmarked verse in one event) and `applyDelta` for very large bookmark sets has not been stress-tested.
 - A highlight record with more than 512 bytes of plaintext (several parts with quotes) is passed over. If one carries a Bookmarks part, the watch misses that bookmark.
@@ -108,7 +128,7 @@ key and error strings as below. The Bookmarks menu's **Sync now** row and the ho
 sublabel update when a sync ends (one `HwSync.onFinished` listener; the open list is rebuilt at the
 same focus when bookmarks changed).
 
-Simulator, throwaway library (55 highlights in 6 colors, from the reference client): watch
+Simulator, dedicated test library (55 highlights in 6 colors, from the reference client): watch
 `ok 8:06 PM: 55 highlights in 6 colors; read 62, sent 0` and per-color counts equal to sync.js;
 a verse bookmarked on the watch reached the library as `yellow` (sent 1); un-bookmarking deleted it
 (times UTC).
@@ -154,7 +174,7 @@ write, and settings changed mid-sync apply once that sync ends.
 - Still open: the ref -> colors index (`hwIdx`) is one Storage value (~800+ highlights); sync
   runs only while the app is open (no background sync).
 
-Simulator checks (Enduro 3, throwaway library; unit tests 80/80):
+Simulator checks (Enduro 3, dedicated test library; unit tests 80/80):
 `ok 7:08 PM: 4 verses in 'Bookmarks', 2 watch bookmarks (52 highlights, 3 named colors; read 59, sent 0)`;
 bad server URL: `error -400 (response not JSON: check server URL) 7:08 PM`;
 fresh random key: `ok 7:17 PM: server has no items for this key (empty library?)` (times UTC).

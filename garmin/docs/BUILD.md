@@ -1,61 +1,46 @@
-# Build & simulator notes
+# Build, test, export
 
-## What this cloud agent did
-
-| Step | Result |
-|------|--------|
-| Accept CIQ SDK license via `connect-iq-sdk-manager agreement accept` | OK |
-| Download SDK 9.3.0 (`sdk set ">=7.0.0"`) | OK → `~/.Garmin/ConnectIQ/Sdks/connectiq-sdk-lin-9.3.0-…` |
-| `device download -d enduro3` (and budget devices) | **BLOCKED** — requires `connect-iq-sdk-manager login` (Garmin SSO). No `GARMIN_USERNAME` / password in this environment. |
-| `monkeyc -d enduro3 …` | **Fails:** `ERROR: Invalid device id specified: 'enduro3'.` (exit 101) — no `~/.Garmin/ConnectIQ/Devices/` tree until login + `device download` |
-| Simulator screenshots under xvfb | **Not captured** — no device profiles → no sim targets. Never faked. |
-
-CLI used: [lindell/connect-iq-sdk-manager-cli](https://github.com/lindell/connect-iq-sdk-manager-cli) v0.8.4 Linux x86_64 (also works via official SDK Manager GUI).
-
-## Commands Dylan should run on his Mac
+Needs the Connect IQ SDK (9.x) with device packs (`connect-iq-sdk-manager login`, then
+`device download -m garmin/manifest.xml`) and a developer key. Keys, `bin/`, `*.prg`, `*.iq` and
+`tmp-personal/` are gitignored; never commit them.
 
 ```sh
-# 1) SDK Manager (GUI) from https://developer.garmin.com/connect-iq/sdk/
-#    — or CLI:
-curl -sL -o ciq-cli.tgz \
-  https://github.com/lindell/connect-iq-sdk-manager-cli/releases/download/v0.8.4/connect-iq-sdk-manager-cli_0.8.4_Darwin_ARM64.tar.gz
-tar xzf ciq-cli.tgz
-./connect-iq-sdk-manager agreement accept
-./connect-iq-sdk-manager login          # browser SSO
-./connect-iq-sdk-manager sdk set ">=9.0.0"
-./connect-iq-sdk-manager device download -m garmin/manifest.xml -F
+# Developer key (once)
+openssl genrsa -out developer_key.pem 4096
+openssl pkcs8 -topk8 -inform PEM -outform DER -in developer_key.pem -out developer_key.der -nocrypt
 
-export PATH="$(./connect-iq-sdk-manager sdk current-path --bin):$PATH"
-
-# 2) Developer key (once)
-openssl genrsa -out garmin/developer_key.pem 4096
-openssl pkcs8 -topk8 -inform PEM -outform DER \
-  -in garmin/developer_key.pem -out garmin/developer_key.der -nocrypt
-
-# 3) Build
 cd garmin
-monkeyc -f monkey.jungle -d enduro3 -o bin/bsb-enduro3.prg -y developer_key.der -w
-monkeyc -f monkey.jungle -d fr265 -o bin/bsb-fr265.prg -y developer_key.der -w
 
-# 4) Tests
-monkeyc -f monkey.jungle -d enduro3 -o bin/bsb-test.prg -y developer_key.der -t -w
-connectiq &   # start sim
+# Debug build for the simulator
+monkeyc -f monkey.jungle -d enduro3_sim -o bin/bsb-enduro3.prg -y ../developer_key.der -w
+connectiq &                      # simulator
+monkeydo bin/bsb-enduro3.prg enduro3
+
+# Unit tests (repeat for fr265). monkeydo exits non-zero even when all tests pass: read the
+# "PASSED (passed=N, failed=0, errors=0)" line.
+monkeyc -f monkey.jungle -d enduro3_sim -o bin/bsb-test.prg -y ../developer_key.der --unit-test -w
 monkeydo bin/bsb-test.prg enduro3 -t
 
-# 5) Screenshots → garmin/docs/screens/<device>/<state>.png
-#    Follow PLAN.md capture steps (M4–M8). Use sim Screenshot or:
-#    screencapture / Monkey Motion as you prefer.
+# Release sideload build
+monkeyc -r -w -f monkey.jungle -d enduro3 -o bin/BibleBSB-enduro3.prg -y ../developer_key.der
+
+# Store package (all manifest products). Connect IQ manifests carry no version: enter it
+# (e.g. 0.9.9) on the upload form. The app id in manifest.xml must be the listing's id.
+monkeyc -e -r -w -f monkey.jungle -o bin/BibleBSB.iq -y ../developer_key.der
 ```
 
-Linux VM (after login):
+## Personal build with a sync key
+
+The store build has no key (`PersonalSyncStub.mc`, annotation `keystub`). For your own watch:
 
 ```sh
-export PATH="$HOME/.Garmin/ConnectIQ/Sdks/$(cat $HOME/.Garmin/ConnectIQ/current-sdk.cfg)/bin:$PATH"
-# device download still needs login first
-xvfb-run -a connectiq &
-# then monkeydo …
+SELAH_VAULT_SYNC_KEY=... tools/make_personal_sync.sh          # -> tmp-personal/src (gitignored)
+monkeyc -r -w -f "monkey.jungle;tmp-personal/src/personal.jungle" -d enduro3 \
+  -o tmp-personal/BIBLEBSB.PRG -y ../developer_key.der
 ```
 
-## Screenshot gap log
+The script never prints the key and writes the file mode 600.
 
-See `docs/screens/MISSING.md` (updated when captures fail).
+## Screenshots
+
+See `docs/screens/capture-screens.md`.

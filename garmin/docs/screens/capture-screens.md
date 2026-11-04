@@ -37,7 +37,7 @@ Drive each state with the physical/sim buttons (PLAN M4–M8). Use the simulator
 | touch-reader-swipe | Swipe up/down in reader |
 | touch-reader-hold-bookmark | Long-press reader → pill |
 
-Never commit mocked PNGs. If a device cannot run, append a row to `MISSING.md`.
+Never commit mocked PNGs. If a device cannot run, note it in the PR.
 
 ## Touch + button
 

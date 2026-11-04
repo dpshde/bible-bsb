@@ -1,9 +1,8 @@
 # Settings parity: Flipper Bible BSB → Garmin (v4)
 
-Source checked: Flipper `bible_bsb/` at origin/main **c4c7a01** (v1.2), which is ahead of the local
-checkout `/workspace/dpshde-scan/bible-bsb` at fccc0b8 (clean), plus Dylan's uncommitted
-`flipper-headings-wip.patch` (bible_loader.c, bible_state.h, bible_view_reader.c,
-scripts/fetch_bsb.py: section headings only, no settings).
+Source checked: Flipper `bible_bsb/` at origin/main **c4c7a01** (v1.2), plus a then-uncommitted section-headings
+change (bible_loader.c, bible_state.h, bible_view_reader.c, scripts/fetch_bsb.py: headings only,
+no settings).
 
 **Finding:** the Flipper app has **no Settings screen and no user preferences**. The source has
 no settings view, config file or toggle. It persists only `last_read.bin` (book, chapter,

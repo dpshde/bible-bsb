@@ -215,13 +215,28 @@ module Perf {
     function navPaint(where as Lang.String) as Void {
     }
 
-    //! Fallback log (abbreviations etc.): println in every build so a device log shows it.
+    //! Console log: debug builds only (release builds compile it to nothing).
+    (:debug)
+    function log(msg as Lang.String) as Void {
+        System.println(msg);
+    }
+
+    (:release)
+    function log(msg as Lang.String) as Void {
+    }
+
+    //! One-time notes (abbreviations etc.), debug builds only.
     var _noted as Lang.Dictionary = {};
 
+    (:debug)
     function note(msg as Lang.String) as Void {
         if (_noted[msg] == null) {
             _noted[msg] = true;
             System.println("NOTE " + msg);
         }
+    }
+
+    (:release)
+    function note(msg as Lang.String) as Void {
     }
 }

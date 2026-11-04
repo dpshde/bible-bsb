@@ -77,7 +77,6 @@ class BsbGlanceView extends WatchUi.GlanceView {
         while (n > 1 && dc.getTextWidthInPixels(book.substring(0, n) + "." + cv, f) > w) {
             n--;
         }
-        System.println("NOTE glance ref shortened: " + head);
         return book.substring(0, n) + "." + cv;
     }
 

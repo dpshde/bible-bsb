@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Personal sideload build: writes PersonalSync.mc (sync key from $SELAH_VAULT_SYNC_KEY) plus a
-# jungle overlay into OUTDIR (default /workspace/labs/garmin/tmp-personal/src, mode 700), OUTSIDE
-# the repo. The key is never echoed or logged; the file is mode 600.
+# jungle overlay into OUTDIR (default ./tmp-personal/src under garmin/, gitignored, mode 700).
+# The key is never echoed or logged; the file is mode 600.
 # usage: SELAH_VAULT_SYNC_KEY=... tools/make_personal_sync.sh [OUTDIR]
 #   then: monkeyc -f "monkey.jungle;OUTDIR/personal.jungle" -d enduro3 -r ...
 set -euo pipefail
-OUT=${1:-/workspace/labs/garmin/tmp-personal/src}
+OUT=${1:-$(cd "$(dirname "$0")/.." && pwd)/tmp-personal/src}
 umask 077
 mkdir -p "$OUT"; chmod 700 "$OUT"
 OUT="$OUT" python3 - <<'PY'

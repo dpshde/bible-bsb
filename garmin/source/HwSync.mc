@@ -396,11 +396,11 @@ module HwSync {
         var lib = (_keys as Lang.Array)[0] as Lang.String;
         var was = Application.Storage.getValue(S_LIB);
         if (!lib.equals(was) && !(was == null && sameLib())) {
-            System.println("HWSYNC new library: starting over");
+            Perf.log("HWSYNC new library: starting over");
             purgeSynced(); // the old library's highlights leave the watch's list; its own bookmarks stay
             wipe();
         } else if (get(S_VER, 1) != VER) {
-            System.println("HWSYNC state from 0.9.1: re-reading the library (all colors)");
+            Perf.log("HWSYNC state from 0.9.1: re-reading the library (all colors)");
             wipe();
         }
         Application.Storage.setValue(S_LIB, lib);
@@ -644,7 +644,7 @@ module HwSync {
         if (text.length() > 120) { text = text.substring(0, 120) as Lang.String; }
         if (text.equals(lastResult)) { return; }
         lastResult = text;
-        System.println("HWSYNC status: " + text);
+        Perf.log("HWSYNC status: " + text);
         _statusAt = System.getTimer();
         try { Application.Properties.setValue(PROP_STATUS, text); } catch (e) { }
     }
@@ -818,7 +818,7 @@ module HwSync {
     }
 
     function fail(code as Lang.Number) as Void {
-        System.println("HWSYNC error " + code + " in " + _phase);
+        Perf.log("HWSYNC error " + code + " in " + _phase);
         setStatus("error " + code + " (" + why(code) + ") " + clock(), "error " + code);
         stop();
     }
@@ -826,7 +826,7 @@ module HwSync {
     //! An exception inside a sync step (e.g. storage full): report it instead of crashing the app.
     function crash(e as Lang.Exception) as Void {
         var m = e.getErrorMessage();
-        System.println("HWSYNC exception in " + _phase + ": " + m);
+        Perf.log("HWSYNC exception in " + _phase + ": " + m);
         setStatus("error " + clock() + ": " + (m == null ? "exception" : m), "error");
         _queue = [];
         stop();
@@ -878,7 +878,7 @@ module HwSync {
         // ~22 KB each) can push a page past the watch's response limit. Ask for fewer and retry.
         if ((code == -402 || code == -403) && _page > 1) {
             _page = _page / 2;
-            System.println("HWSYNC page too large (" + code + "): limit -> " + _page);
+            Perf.log("HWSYNC page too large (" + code + "): limit -> " + _page);
             pull();
             return;
         }
@@ -1130,7 +1130,7 @@ module HwSync {
         if (code == -102 && _out.size() > 1) { // BLE_REQUEST_TOO_LARGE: send half; the rest stays dirty
             _post = _out.size() / 2;
             _out = _out.slice(0, _post);
-            System.println("HWSYNC request too large: " + _post + " items per POST");
+            Perf.log("HWSYNC request too large: " + _post + " items per POST");
             post();
             return;
         }
@@ -1155,8 +1155,8 @@ module HwSync {
         lastMs = System.getTimer() - _t0;
         Application.Storage.setValue(S_OKAT, Time.now().value());
         summary();
-        System.println("HWSYNC slices n=" + sliceN + " maxMs=" + sliceMax + " totalMs=" + sliceTotal);
-        System.println("HWSYNC done ms=" + lastMs + " pulled=" + _stats[0] + " pushed=" + _stats[1] + " skipped=" + _stats[2] + " pages=" + _stats[3] + " big=" + _stats[4]
+        Perf.log("HWSYNC slices n=" + sliceN + " maxMs=" + sliceMax + " totalMs=" + sliceTotal);
+        Perf.log("HWSYNC done ms=" + lastMs + " pulled=" + _stats[0] + " pushed=" + _stats[1] + " skipped=" + _stats[2] + " pages=" + _stats[3] + " big=" + _stats[4]
             + " bookmarks=" + Bookmarks.load().size());
         HwTestSeed.report(get(S_CNT, {}) as Lang.Dictionary, get(S_NAMES, {}) as Lang.Dictionary);
         _phase = :idle;

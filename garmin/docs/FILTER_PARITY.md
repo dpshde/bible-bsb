@@ -2,9 +2,8 @@
 
 Source of truth: Flipper app `bible_bsb/` at origin/main **c4c7a01** (v1.2 sticky headers):
 `bible_books.c` (`BIBLE_FILTER_LABELS`, `get_filtered_books`), `bible_view_book_filter.c`,
-`bible_view_book_list.c`. Dylan's uncommitted work was checked too:
-`flipper-headings-wip.patch` (touches bible_loader.c, bible_state.h, bible_view_reader.c,
-scripts/fetch_bsb.py; **no filter changes**) and `/workspace/dpshde-scan/bible-bsb` (clean at fccc0b8).
+`bible_view_book_list.c`. A then-uncommitted section-headings change was checked too
+(bible_loader.c, bible_state.h, bible_view_reader.c, scripts/fetch_bsb.py; **no filter changes**).
 
 | # | Flipper item | Garmin v3 item | Status | Note |
 |---|---|---|---|---|
