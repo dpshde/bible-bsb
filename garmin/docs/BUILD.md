@@ -25,7 +25,8 @@ monkeydo bin/bsb-test.prg enduro3 -t
 monkeyc -r -w -f monkey.jungle -d enduro3 -o bin/BibleBSB-enduro3.prg -y ../developer_key.der
 
 # Store package (all manifest products). Connect IQ manifests carry no version: enter it
-# (e.g. 0.9.9) on the upload form. The app id in manifest.xml must be the listing's id.
+# (e.g. 0.9.11) on the upload form. manifest.xml carries the Selah Bible listing's app id
+# (a094adfb-7efe-4192-812b-bd18732bbe6a, formerly "Bible BSB Beta"); keep it so uploads update that listing.
 monkeyc -e -r -w -f monkey.jungle -o bin/BibleBSB.iq -y ../developer_key.der
 ```
 
