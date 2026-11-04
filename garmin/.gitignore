@@ -6,3 +6,5 @@ gen/
 developer_key.pem
 developer_key.der
 .DS_Store
+release/
+logs/

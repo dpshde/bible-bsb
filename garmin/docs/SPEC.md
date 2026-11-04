@@ -52,6 +52,8 @@ Flipper (`bible_view_action_menu.c:17-21`) order: **Save to collection**, **Shar
 | 4 | Jump to chapter | *(no Flipper item — Back then grid)* | Pops reader → chapter grid |
 | 5 | Back to reading | Back to reading | Dismiss menu |
 | — | ~~Share via NFC~~ | Share via NFC | **Dropped** — see divergences |
+| — | Go to verse | Go to verse (item 3 @ 51d0ce4) | Menu2 verse list (POKE: Picker for long chapters) |
+| — | Browse by Testament | Testament→Genre (book list) | Alternate entry; snake grid stays default (POKE) |
 
 ### Long-press rules & platform constraints
 
@@ -88,13 +90,27 @@ Keep all text and focus rings inside an inscribed square inset by ~8–12% of di
 ### Fonts & wrapping
 
 - Prefer system fonts; on devices with vector/scalable fonts use a readable body size that yields **≥4 verse lines** on Enduro 3 and **≥6** on 416px AMOLED (divergence from Flipper’s ~4 lines @ 128×64).
-- Word-wrap on whitespace; long tokens ellipsize only as last resort (prefer break).
-- Reader: verse number prefix on first wrapped line of each verse (Flipper parity).
+- Word-wrap on whitespace (one `getTextWidthInPixels` per word, cached); never per-character measure (watchdog). Long tokens ellipsize only as last resort.
+- Reader: **every verse starts on a new line** (no run-on paragraph). Gold `#C89D54` inline verse number at line start (slightly smaller than body). Inter-verse gap ≈ `VERSE_GAP_FRAC` × line height (POKE: 0.4–0.5). In Verse mode, non-focused verses may use `Palette.DIM_VERSE` (POKE).
+
+### Center-band lens (round default)
+
+Geometry for diameter **D**, height **H** (also used as a rectangular band on venusq2):
+
+| Zone | Frac of H | Contents |
+|------|-----------|----------|
+| Top meta | 0–18% | Centered reference only (`JHN 3:16` OSIS; full name if it fits). Nothing else. |
+| Reading band | 20–80% | Straight-left column, width = min raw chord across the band (floor 0.75 D), clipped. Max ~4–5 lines. |
+| Bottom preview | 82–100% | Dimmed verse counter `16 / 36` **or** next-verse first words (POKE: `LENS_PREVIEW_VERSE_COUNTER`). |
+
+Progress: 1.5–2 px gold bezel arc from 12 o’clock (chapter position) + small ticks at bookmarked verses. No scrollbar.
+
+Palette (AMOLED): bg `#000000`, text `#F2EFE9`, gold `#C89D54`, muted/dim as in `Palette.mc`. Applied to grid, lists, empty states. Flipper remains 1-bit mono — see divergences.
 
 ### Scrolling & page indicators
 
-- Vertical scroll by verse-first-line (Flipper Up/Down) with fine line scroll optional on secondary axis or swipe.
-- Indicator: `verse n` or compact `Jn 3:16` in header; optional `· · ● · ·` or `3/36` only if it does not collide with round inset (POKE).
+- Line mode = one wrapped band line; Verse mode = snap so focused verse starts at band top. Content outside the band is never drawn.
+- Bottom-arc counter / bezel progress arc replace the old corner chip + scrollbar.
 
 ### Side-by-side: Flipper ASCII → Garmin layout
 
@@ -235,9 +251,8 @@ When the reader scrolls **past the final line of the current chapter**, seamless
 
 ### Divider / header between chapters
 
-- Inline compact header line, e.g. **`John 4`**, full width, subtle emphasis (underline or contrasting color on AMOLED; inverted/bold on MIP).
-- **Not** a modal, dialog, or full-screen flash.
-- Readable inside round safe inset; one line only.
+- One centered gold label (e.g. **`John 4`**) with thin `#3A3631` rules left/right, **6–8px** gap from the label, **~1 line** spacer above and below.
+- Fully inside the band chord at its y. **Not** a modal or full-screen flash.
 
 ### End of Bible
 
@@ -317,7 +332,7 @@ Everything **not** listed here should match Flipper behavior/spirit from `flippe
 | Flipper behavior | Garmin behavior | Why (hardware) | Devices |
 |------------------|-----------------|----------------|---------|
 | 128×64 mono, ~4 text lines | More verses visible; larger type | Higher res displays | All |
-| FontPrimary 6×8 bitmap | System / vector fonts where available | Readable on 280–454 px | AMOLED first; MIP best available |
+| FontPrimary 6×8 bitmap | System `Graphics.FONT_*` sizes (XTINY body, gold XTINY nums, TINY short-verse bump). Custom BMFont weighting tried in `fea84d2` then **reverted** — see `docs/font-budget.md` | CIQ system faces; BMFont trial failed Enduro 3 review | All |
 | No color | Accent focus + divider color; MIP: 1–2 muted colors if supported | AMOLED color; MIP limited palette | AMOLED full; MIP limited |
 | No always-on app mode | `onEnterSleep`/`onExitSleep`: simplify reader chrome in sleep; avoid static bright header burn-in | AOD / low-power; AMOLED burn-in | AMOLED especially; MIP opportunistic |
 | 5-col chapter D-pad (±1/±5) | Snake ±1 linear default; hold = ±row | 5-btn watches often want single-axis; touch taps still 2D | All; Enduro 3 primary |
@@ -329,15 +344,20 @@ Everything **not** listed here should match Flipper behavior/spirit from `flippe
 | NFC share / Kindled export | Omitted in spike | No Flipper NFC; CIQ comms different | — |
 | Toast software frames @30fps | Toast + `Attention.vibrate` | Haptics exist on Garmin | Devices with Attention |
 | SceneManager stack | `WatchUi.pushView`/`popView` | CIQ navigation model | All |
-| Fixed 128px column / 2px margins | Default **inscribed rectangular column** (`RoundLayout.columnRect`, ~80% width, straight left edge, centered). Alt **CENTERED_CHORD** behind `// POKE: READER_LAYOUT`. | Round faces clip chrome; curved left-anchored chords looked ragged on Enduro 3 | All; RECT default after a20df65 review |
-| Left-aligned headers / bottom hints | Centered in the row’s chord; full book name with font shrink — **no** `"Malac"` truncation | Circle radius clips left/bottom glyphs on 280px | Round primarily |
+| Fixed 128px column / 2px margins | Default **center-band lens** (`RoundLayout.lensBand`, band 20–80% H, width ≥0.75 D, straight left, clipped). RECT / CENTERED_CHORD kept behind `// POKE: READER_LAYOUT` for A/B. | Dylan rejected RECT (unused mid-band, cramped column); lens is the round reading default | All round; square uses rectangular band |
+| 1-bit mono (black/white) | AMOLED palette `#000` / `#F2EFE9` / gold `#C89D54` (+ burnt orange `#C8642A` secondary only). **No green, no deep blue** anywhere (grid focus, headers, dividers, menu). | Color watches; Flipper has no gray/gold | AMOLED primary; MIP best-effort |
+| N/A (no red-letter in Flipper UI) | Words-of-Jesus warm tint `#E8C9A0` **hook only** (`ContentLoader.hasJesusMarkup`) — spike BSB JSON has no `\wj`/red-letter spans; do not invent | Data gap | When pack grows markup |
+| Left-aligned headers / bottom hints | Top-arc OSIS meta only; bottom-arc counter/preview; bezel progress arc | Circle radius + lens zones | Round primarily |
 | N/A (Flipper had no mode chip) | No permanent `V`/`L` corner letter; ~1s centered **“Verse scroll” / “Line scroll”** banner on change (`showModeBanner`) | Corner letter was unclear on Enduro 3 | All |
-| Custom menu item sublabels OK on 128×64 | Menu2 items use **title only** (no sublabel) so round arc doesn’t clip refs | Enduro 3 Menu2 clipped `John 3:1` under the bottom curve | Round primarily |
+| Custom menu item sublabels OK on 128×64 | Menu2 items use **title only** (ref folded into bookmark title; no sublabel) | Enduro 3 Menu2 clipped `John 3:1` sublabel at left (v3/v4) | Round primarily |
 | Collection empty: `No saved passages` + `Back to home` (FontSecondary, left) | Bookmarks empty: small outline icon + `No bookmarks yet` + muted how-to hint (hold / long-press), centered in column | Same quiet secondary voice; Garmin adds icon + action hint; wording uses **bookmark** | All |
-| No chapter divider (single passage) | Continuation divider with **~1 line-height pad** above/below, centered, thin rules + accent label | Garmin continuation feature needs clear breathing room on dense round layouts | All |
-| Black toast box over text | Centered **pill** toast with dim band + ★ mark, auto-dismiss ~1s (`RoundLayout.TOAST_MS`) | Watch chrome expects transient banners; Flipper toast was a filled rect on 128×64 | All |
+| No chapter divider (single passage) | Continuation divider: **~1 line pad** above/below, thin `#3A3631` rules with 6–8px gap from **gold** centered label | v4 rules were tight to the label with wasted side space; blue label mismatched palette | All |
+| Black toast box over text | Full-screen solid scrim + single centered gold pill (`★ Bookmarked`), ~1s, then full redraw — **no** gray band | v4 pill sat on a full-width gray strip with verse bleed | All |
 | Custom ActionMenu canvas (3 items) | Native **`WatchUi.Menu2`**: Scroll mode, Bookmark toggle, Bookmarks, Jump to chapter, Back to reading | System menu look + touch/button for free; Flipper had no scroll-mode item | All |
 | Share via NFC in ActionMenu | **Omitted** from Menu2 | No Flipper NFC stack on CIQ; route.bible share is a later POKE | All |
+| ActionMenu: Save / NFC / Go to verse (51d0ce4) | Menu2: Scroll mode, Bookmark, Bookmarks, **Go to verse**, Jump to chapter, **Browse by Testament**, Back | Garmin extras for toggle + touch; NFC skipped; Go to verse = Menu2 list | All |
+| Letter / OT-NT filter + Testament→Genre | Snake book list default; **Browse by Testament** Menu2 path (OT/NT → genre → books) | Flipper 51d0ce4 genre hierarchy as alternate | All; POKE default |
+| Sticky BSB section headings (`h`) | Top-arc sticky gold title + muted ref; chapter-grid subtitle from first `h` | Official headings from bereanbible.com `bsb_usj.zip` | Bundled spike chapters |
 | D-pad only (no touch) | Full **touch map** (`onTap`/`onSwipe`/`onHold`) + `TouchGuard` anti-double-fire with buttons | Enduro 3 / Venu / VA / FR touchscreens | Touch-capable products |
 
 ### Flipper ↔ Garmin layout references
@@ -490,3 +510,12 @@ Unit-test: `lineOffsetToFocusVerse`, `snapToVerseStart`, `nextOffset(mode)`, bou
 ## 10. Out of scope for thin spike
 
 Full 1189-chapter ship, NFC, letter filter, verse-range picker UI (Flipper VerseSelect — POKE), store listing assets beyond launcher icon stub.
+
+## 11. FUTURE (logged — not in this spike)
+
+| Idea | Notes |
+|------|-------|
+| Concentric bezel dial picker | Book → chapter → verse via rotating bezel / crown; replaces or augments snake grid for bezel devices. |
+| Clause-by-clause / meditation mode | First-letter memorization aids; not a reader default. |
+
+Snake chapter grid remains required (Dylan).
