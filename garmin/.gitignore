@@ -1,0 +1,20 @@
+bin/
+gen/
+*.prg
+*.prg.debug.xml
+*.iq
+developer_key.pem
+developer_key.der
+.DS_Store
+release/
+logs/
+# Personal sync-key overlay (tools/make_personal_sync.sh), beta worktrees, local dumps
+tmp-personal/
+tmp-beta*/
+PersonalSync.mc
+/screens/
+mir/
+internal-mir/
+external-mir/
+*-settings.json
+*.bak*

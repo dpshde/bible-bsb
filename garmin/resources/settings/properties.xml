@@ -1,0 +1,8 @@
+<properties>
+    <!-- Selah Vault (formerly Hidden Word) sync (SPEC §5). Blank key or hwSync=false: the app makes no network calls. -->
+    <property id="hwServer" type="string">https://vault.selah.tools</property>
+    <property id="hwKey" type="string"></property>
+    <property id="hwSync" type="boolean">false</property>
+    <!-- Written by the watch at the end of every sync (never holds the key); read-only in Connect. -->
+    <property id="hwStatus" type="string">Not synced yet: open the app on the watch</property>
+</properties>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<strings>
+    <string id="AppName">Bible BSB</string>
+    <string id="BookmarksTitle">Bookmarks</string>
+    <string id="BookmarksEmpty">No bookmarks</string>
+    <string id="ToastBookmarked">Bookmarked</string>
+    <string id="ToastRemoved">Removed</string>
+    <string id="ToastFull">Bookmarks full</string>
+    <string id="ToastVerseScroll">Verse scroll</string>
+    <string id="ToastLineScroll">Line scroll</string>
+    <string id="MenuScrollMode">Scroll mode</string>
+    <string id="EndMarker">— End —</string>
+    <string id="ChapterUnavailable">Chapter unavailable</string>
+</strings>

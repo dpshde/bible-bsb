@@ -15,3 +15,10 @@ bible_bsb/.vscode/compile_commands.json
 __pycache__/
 *.py[cod]
 
+
+# Personal sideload builds: generated sync-key override (tools/make_personal_sync.sh). Never commit.
+garmin/source/PersonalSync.mc
+garmin/personal/
+garmin/tmp-personal/
+tmp-beta*/
+*.bak*

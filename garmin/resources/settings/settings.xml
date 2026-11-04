@@ -1,0 +1,14 @@
+<settings>
+    <setting propertyKey="@Properties.hwServer" title="@Strings.SetServer" prompt="@Strings.SetServerPrompt">
+        <settingConfig type="alphaNumeric"/>
+    </setting>
+    <setting propertyKey="@Properties.hwKey" title="@Strings.SetKey" prompt="@Strings.SetKeyPrompt">
+        <settingConfig type="password"/>
+    </setting>
+    <setting propertyKey="@Properties.hwSync" title="@Strings.SetSync">
+        <settingConfig type="boolean"/>
+    </setting>
+    <setting propertyKey="@Properties.hwStatus" title="@Strings.SetStatus">
+        <settingConfig type="alphaNumeric" readonly="true"/>
+    </setting>
+</settings>

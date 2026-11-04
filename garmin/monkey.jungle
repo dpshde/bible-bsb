@@ -1,0 +1,21 @@
+# Connect IQ jungle — BSB Bible spike
+project.manifest = manifest.xml
+
+# Base resources + sources for all devices
+base.sourcePath = source;test
+base.resourcePath = resources
+
+# Round MIP / AMOLED can later add resource overlays (POKE: per-class fonts/insets)
+# enduro3.resourcePath = resources;resources-round
+# fr265.resourcePath = resources;resources-round
+# venusq2.resourcePath = resources;resources-rectangle
+
+# Palette: MIP (64-color) devices get palette-exact gold; everyone else true gold.
+# POKE: SYS_BOLD_DEVICES — system fonts are RobotoCondensed-Bold (Faces.mc): enduro3 only.
+base.excludeAnnotations = mip;lightmenu;sysbold;hwtest;personal
+enduro3.excludeAnnotations = amoled;lightmenu;sysregular;hwtest;personal
+# POKE: LIGHT_MENU_DEVICES — Menu2 draws a white list panel on these (system default; no
+# :theme changes it), so they get the dark gold CustomMenu instead.
+vivoactive5.excludeAnnotations = mip;darkmenu;sysbold;hwtest;personal
+venu3.excludeAnnotations = mip;darkmenu;sysbold;hwtest;personal
+venusq2.excludeAnnotations = mip;darkmenu;sysbold;hwtest;personal
