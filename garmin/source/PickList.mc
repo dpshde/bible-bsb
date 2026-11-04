@@ -635,6 +635,15 @@ module PickList {
     }
 
     function drawTitleRows(dc as Graphics.Dc, w as Lang.Number) as Void {
+        if (_cTitleRows.size() == 1) {
+            // 0.9.8d (Dylan: home header looked unlike the other menus): one-line titles use the
+            // menus' own header (white, rule underneath) at the same place it measured.
+            var tr1 = _cTitleRows[0] as Lang.Array;
+            Perf.texts++;
+            FastMenu.drawHeader(dc, w, (tr1[1] as Lang.Number) + dc.getFontHeight(Zoom.MENU_TITLE_FONT) + 5,
+                                tr1[0] as Lang.String, false);
+            return;
+        }
         dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
         var t;
         for (t = 0; t < _cTitleRows.size(); t++) {

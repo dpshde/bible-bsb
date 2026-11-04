@@ -307,6 +307,12 @@ class FastMenu extends WatchUi.View {
 
     //! Same title as P1Menu.drawTitle / ThemedMenu.paintTitle (their dc is the space above row 0).
     function drawTitle(dc as Graphics.Dc, w as Lang.Number, bottom as Lang.Number) as Void {
+        drawHeader(dc, w, bottom, title, themed);
+    }
+
+    //! 0.9.8d: THE menu header (text + divider rule), shared with the home list (PickList).
+    static function drawHeader(dc as Graphics.Dc, w as Lang.Number, bottom as Lang.Number,
+                               title as Lang.String, themed as Lang.Boolean) as Void {
         var f = Zoom.MENU_TITLE_FONT;
         dc.setColor(themed ? Palette.GOLD : Palette.TEXT, Graphics.COLOR_TRANSPARENT);
         Faces.drawHead(dc, w / 2, bottom - dc.getFontHeight(f) - 5, f, title, Graphics.TEXT_JUSTIFY_CENTER);
