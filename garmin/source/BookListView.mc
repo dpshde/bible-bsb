@@ -145,6 +145,9 @@ class BookListDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onDrag(evt as WatchUi.DragEvent) as Lang.Boolean {
+        if (evt.getType() == WatchUi.DRAG_TYPE_START) {
+            Perf.touch("drag");
+        }
         return PickList.onDrag(evt);
     }
 

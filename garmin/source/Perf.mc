@@ -26,6 +26,38 @@ module Perf {
         System.println("PERF " + tag + " ms=" + (System.getTimer() - t0) + " loads=" + loads + " measures=" + measures
             + " texts=" + texts + " memKB=" + (st.usedMemory / 1024) + " peakKB=" + (peak / 1024)
             + " totalKB=" + (st.totalMemory / 1024));
+        touchFrame(tag, t0);
+    }
+
+    //! Touch probe (0.9.7): touch() at a gesture's first event (drag start / swipe),
+    //! touchFrame() at the end of the next frame prints "TOUCH <tag> -> <view> lat=<ms from the
+    //! first touch event to the end of that frame> draw=<frame ms>".
+    var touchT as Lang.Number = 0;
+    var touchTag as Lang.String = "";
+
+    (:debug)
+    function touch(tag as Lang.String) as Void {
+        if (touchT == 0) {
+            touchT = System.getTimer();
+            touchTag = tag;
+        }
+    }
+
+    (:release)
+    function touch(tag as Lang.String) as Void {
+    }
+
+    (:debug)
+    function touchFrame(where as Lang.String, t0 as Lang.Number) as Void {
+        if (touchT != 0) {
+            var t = System.getTimer();
+            System.println("TOUCH " + touchTag + " -> " + where + " lat=" + (t - touchT) + " draw=" + (t - t0));
+            touchT = 0;
+        }
+    }
+
+    (:release)
+    function touchFrame(where as Lang.String, t0 as Lang.Number) as Void {
     }
 
     //! Light probe (no memory stats): "PERF <tag> ms=<n>" — custom menu rows, title, mask.

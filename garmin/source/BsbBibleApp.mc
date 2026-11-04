@@ -37,6 +37,7 @@ class BsbBibleApp extends Application.AppBase {
         LastReadApp.restore(); // resume book/chapter/verse (Storage "last")
         _appStarted = true;
         HwSync.onFinished = new Lang.Method(NativeLists, :onSyncFinished);
+        HwSync.seedPersonal();
         HwSync.start(); // no-op (no network) unless sync is set up in Garmin Connect
         HwTestSeed.apply();
         if (GlancePreview.PREVIEW) {

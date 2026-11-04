@@ -1548,10 +1548,13 @@ class ReaderView extends WatchUi.View {
 class ReaderDelegate extends WatchUi.BehaviorDelegate {
     var _view as ReaderView;
     var _keys as KeyHold;
+    var _drag as DragStep;
 
     function initialize(view as ReaderView) {
         BehaviorDelegate.initialize();
         _view = view;
+        // POKE: READER_DRAG_PX — 0 = one page per swipe gesture (as before, just earlier).
+        _drag = new DragStep(method(:dragStep), 0);
         // Critique #3: hold START bookmarks the verse (toast); a short START opens the menu on
         // release. Critique #12: hold DOWN keeps stepping. See KeyHold for the device TODO.
         _keys = new KeyHold(method(:shortStart), method(:holdStart), method(:repeatDown));
@@ -1676,8 +1679,24 @@ class ReaderDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
+    function onDrag(evt as WatchUi.DragEvent) as Lang.Boolean {
+        if (_view.selPick) {
+            return false; // range pick: swipes extend it (onSwipe)
+        }
+        return _drag.onDrag(evt);
+    }
+
+    //! 0.9.7: a vertical drag pages as soon as the finger moves (was: on the swipe, at lift-off).
+    function dragStep(d as Lang.Number) as Void {
+        _view.clearRange();
+        step(d, true);
+    }
+
     function onSwipe(evt) as Lang.Boolean {
         var dir = evt.getDirection();
+        if (!_view.selPick && (dir == WatchUi.SWIPE_UP || dir == WatchUi.SWIPE_DOWN) && _drag.swallow()) {
+            return true; // the drag already paged
+        }
         if (_view.selPick) {
             if (dir == WatchUi.SWIPE_UP || dir == WatchUi.SWIPE_DOWN) {
                 _view.extendRange(dir == WatchUi.SWIPE_UP ? 1 : -1);

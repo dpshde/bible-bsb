@@ -291,6 +291,7 @@ module HwSync {
     const S_OPS = "hwOps";     // journal of local bookmark changes: [verse ref, on]
     const MAX_OPS = 300;       // past this the journal restarts from the whole list (S_SEEDED)
     const S_SEEDED = "hwSeed"; // the watch's own list has been journaled for this library
+    const S_PSEED = "hwPSeed"; // personal build: sync was switched on once (seedPersonal)
     const S_VER = "hwVer";     // state layout; 2 = all colors (0.9.2). Older state is rebuilt.
     const VER = 2;
     // 0.9.1 keys (Bookmarks color era), removed by wipe().
@@ -334,6 +335,37 @@ module HwSync {
         try { return Application.Properties.getValue(k); } catch (e) { return null; }
     }
 
+    //! The sync key: Garmin Connect's "Sync key" setting, else a personal build's baked-in key
+    //! (PersonalSync, generated outside the repo by tools/make_personal_sync.sh; stub: null).
+    function keyText() as Lang.String or Null {
+        var kt = prop(PROP_KEY);
+        if (kt instanceof Lang.String && (kt as Lang.String).length() > 0) { return kt as Lang.String; }
+        return PersonalSync.key();
+    }
+
+    function hasKey() as Lang.Boolean {
+        return keyText() != null;
+    }
+
+    function isOn() as Lang.Boolean {
+        return prop(PROP_ON) == true;
+    }
+
+    //! In-app Settings "Hidden Word sync" (0.9.7): writes the same hwSync setting Connect shows.
+    function setOn(on as Lang.Boolean) as Void {
+        try { Application.Properties.setValue(PROP_ON, on); } catch (e) { }
+        settingsChanged();
+    }
+
+    //! Personal builds only: turn sync on once, the first launch with a baked-in key. A sideload
+    //! keeps the watch's stored settings (0.9.5: sync off), so new defaults never reach it; later
+    //! in-app or Connect changes win (the seed never runs again).
+    function seedPersonal() as Void {
+        if (PersonalSync.key() == null || Application.Storage.getValue(S_PSEED) == true) { return; }
+        Application.Storage.setValue(S_PSEED, true);
+        try { Application.Properties.setValue(PROP_ON, true); } catch (e) { }
+    }
+
     function server() as Lang.String {
         var s = prop(PROP_SERVER);
         var t = (s instanceof Lang.String && s.length() > 0) ? s as Lang.String : "https://vault.selah.tools";
@@ -344,8 +376,8 @@ module HwSync {
     //! Keys when sync is on and the key parses; null = sync off (zero network calls).
     function keys() as Lang.Array or Null {
         if (!(Toybox has :Communications)) { setStatus("this watch can't sync", "can't sync"); return null; }
-        if (prop(PROP_ON) != true) { setStatus("sync off", "sync off"); return null; }
-        var kt = prop(PROP_KEY);
+        if (!isOn()) { setStatus("sync off", "sync off"); return null; }
+        var kt = keyText();
         if (!(kt instanceof Lang.String) || (kt as Lang.String).length() == 0) {
             setStatus("no key: paste the sync key from Hidden Word", "no sync key");
             return null;
@@ -665,7 +697,7 @@ module HwSync {
     //! "2 saved" (sync off), "2 · synced 4m ago", "2 · sync error", "2 · syncing…".
     function bookmarksLine(n as Lang.Number) as Lang.String {
         var count = n == 0 ? "None yet" : (n == 1 ? "1 saved" : n + " saved");
-        if (prop(PROP_ON) != true) { return count; }
+        if (!isOn()) { return count; }
         var lead = n + " · ";
         if (_phase != :idle) { return lead + "syncing…"; }
         if (lastResult.find("error") == 0 || lastResult.find("key") == 0 || lastResult.find("no key") == 0) { return lead + "sync error"; }
@@ -723,7 +755,7 @@ module HwSync {
     }
 
     function sig() as Lang.String {
-        return "" + prop(PROP_SERVER) + "|" + prop(PROP_ON) + "|" + prop(PROP_KEY);
+        return "" + prop(PROP_SERVER) + "|" + isOn() + "|" + keyText();
     }
 
     //! Settings changed: drop cached keys and sync (keys() starts over for a different library).

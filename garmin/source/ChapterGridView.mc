@@ -584,9 +584,12 @@ class ChapterGridView extends WatchUi.View {
 
 class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
     var _keys as KeyHold;
+    var _drag as DragStep;
 
     function initialize() {
         BehaviorDelegate.initialize();
+        // POKE: GRID_DRAG_PX — 0 = one step per swipe gesture; e.g. 30 = follow the finger.
+        _drag = new DragStep(method(:dragStep), 0);
         // START: short = open, hold = chapter bookmark; hold DOWN repeats (critique #5, #1).
         _keys = new KeyHold(method(:activate), method(:holdStart), method(:repeatDown));
     }
@@ -620,6 +623,9 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
         if (gridView().flashIdx >= 0) {
             return true; // input during the tap flash is ignored, not queued
         }
+        if (_drag.swallow()) {
+            return true; // the drag already stepped
+        }
         if (TouchGuard.consumePage()) {
             return true;
         }
@@ -632,6 +638,9 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
     function onPreviousPage() as Lang.Boolean {
         if (gridView().flashIdx >= 0) {
             return true; // input during the tap flash is ignored, not queued
+        }
+        if (_drag.swallow()) {
+            return true; // the drag already stepped
         }
         if (TouchGuard.consumePage()) {
             return true;
@@ -689,8 +698,30 @@ class ChapterGridDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
+    function onDrag(evt as WatchUi.DragEvent) as Lang.Boolean {
+        return _drag.onDrag(evt);
+    }
+
+    //! 0.9.7: a vertical drag steps as soon as the finger moves (was: on the swipe, at lift-off).
+    function dragStep(d as Lang.Number) as Void {
+        var v = gridView();
+        if (v.flashIdx >= 0) {
+            return;
+        }
+        if (d > 0) {
+            v.grid.next();
+        } else {
+            v.grid.prev();
+        }
+        Feedback.step();
+        WatchUi.requestUpdate();
+    }
+
     function onSwipe(evt) as Lang.Boolean {
         var dir = evt.getDirection();
+        if ((dir == WatchUi.SWIPE_UP || dir == WatchUi.SWIPE_DOWN) && _drag.swallow()) {
+            return true; // the drag already stepped
+        }
         // POKE: swipe moves one snake step; try whole-row (±columns) if it feels slow on Psalms.
         if (dir == WatchUi.SWIPE_UP) {
             TouchGuard.markPage();

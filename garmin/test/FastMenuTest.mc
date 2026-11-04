@@ -41,3 +41,18 @@ function testFastMenuStepWrapsAndTapRow(logger as Test.Logger) as Lang.Boolean {
     Test.assertEqual(m.rowAt(300), -1); // past the last row
     return true;
 }
+
+//! 0.9.7: committed builds carry no personal sync key (the stub); a drag never wraps the list.
+(:test)
+function testPersonalStubAndDragNoWrap(logger as Test.Logger) as Lang.Boolean {
+    Test.assert(PersonalSync.key() == null);
+    var m = new FastMenu("T", 50, false);
+    m.addItem(new P1MenuItem("A", null, 0));
+    m.addItem(new P1MenuItem("B", null, 1));
+    m.stepWrap(-1, false);
+    Test.assertEqual(m.getFocus(), 0);
+    m.stepWrap(1, false);
+    m.stepWrap(1, false);
+    Test.assertEqual(m.getFocus(), 1);
+    return true;
+}

@@ -35,6 +35,9 @@ module NativeLists {
                                 Feedback.enabled(), :vibe));
         m.addItem(UiMenu.toggle("Vibrate on scroll", "Tick on each step", "No tick",
                                 Feedback.stepEnabled(), :vibeScroll));
+        // 0.9.7: sync on/off on the watch (same hwSync setting as Garmin Connect).
+        m.addItem(UiMenu.toggle(SYNC_SETTING, HwSync.hasKey() ? "Hidden Word on" : "On · no key yet",
+                                "Off", HwSync.isOn(), :hwSync));
         return m;
     }
 
@@ -55,6 +58,8 @@ module NativeLists {
             if (on) {
                 Feedback.tick();
             }
+        } else if (id == :hwSync) {
+            HwSync.setOn(on); // settingsChanged starts a sync when it's on with a key
         } else if (id == :vibeScroll) {
             Feedback.setStepEnabled(on);
             if (on) {
@@ -114,7 +119,7 @@ module NativeLists {
     // POKE: BOOKMARKS_SHOWN — rows in the Bookmarks list (each Menu2 item costs memory; a synced
     // library can hold thousands). The rest are reachable from the reader (verse marks) and Go to.
     const SHOW_MAX = 100;
-    const ID_SYNC = -2; // "Sync now" row (only when Hidden Word sync is on): sublabel = last result
+    const ID_SYNC = -2; // "Sync now" row (0.9.7: "Sync is off" when off; ID_NOKEY without a key)
 
     function openBookmarks() as Void {
         var m = buildBookmarks();
@@ -157,8 +162,9 @@ module NativeLists {
         var si = (m as WatchUi.Menu2).findItemById(ID_SYNC);
         if (si >= 0) {
             var it = (m as WatchUi.Menu2).getItem(si) as WatchUi.MenuItem;
-            it.setLabel(SYNC_LABEL);
-            it.setSubLabel(syncSub());
+            var on = HwSync.isOn();
+            it.setLabel(on ? SYNC_LABEL : SYNC_OFF_LABEL);
+            it.setSubLabel(on ? syncSub() : "Select to turn on");
         }
         WatchUi.requestUpdate();
     }
@@ -168,6 +174,23 @@ module NativeLists {
     }
 
     const SYNC_LABEL = "Sync now";
+    const SYNC_SETTING = "Hidden Word sync";
+    const SYNC_OFF_LABEL = "Sync is off";
+    const SYNC_NOKEY_LABEL = "Sync: no key";
+    const SYNC_NOKEY_SUB = "Add it in Connect app";
+    const ID_NOKEY = -4;
+
+    //! Bookmarks' last row: "Sync now" (on), "Sync is off · Select to turn on" (key, off), or
+    //! "Sync: no key · Add it in Connect app" (no key: nothing to turn on).
+    function syncRow() {
+        if (!HwSync.hasKey()) {
+            return UiMenu.item(SYNC_NOKEY_LABEL, SYNC_NOKEY_SUB, ID_NOKEY);
+        }
+        if (!HwSync.isOn()) {
+            return UiMenu.item(SYNC_OFF_LABEL, "Select to turn on", ID_SYNC);
+        }
+        return UiMenu.item(SYNC_LABEL, syncSub(), ID_SYNC);
+    }
 
     function syncSub() as Lang.String or Null {
         var st = HwSync.shortStatus;
@@ -240,9 +263,8 @@ module NativeLists {
         if (runs.size() > head.size()) {
             m.addItem(UiMenu.item((runs.size() - head.size()) + " more", "Newest " + SHOW_MAX + " shown", ID_EMPTY));
         }
-        if (HwSync.prop(HwSync.PROP_ON) == true) {
-            m.addItem(UiMenu.item(SYNC_LABEL, syncSub(), ID_SYNC));
-        }
+        // 0.9.7: the sync row is always there, so a watch whose sync is off (or has no key) says so.
+        m.addItem(syncRow());
         return m;
     }
 
@@ -428,7 +450,7 @@ class BookmarksMenuDelegate extends WatchUi.Menu2InputDelegate {
     function onSelect(item as WatchUi.MenuItem) as Void {
         Perf.nav("sel");
         var id = item.getId() as Lang.Number;
-        if (id == NativeLists.ID_EMPTY) {
+        if (id == NativeLists.ID_EMPTY || id == NativeLists.ID_NOKEY) {
             return;
         }
         if (id == NativeLists.ID_GENRE) {
@@ -437,7 +459,12 @@ class BookmarksMenuDelegate extends WatchUi.Menu2InputDelegate {
             return;
         }
         if (id == NativeLists.ID_SYNC) {
-            HwSync.start();
+            if (!HwSync.isOn()) {
+                HwSync.setOn(true); // starts the sync (settingsChanged)
+                item.setLabel(NativeLists.SYNC_LABEL);
+            } else {
+                HwSync.start();
+            }
             item.setSubLabel(NativeLists.syncSub()); // "syncing..." now; onSyncFinished sets the result
             WatchUi.requestUpdate();
             return;

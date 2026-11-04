@@ -115,15 +115,19 @@ class FastMenu extends WatchUi.View {
 
     // ---- Steps -----------------------------------------------------------------------------
     function step(d as Lang.Number) as Void {
+        stepWrap(d, FastMenuPoke.WRAP);
+    }
+
+    function stepWrap(d as Lang.Number, wrap as Lang.Boolean) as Void {
         var n = items.size();
         if (n == 0) {
             return;
         }
         var f = focus + d;
         if (f < 0) {
-            f = FastMenuPoke.WRAP ? n - 1 : 0;
+            f = wrap ? n - 1 : 0;
         } else if (f >= n) {
-            f = FastMenuPoke.WRAP ? 0 : n - 1;
+            f = wrap ? 0 : n - 1;
         }
         if (f == focus) {
             return;
@@ -186,6 +190,7 @@ class FastMenu extends WatchUi.View {
     (:debug)
     function probe(t0 as Lang.Number, paints as Lang.Number) as Void {
         System.println("FAST ms=" + (System.getTimer() - t0) + " paints=" + paints + " t=" + System.getTimer());
+        Perf.touchFrame("menu", t0);
     }
 
     (:release)
@@ -297,14 +302,24 @@ class FastMenu extends WatchUi.View {
 class FastMenuDelegate extends WatchUi.BehaviorDelegate {
     var _menu as FastMenu;
     var _inner;
+    var _drag as DragStep;
 
     function initialize(menu as FastMenu, inner) {
         BehaviorDelegate.initialize();
         _menu = menu;
         _inner = inner;
+        // 0.9.7: the list follows the finger, one row per row height of travel (no wrap mid-drag).
+        _drag = new DragStep(method(:dragStep), menu.rowH);
+    }
+
+    function dragStep(d as Lang.Number) as Void {
+        _menu.stepWrap(d, false);
     }
 
     function onNextPage() as Lang.Boolean {
+        if (_drag.swallow()) {
+            return true;
+        }
         if (TouchGuard.consumePage()) {
             return true;
         }
@@ -313,6 +328,9 @@ class FastMenuDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onPreviousPage() as Lang.Boolean {
+        if (_drag.swallow()) {
+            return true;
+        }
         if (TouchGuard.consumePage()) {
             return true;
         }
@@ -349,9 +367,16 @@ class FastMenuDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
+    function onDrag(evt as WatchUi.DragEvent) as Lang.Boolean {
+        return _drag.onDrag(evt);
+    }
+
     function onSwipe(evt) as Lang.Boolean {
         var dir = evt.getDirection();
         if (dir == WatchUi.SWIPE_UP || dir == WatchUi.SWIPE_DOWN) {
+            if (_drag.swallow()) {
+                return true; // the drag already moved the list
+            }
             TouchGuard.markPage();
             _menu.step(dir == WatchUi.SWIPE_UP ? 1 : -1);
             return true;

@@ -960,7 +960,7 @@ class HomeMenu2Delegate extends WatchUi.Menu2InputDelegate {
 //! About: what this is, and that it is all on the watch.
 class AboutView extends WatchUi.View {
     // POKE: ABOUT_VERSION
-    const VERSION = "0.9.6"; // About screen (was "v7" through store 0.9.4)
+    const VERSION = "0.9.7"; // About screen (was "v7" through store 0.9.4)
 
     function initialize() {
         View.initialize();
