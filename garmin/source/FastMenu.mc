@@ -148,7 +148,69 @@ class FastMenu extends WatchUi.View {
     var _mqItem = null;
     var _mqEnd as Lang.Boolean = false;
 
+    // 0.9.8e (Dylan, real Enduro 3: Bookmarks laggy over range rows): a marquee frame was a
+    // fresh row repaint (vector-font text) every 50 ms. Now each overflowing line is painted
+    // ONCE into a wide strip; a frame = cached row + clipped strip blits.
+    var _strips as Lang.Array or Null = null; // [[ref, y, h, over]...] for _mqItem
+
+    function buildStrips() as Void {
+        _strips = [] as Lang.Array;
+        var g = _mqItem != null ? _mqItem.mqGeo() : null;
+        if (g == null) {
+            return;
+        }
+        var lines = (g as Lang.Array)[2] as Lang.Array;
+        for (var k = 0; k < lines.size(); k++) {
+            var ln = lines[k] as Lang.Array;
+            _pLine = ln;
+            var ref = MenuBmp.render(((g as Lang.Array)[1] as Lang.Number) + (ln[4] as Lang.Number) + 4,
+                                     ln[3] as Lang.Number, method(:paintLine));
+            _pLine = null;
+            if (ref != null) {
+                (_strips as Lang.Array).add([ref, ln[2], ln[3], ln[4]]);
+            }
+        }
+    }
+
+    var _pLine = null;
+
+    function paintLine(dc as Graphics.Dc) as Void {
+        var ln = _pLine as Lang.Array;
+        dc.setColor(Palette.BG, Palette.BG);
+        dc.clear();
+        dc.setColor(ln[5] as Lang.Number, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(0, 0, ln[0] as Graphics.FontType, ln[1] as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);
+    }
+
+    function drawStrips(dc as Graphics.Dc, gx as Lang.Number, y as Lang.Number) as Void {
+        if (_strips == null) {
+            buildStrips();
+        }
+        var g = _mqItem.mqGeo();
+        if (g == null) {
+            return;
+        }
+        var tx = gx + ((g as Lang.Array)[0] as Lang.Number);
+        var room = (g as Lang.Array)[1] as Lang.Number;
+        var off = _mqItem.mq as Lang.Number;
+        var ss = _strips as Lang.Array;
+        for (var k = 0; k < ss.size(); k++) {
+            var s = ss[k] as Lang.Array;
+            var ref = s[0] as Graphics.BufferedBitmapReference;
+            if (ref.get() == null) {
+                continue;
+            }
+            var ly = y + (s[1] as Lang.Number);
+            var lh = s[2] as Lang.Number;
+            var over = s[3] as Lang.Number;
+            dc.setClip(tx, ly, room, lh);
+            dc.drawBitmap(tx - (off < over ? off : over), ly, ref);
+            dc.clearClip();
+        }
+    }
+
     function mqStop() as Void {
+        _strips = null;
         if (_mqTimer != null) {
             (_mqTimer as Timer.Timer).stop();
         }
@@ -247,29 +309,36 @@ class FastMenu extends WatchUi.View {
                 continue;
             }
             var had = _cache[i * 2 + (i == focus ? 1 : 0)] != null;
-            var ref = null;
-            if (i == focus && _mqItem != null && _mqItem.mq > 0) {
-                _pItem = items[i]; // scrolled frame: painted fresh, not cached
-                _pFocused = true;
-                ref = MenuBmp.render(iw, rowH, method(:paintPending));
-                _pItem = null;
-                had = false;
-            } else {
-                ref = rowBmp(i, i == focus, iw);
-            }
+            var ref = rowBmp(i, i == focus, iw);
             if (ref != null) {
                 if (!had) {
                     paints++;
                 }
                 dc.drawBitmap(gx, y, ref as Graphics.BufferedBitmapReference);
+                if (i == focus && _mqItem != null && _mqItem.mq > 0) {
+                    drawStrips(dc, gx, y);
+                }
             }
         }
+        var th = Perf.now();
         drawHint(dc, w, h);
+        _hintMs = Perf.now() - th;
         probe(t0, paints);
         warmSoon();
     }
 
     // ---- Hold hint (0.9.8): a muted footer naming the focused row's hold action ------------
+    var _hintMs as Lang.Number = 0;
+    var _hintC as Lang.Array or Null = null; // [text, bg, bitmap, y]
+    var _pHint = null;
+
+    function paintHint(dc as Graphics.Dc) as Void {
+        var p = _pHint as Lang.Array;
+        dc.setColor(Palette.BG, Palette.BG);
+        dc.clear();
+        dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
+        dc.drawText((p[2] as Lang.Number) / 2, 2, p[1] as Graphics.FontType, p[0] as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+    }
     var hinter = null; // the screen's delegate when it has holdHint(item) (FastMenuDelegate)
 
     function drawHint(dc as Graphics.Dc, w as Lang.Number, h as Lang.Number) as Void {
@@ -281,6 +350,12 @@ class FastMenu extends WatchUi.View {
         if (s == null) {
             return;
         }
+        var hc = _hintC;
+        if (hc != null && (hc[0] as Lang.String).equals(s) && hc[1] == Palette.BG
+            && ((hc[2] as Graphics.BufferedBitmapReference).get() != null)) {
+            dc.drawBitmap(0, hc[3] as Lang.Number, hc[2] as Graphics.BufferedBitmapReference);
+            return; // 0.9.8e: cached; was measured + drawn (vector font) on every frame
+        }
         var f = Graphics.FONT_XTINY;
         var fh = dc.getFontHeight(f);
         // POKE: HOLD_HINT_Y — footer band at the bottom edge margin.
@@ -289,15 +364,19 @@ class FastMenu extends WatchUi.View {
         while (y > h / 2 && RoundLayout.chordWidth(y + fh, w, h) < tw) {
             y -= 2; // round bezel: lift until the whole line fits the chord
         }
-        dc.setColor(Palette.BG, Palette.BG);
-        dc.fillRectangle(0, y - 2, w, h - y + 2);
-        dc.setColor(Palette.MUTED, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w / 2, y, f, s as Lang.String, Graphics.TEXT_JUSTIFY_CENTER);
+        _pHint = [s, f, w];
+        var ref = MenuBmp.render(w, h - y + 2, method(:paintHint));
+        _pHint = null;
+        if (ref != null) {
+            _hintC = [s, Palette.BG, ref, y - 2];
+            dc.drawBitmap(0, y - 2, ref as Graphics.BufferedBitmapReference);
+        }
     }
 
     (:debug)
     function probe(t0 as Lang.Number, paints as Lang.Number) as Void {
-        System.println("FAST ms=" + (System.getTimer() - t0) + " paints=" + paints + " t=" + System.getTimer());
+        System.println("FAST ms=" + (System.getTimer() - t0) + " paints=" + paints + " f=" + focus
+            + " hint=" + _hintMs + " mq=" + (_mqItem != null ? _mqItem.mq : -1) + " t=" + System.getTimer());
         Perf.touchFrame("menu", t0);
     }
 

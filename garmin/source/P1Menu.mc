@@ -85,6 +85,11 @@ class P1MenuItem extends WatchUi.CustomMenuItem {
 
     // 0.9.8 marquee (FastMenu drives it): mq = px scrolled; mqOver = how far there is to go.
     var mq as Lang.Number = 0;
+    var _mqGeo as Lang.Array or Null = null; // [textX, room, [[font, text, y, h, over, color]...]]
+
+    function mqGeo() as Lang.Array or Null {
+        return _mqGeo;
+    }
 
     function mqOver() as Lang.Number {
         if (_lay == null) {
@@ -138,31 +143,23 @@ class P1MenuItem extends WatchUi.CustomMenuItem {
             dc.setColor(Palette.GOLD, Graphics.COLOR_TRANSPARENT);
             dc.fillRectangle(x - 7, y + 3, 3, total - 5);
         }
-        var off = focused ? mq : 0;
-        var lo = lay[4] as Lang.Number;
-        var so = lay[5] as Lang.Number;
-        if (off > 0) {
-            dc.setClip(x, 0, lay[6] as Lang.Number, h); // text area only; the focus bar stays
-        }
         dc.setColor(Palette.TEXT, Graphics.COLOR_TRANSPARENT);
         for (var i = 0; i < rows.size(); i++) {
-            if (off > 0 && lo > 0) {
-                dc.drawText(x - (off < lo ? off : lo), y + lh * i, lf, _label, Graphics.TEXT_JUSTIFY_LEFT);
-            } else {
-                dc.drawText(x, y + lh * i, lf, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);
-            }
+            dc.drawText(x, y + lh * i, lf, rows[i] as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);
         }
         if (sub != null) {
             dc.setColor(focused ? Palette.GOLD : Palette.MUTED, Graphics.COLOR_TRANSPARENT);
-            if (off > 0 && so > 0) {
-                dc.drawText(x - (off < so ? off : so), y + lh * rows.size() - gap, sf, _sub as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);
-            } else {
-                dc.drawText(x, y + lh * rows.size() - gap, sf, sub as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);
-            }
+            dc.drawText(x, y + lh * rows.size() - gap, sf, sub as Lang.String, Graphics.TEXT_JUSTIFY_LEFT);
         }
-        if (off > 0) {
-            dc.clearClip();
+        // 0.9.8e marquee geometry: the lines that overflow, for FastMenu's one-time text strips.
+        var ml = [] as Lang.Array;
+        if (rows.size() == 1 && (lay[4] as Lang.Number) > 0) {
+            ml.add([lf, _label, y, lh, lay[4], Palette.TEXT]);
         }
+        if (sub != null && (lay[5] as Lang.Number) > 0) {
+            ml.add([sf, _sub, y + lh * rows.size() - gap, dc.getFontHeight(sf), lay[5], Palette.GOLD]);
+        }
+        _mqGeo = [x, lay[6], ml];
     }
 
     function fit(dc as Graphics.Dc, s as Lang.String, f as Graphics.FontType, room as Lang.Number) as Lang.String {
