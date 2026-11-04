@@ -1,8 +1,8 @@
-# Garmin Connect IQ — Bible BSB
+# Garmin Connect IQ — Selah Bible
 
 Monkey C watch app for the Berean Standard Bible, following the Flipper Zero `bible_bsb` app in
 this repo (the Flipper code is not changed from here; everything lives under `garmin/`).
-Current version: **0.9.9a** (About screen shows 0.9.9). Primary device Enduro 3; see the products
+Store name **Selah Bible**, current version **0.9.11** (About screen). Primary device Enduro 3; see the products
 in `manifest.xml`. Intentional `// POKE:` markers name the values meant to be tuned.
 
 ## Layout

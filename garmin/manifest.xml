@@ -1,34 +1,23 @@
 <?xml version="1.0"?>
 <!--
-  Connect IQ manifest for BSB Bible spike.
+  Connect IQ manifest for Selah Bible (store app id = the former "Bible BSB Beta" listing).
   Products: Enduro 3 primary + budget lines from SPEC.
 -->
 <iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="3">
-    <iq:application id="a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    <iq:application id="a094adfb-7efe-4192-812b-bd18732bbe6a"
                     type="watch-app"
                     name="@Strings.AppName"
                     entry="BsbBibleApp"
                     launcherIcon="@Drawables.LauncherIcon"
                     minApiLevel="3.2.0">
         <iq:products>
-            <!-- Primary -->
+            <!-- Selah Bible store listing (was "Bible BSB Beta"): Dylan's watch + five targets -->
             <iq:product id="enduro3"/>
-            <!-- Forerunner class -->
-            <iq:product id="fr165"/>
-            <iq:product id="fr165m"/>
             <iq:product id="fr265"/>
-            <iq:product id="fr265s"/>
-            <iq:product id="fr965"/>
-            <!-- Venu / Sq -->
-            <iq:product id="venu2"/>
-            <iq:product id="venu2s"/>
-            <iq:product id="venu3"/>
-            <iq:product id="venu3s"/>
-            <iq:product id="venusq2"/>
-            <iq:product id="venusq2m"/>
-            <!-- Vivoactive -->
+            <iq:product id="fr165"/>
             <iq:product id="vivoactive5"/>
-            <iq:product id="vivoactive6"/>
+            <iq:product id="venu3"/>
+            <iq:product id="venusq2"/>
         </iq:products>
         <iq:permissions>
             <!-- Selah Vault (formerly Hidden Word) bookmark sync (off by default; no calls unless a sync key is set
