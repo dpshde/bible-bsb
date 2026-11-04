@@ -141,7 +141,7 @@ module PickList {
     // POKE: CHEV_GAP (0.9.8a, Dylan) — px between the list window and its up/down chevrons.
     const CHEV_GAP = 6;
     // POKE: LIST_SHIFT_PX (0.9.8b) — rows + chevrons moved down by this (280 px screen; scaled).
-    const LIST_SHIFT_PX = 12;
+    const LIST_SHIFT_PX = 24;
     var _cBottom as Lang.Number = 0;
     var _cRowH as Lang.Number = 0;
     var _cVis as Lang.Number = 1;
@@ -201,9 +201,13 @@ module PickList {
         // 0.9.8b (Dylan: "bump books list lower, more space under Books"): the title stays, the
         // rows + chevrons shift down (no longer strictly centred), bottom chevron kept on screen.
         var shift = LIST_SHIFT_PX * h / 280;
-        while (shift > 0 && h - (bottom + shift + CHEV_GAP + 4) < margin / 2) {
-            shift--;
+        // 0.9.8c: keep the full shift; if the bottom chevron would leave the safe area, show one
+        // row fewer instead.
+        while (vis > 1 && h - (bottom + shift + CHEV_GAP + 4) < margin / 2) {
+            vis--;
+            bottom -= rowH;
         }
+        Perf.note("PICKLIST shift=" + shift + " vis=" + vis);
         y += shift;
         bottom += shift;
         _cTitleH = y;
