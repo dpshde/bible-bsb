@@ -336,7 +336,7 @@ module HwSync {
 
     function server() as Lang.String {
         var s = prop(PROP_SERVER);
-        var t = (s instanceof Lang.String && s.length() > 0) ? s as Lang.String : "https://hidden-word.dpshade.workers.dev";
+        var t = (s instanceof Lang.String && s.length() > 0) ? s as Lang.String : "https://vault.selah.tools";
         while (t.length() > 0 && t.substring(t.length() - 1, null).equals("/")) { t = t.substring(0, t.length() - 1) as Lang.String; }
         return t;
     }
